@@ -1,0 +1,18 @@
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Node/Python/Rust future implementation artifacts
+node_modules/
+dist/
+build/
+target/
+.venv/
+__pycache__/
+*.pyc
+
+# Local reports
+*.sarif
+.authmap/
+.sessionscope/
