@@ -8,10 +8,11 @@ use sessionscope_detectors::DetectorRegistry;
 use sessionscope_reporters::{ReportFormat, render};
 
 use crate::commands::CommandResult;
+use crate::project_config::ProjectConfig;
 
 pub fn run(args: &[String]) -> CommandResult {
-    let mut path = PathBuf::from(".");
-    let mut format = ReportFormat::Markdown;
+    let mut path = None;
+    let mut format = None;
     let mut output = None;
     let mut include_patterns = Vec::new();
     let mut exclude_patterns = Vec::new();
@@ -22,11 +23,13 @@ pub fn run(args: &[String]) -> CommandResult {
         match args[index].as_str() {
             "--path" => {
                 index += 1;
-                path = PathBuf::from(required_value(args, index, "--path")?);
+                path = Some(PathBuf::from(required_value(args, index, "--path")?));
             }
             "--format" => {
                 index += 1;
-                format = ReportFormat::parse(required_value(args, index, "--format")?)?;
+                format = Some(ReportFormat::parse(required_value(
+                    args, index, "--format",
+                )?)?);
             }
             "--output" => {
                 index += 1;
@@ -54,7 +57,25 @@ pub fn run(args: &[String]) -> CommandResult {
         index += 1;
     }
 
-    let mut config = ScanConfig::new(path);
+    let project_config = ProjectConfig::load_default()?;
+    let scan_root = path
+        .or_else(|| project_config.first_scan_path().map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from("."));
+    let format = format
+        .or(project_config.first_format()?)
+        .unwrap_or(ReportFormat::Markdown);
+
+    let mut config = ScanConfig::new(scan_root);
+    if let Some(config_include) = project_config.include {
+        config.set_include_patterns(config_include);
+    }
+    if let Some(config_exclude) = project_config.exclude {
+        config.add_exclude_patterns(config_exclude);
+    }
+    if let Some(config_max_file_size_bytes) = project_config.max_file_size_bytes {
+        config.set_max_file_size_bytes(config_max_file_size_bytes);
+    }
+
     if !include_patterns.is_empty() {
         config.set_include_patterns(include_patterns);
     }
