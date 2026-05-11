@@ -93,9 +93,9 @@ mod tests {
 
     use sessionscope_core::{ScanConfig, scan_path};
     use sessionscope_detectors::DetectorRegistry;
-    use sessionscope_model::SkippedReason;
+    use sessionscope_model::{ArtifactType, SkippedReason};
 
-    use super::{fixture_cases, fixture_source_text};
+    use super::{fixture_cases, fixture_root, fixture_source_text};
 
     const PLACEHOLDER_JWT: &str = "PLACEHOLDER_HEADER.PLACEHOLDER_PAYLOAD.PLACEHOLDER_SIGNATURE";
     const ALLOWED_PLACEHOLDERS: &[&str] = &[
@@ -174,6 +174,54 @@ mod tests {
                         case.expected.fixture_id
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn cookie_fixtures_scan_with_builtin_cookie_detector() {
+        let cases = [
+            (
+                fixture_root()
+                    .join("express")
+                    .join("cookie-session-lifecycle"),
+                vec![
+                    (Some("session"), ArtifactType::SignedCookie),
+                    (Some("legacy_session"), ArtifactType::SessionCookie),
+                    (Some("refresh_token"), ArtifactType::Unknown),
+                ],
+            ),
+            (
+                fixture_root()
+                    .join("fastapi")
+                    .join("dependency-auth-lifecycle"),
+                vec![(Some("session"), ArtifactType::SessionCookie)],
+            ),
+        ];
+
+        for (root, expected_artifacts) in cases {
+            let report = scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display()));
+
+            assert!(
+                report.findings.is_empty(),
+                "cookie detector should not classify risk in {}",
+                root.display()
+            );
+
+            for (display_name, artifact_type) in expected_artifacts {
+                assert!(
+                    report.artifacts.iter().any(|artifact| {
+                        artifact.display_name.as_deref() == display_name
+                            && artifact.artifact_type == artifact_type
+                            && !artifact.lifecycle_evidence.store.is_empty()
+                    }),
+                    "{} should include {artifact_type:?} named {display_name:?}",
+                    root.display()
+                );
             }
         }
     }

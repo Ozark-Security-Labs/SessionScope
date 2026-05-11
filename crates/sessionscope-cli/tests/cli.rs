@@ -104,6 +104,47 @@ fn scan_accepts_include_exclude_and_max_file_size() {
 }
 
 #[test]
+fn scan_json_runs_builtin_cookie_detector() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
+    )
+    .expect("app source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json",
+    ]);
+
+    assert!(output.status.success());
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
+
+    assert_eq!(
+        parsed["findings"].as_array().expect("findings array").len(),
+        0
+    );
+    let artifacts = parsed["artifacts"].as_array().expect("artifacts array");
+    assert!(
+        artifacts.iter().any(|artifact| {
+            artifact["artifact_type"] == "signed_cookie"
+                && artifact["display_name"] == "session"
+                && !artifact["lifecycle_evidence"]["store"]
+                    .as_array()
+                    .expect("store array")
+                    .is_empty()
+        }),
+        "scan JSON should include the detected signed session cookie"
+    );
+    let serialized = String::from_utf8_lossy(&output.stdout);
+    assert!(!serialized.contains("PLACEHOLDER_RESET_TOKEN"));
+}
+
+#[test]
 fn scan_rejects_invalid_max_file_size() {
     let output = run_sessionscope(&["scan", "--max-file-size", "0"]);
 

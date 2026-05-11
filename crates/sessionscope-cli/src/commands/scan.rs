@@ -86,7 +86,7 @@ pub fn run(args: &[String]) -> CommandResult {
         config.set_max_file_size_bytes(max_file_size_bytes);
     }
 
-    let registry = Arc::new(DetectorRegistry::empty());
+    let registry = Arc::new(DetectorRegistry::builtin());
     let report = classify(scan_path(config, registry)?);
     let rendered = render(&report, format);
 
