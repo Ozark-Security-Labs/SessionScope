@@ -3,6 +3,10 @@
 SessionScope uses the `sessionscope-model` crate as its internal inventory
 model and JSON wire schema. The current schema version is `0.1.0`.
 
+Design decisions for dynamic evidence, framework defaults, confidence, and
+AuthMap-style alignment are recorded in
+[`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md).
+
 The schema is designed for defensive, offline source-code analysis. It must not
 store token values, private keys, bearer strings, cookie values, or other
 sensitive runtime data. Evidence excerpts must be sanitized before they enter

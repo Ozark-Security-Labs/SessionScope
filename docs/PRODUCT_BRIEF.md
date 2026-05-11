@@ -33,6 +33,14 @@ SessionScope focuses on lifecycle evidence rather than isolated lint rules. It m
 
 ## Open design questions
 
-- How should environment-specific cookie settings be represented?
-- How should framework defaults be modeled without overstating findings?
+These questions are resolved for `v0.1.0` in
+[`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md):
+
+- How should environment-specific cookie settings be represented? See
+  `SS-DEC-001`.
+- How should framework defaults be modeled without overstating findings? See
+  `SS-DEC-002`.
+- How should confidence levels and review-required findings be assigned? See
+  `SS-DEC-003`.
 - Should token lifecycle maps share an IR with AuthMap authorization evidence?
+  See `SS-DEC-004`.

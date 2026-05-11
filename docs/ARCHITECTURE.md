@@ -5,6 +5,10 @@ cookie, JWT, and token lifecycle behavior. It analyzes files and configuration
 in a repository, reconstructs auth artifact lifecycle evidence, classifies
 reviewable risks, and emits reports for humans and CI systems.
 
+Design decisions for dynamic settings, framework defaults, confidence, and
+AuthMap-style alignment are recorded in
+[`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md).
+
 The implementation should favor:
 
 - deterministic output for unchanged inputs
@@ -218,6 +222,10 @@ Example categories:
 Classifiers should use evidence-bound language. Missing evidence is not the
 same thing as proof of absence unless the detector has enough deterministic
 context to say so.
+
+Classifier issues should follow `SS-DEC-001`, `SS-DEC-002`, and `SS-DEC-003`
+from the design decision record when handling environment-specific behavior,
+framework defaults, confidence, and review-required findings.
 
 ### `sessionscope-reporters`
 
