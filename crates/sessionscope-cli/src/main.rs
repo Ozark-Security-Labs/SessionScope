@@ -1,4 +1,5 @@
 mod commands;
+mod project_config;
 
 use std::process::ExitCode;
 

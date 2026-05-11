@@ -5,6 +5,10 @@ cookie, JWT, and token lifecycle behavior. It analyzes files and configuration
 in a repository, reconstructs auth artifact lifecycle evidence, classifies
 reviewable risks, and emits reports for humans and CI systems.
 
+Design decisions for dynamic settings, framework defaults, confidence, and
+AuthMap-style alignment are recorded in
+[`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md).
+
 The implementation should favor:
 
 - deterministic output for unchanged inputs
@@ -160,6 +164,12 @@ Owns the scanner pipeline and operational concerns:
 
 This crate should not contain framework-specific detection rules.
 
+Repository discovery should respect `.gitignore` where practical, apply
+built-in dependency/vendor/build excludes, and apply user-provided include and
+exclude globs as repository-relative patterns. Sensitive paths such as env files
+and private-key material should be skipped before source loading even if a user
+include pattern matches them.
+
 ### `sessionscope-model`
 
 Owns stable data structures shared across the application:
@@ -212,6 +222,10 @@ Example categories:
 Classifiers should use evidence-bound language. Missing evidence is not the
 same thing as proof of absence unless the detector has enough deterministic
 context to say so.
+
+Classifier issues should follow `SS-DEC-001`, `SS-DEC-002`, and `SS-DEC-003`
+from the design decision record when handling environment-specific behavior,
+framework defaults, confidence, and review-required findings.
 
 ### `sessionscope-reporters`
 
@@ -408,6 +422,10 @@ Parse failures in one file should not abort the full scan unless the user opts
 into strict behavior. Reports should include non-sensitive skipped and failed
 file counts so reviewers understand coverage.
 
+Skipped-file reasons should describe only operational categories such as
+`unsupported`, `excluded`, `sensitive_path`, `too_large`, `binary`, and
+`read_error`. They should not include source contents or secret-bearing values.
+
 ## Trust Boundary
 
 SessionScope should never collect or print real tokens. It analyzes source code
@@ -417,6 +435,19 @@ The trust boundary should be enforced in `sessionscope-core::redaction` before
 source excerpts or structured values enter the inventory. Downstream crates
 should be designed as if inventory data is already sanitized, while still
 escaping output formats defensively.
+
+The central sanitizer redacts common bearer headers, cookie values, JWT-shaped
+strings, private-key blocks, sensitive key/value assignments, sensitive query
+parameters, sensitive claim values, and long high-entropy token-like literals.
+It should preserve review anchors such as source paths, line and column
+locations, artifact and finding IDs, lifecycle stages, claim names, and cookie
+attribute names. Redaction is intentionally conservative and best-effort; it is
+not a proof that arbitrary source text is secret-free.
+
+Stable IDs and source locations are outside the sanitizer rewrite path because
+they are needed to correlate reports. Callers must therefore construct IDs only
+from normalized non-secret facts such as detector IDs, paths, line numbers,
+artifact kinds, lifecycle stages, and sanitized local keys.
 
 ## Implementation Order
 

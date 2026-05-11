@@ -1,0 +1,18 @@
+{
+  "fixture_id": "express.cookie-session-lifecycle",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": [
+    "session_cookie:session",
+    "session_cookie:legacy_session",
+    "refresh_token_cookie:refresh_token"
+  ],
+  "expected_lifecycle_stages": ["issue", "store", "refresh", "revoke", "expire"],
+  "expected_findings": [
+    "cookie_missing_secure:legacy_session",
+    "cookie_missing_httponly:legacy_session",
+    "refresh_rotation_evidence_present",
+    "logout_revocation_evidence_present"
+  ],
+  "notes": "Covers positive secure session cookie attributes plus a legacy negative cookie and refresh/logout lifecycle signals."
+}

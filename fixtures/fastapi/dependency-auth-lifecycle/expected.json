@@ -1,0 +1,15 @@
+{
+  "fixture_id": "fastapi.dependency-auth-lifecycle",
+  "framework": "fastapi",
+  "source_files": ["app.py"],
+  "expected_artifacts": ["session_cookie:session", "access_jwt", "password_reset_token"],
+  "expected_lifecycle_stages": ["issue", "store", "validate", "revoke", "expire"],
+  "expected_findings": [
+    "cookie_secure_evidence_present",
+    "jwt_issuer_evidence_present",
+    "jwt_audience_evidence_present",
+    "reset_token_expiry_evidence_present",
+    "logout_revocation_evidence_present"
+  ],
+  "notes": "Covers FastAPI cookie storage, JWT decode claim checks, reset-token expiry, and logout revocation."
+}

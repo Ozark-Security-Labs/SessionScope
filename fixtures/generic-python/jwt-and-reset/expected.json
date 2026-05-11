@@ -1,0 +1,15 @@
+{
+  "fixture_id": "generic-python.jwt-and-reset",
+  "framework": "generic-python",
+  "source_files": ["auth.py"],
+  "expected_artifacts": ["access_jwt", "legacy_access_jwt", "password_reset_token"],
+  "expected_lifecycle_stages": ["issue", "validate", "expire"],
+  "expected_findings": [
+    "jwt_issuer_evidence_present",
+    "jwt_audience_evidence_present",
+    "jwt_expiry_evidence_present",
+    "missing_validation_evidence:verify_legacy_jwt",
+    "reset_token_single_use_evidence_present"
+  ],
+  "notes": "Covers generic Python/PyJWT issue and verify behavior plus reset-token expiry and single-use metadata."
+}

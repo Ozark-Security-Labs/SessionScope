@@ -1,0 +1,14 @@
+{
+  "fixture_id": "nextjs.route-handler-auth",
+  "framework": "nextjs",
+  "source_files": ["route.ts"],
+  "expected_artifacts": ["access_jwt", "access_cookie:access", "refresh_cookie:refresh"],
+  "expected_lifecycle_stages": ["issue", "store", "transmit", "validate", "refresh", "revoke", "expire"],
+  "expected_findings": [
+    "jwt_issuer_evidence_present",
+    "jwt_audience_evidence_present",
+    "jwt_expiry_evidence_present",
+    "logout_cookie_delete_evidence_present"
+  ],
+  "notes": "Covers Next.js route-handler style JWT issue/verify, cookie storage, refresh, and logout deletion."
+}

@@ -20,4 +20,32 @@ This repository is early-stage and design-first. Contributions should preserve t
 
 ## Development status
 
-The current repository contains initial product documentation and architecture notes. Implementation issues and milestones will be added as the project hardens.
+The current repository contains initial product documentation, architecture
+notes, and a Rust Cargo workspace scaffold.
+
+## Development setup
+
+Install the stable Rust toolchain from <https://rustup.rs/>. The workspace uses
+the Rust 2024 edition and builds the `sessionscope` CLI binary from
+`crates/sessionscope-cli`.
+
+Run the same checks locally that CI runs:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo check --workspace
+cargo test --workspace --all-targets
+```
+
+Run the scaffolded CLI during development:
+
+```bash
+cargo run -p sessionscope-cli -- --help
+cargo run -p sessionscope-cli -- version
+cargo run -p sessionscope-cli -- scan --path . --format markdown
+```
+
+CLI commands may be placeholders while the project is early, but they should
+remain deterministic, offline-only, and safe to run on source trees. Do not
+print raw tokens, private keys, bearer strings, cookie values, or other secrets.
