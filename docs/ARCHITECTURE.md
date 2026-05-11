@@ -436,6 +436,19 @@ source excerpts or structured values enter the inventory. Downstream crates
 should be designed as if inventory data is already sanitized, while still
 escaping output formats defensively.
 
+The central sanitizer redacts common bearer headers, cookie values, JWT-shaped
+strings, private-key blocks, sensitive key/value assignments, sensitive query
+parameters, sensitive claim values, and long high-entropy token-like literals.
+It should preserve review anchors such as source paths, line and column
+locations, artifact and finding IDs, lifecycle stages, claim names, and cookie
+attribute names. Redaction is intentionally conservative and best-effort; it is
+not a proof that arbitrary source text is secret-free.
+
+Stable IDs and source locations are outside the sanitizer rewrite path because
+they are needed to correlate reports. Callers must therefore construct IDs only
+from normalized non-secret facts such as detector IDs, paths, line numbers,
+artifact kinds, lifecycle stages, and sanitized local keys.
+
 ## Implementation Order
 
 The recommended Rust implementation order is:

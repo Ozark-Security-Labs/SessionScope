@@ -242,6 +242,20 @@ The scanner is defensive and offline-only. Do not add analyzer behavior that
 prints token values, private keys, bearer strings, cookie values, or other
 runtime secrets.
 
+## Redaction Trust Boundary
+
+SessionScope treats source text and detector output as untrusted until it has
+passed through `sessionscope-core::redaction`. Evidence excerpts and rendered
+reports should keep source locations, finding IDs, lifecycle stages, claim
+names, and attribute names, but token values, cookie values, bearer strings,
+private keys, and high-entropy secret-like literals must be replaced with
+`[REDACTED]`.
+
+Redaction is a best-effort static safeguard, not a guarantee that arbitrary
+source is secret-free. Stable IDs and source locations are preserved for
+reviewability and must never be generated from runtime token values, private
+keys, bearer strings, cookie values, or other secrets.
+
 ## Status
 
 This repository contains the initial product documentation and Rust workspace

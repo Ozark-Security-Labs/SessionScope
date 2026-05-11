@@ -83,6 +83,12 @@ Evidence is a source-bound fact emitted by a detector. Evidence includes:
 Evidence excerpts are represented as sanitized strings only. They should provide
 review context without preserving secret-bearing source values.
 
+`sessionscope-core::redaction` is the canonical sanitizer for evidence excerpts.
+It keeps useful structure such as claim names, cookie attribute names, source
+locations, lifecycle stages, and IDs, while replacing secret-bearing values with
+`[REDACTED]`. The sanitizer is best-effort and should be applied before evidence
+enters inventory and again before report rendering as a defensive boundary.
+
 ## Findings
 
 Findings are classifier-produced review items linked back to artifacts and
@@ -118,3 +124,8 @@ Skipped file reasons are serialized as non-sensitive categories: `binary`,
 JSON report output serializes the full `ScanReport` model. Reporters should not
 receive raw secret-bearing source snippets, and output formats should continue
 escaping or formatting defensively.
+
+Reports must not rely on redaction to fix unsafe identifiers. Stable artifact,
+evidence, and finding IDs should always be derived from non-secret facts rather
+than token values, private keys, bearer strings, cookie values, or runtime
+secrets.
