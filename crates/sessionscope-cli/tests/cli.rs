@@ -152,6 +152,18 @@ fn init_protects_existing_config_unless_forced() {
 }
 
 #[test]
+fn init_rejects_unknown_options() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+
+    let output = run_sessionscope_in(temp.path(), &["init", "--typo"]);
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("unknown init option"));
+    assert!(!temp.path().join("sessionscope.toml").exists());
+}
+
+#[test]
 fn scan_uses_project_config_defaults() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     fs::create_dir_all(temp.path().join("src")).expect("src dir should be created");
@@ -267,4 +279,23 @@ fn scan_rejects_invalid_project_config() {
     assert!(!output.status.success());
     let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
     assert!(stderr.contains("invalid sessionscope.toml"));
+}
+
+#[test]
+fn scan_invalid_toml_error_does_not_echo_secret_values() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("sessionscope.toml"),
+        "client_secret = \"super-secret-value\n",
+    )
+    .expect("config should be written");
+
+    let output = run_sessionscope_in(temp.path(), &["scan"]);
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("invalid sessionscope.toml"));
+    assert!(stderr.contains("line 1"));
+    assert!(!stderr.contains("client_secret"));
+    assert!(!stderr.contains("super-secret-value"));
 }

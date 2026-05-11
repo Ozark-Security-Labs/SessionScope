@@ -5,7 +5,11 @@ use crate::commands::CommandResult;
 use crate::project_config::{CONFIG_FILE_NAME, DEFAULT_CONFIG};
 
 pub fn run(args: &[String]) -> CommandResult {
-    let force = args.iter().any(|arg| arg == "--force");
+    let force = match args {
+        [] => false,
+        [arg] if arg == "--force" => true,
+        _ => return Err("unknown init option; run `sessionscope --help`".into()),
+    };
     let config_path = Path::new(CONFIG_FILE_NAME);
 
     if config_path.exists() && !force {

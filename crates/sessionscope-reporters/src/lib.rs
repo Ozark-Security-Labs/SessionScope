@@ -1,7 +1,7 @@
-pub mod github_summary;
-pub mod json;
-pub mod markdown;
-pub mod sarif;
+mod github_summary;
+mod json;
+mod markdown;
+mod sarif;
 
 use std::fmt;
 

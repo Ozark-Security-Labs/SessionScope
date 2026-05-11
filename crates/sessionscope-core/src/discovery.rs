@@ -29,6 +29,17 @@ pub fn discover_files(config: &ScanConfig) -> io::Result<DiscoveryResult> {
         .git_global(true)
         .git_exclude(true)
         .parents(true);
+    let root = config.root.clone();
+    let exclude_dirs = config.exclude_dirs.clone();
+    builder.filter_entry(move |entry| {
+        let path = entry.path();
+        if path == root {
+            return true;
+        }
+
+        let relative_path = relative_path(&root, path);
+        !is_in_excluded_dir(&relative_path, &exclude_dirs)
+    });
 
     for entry in builder.build() {
         let entry = entry.map_err(|error| io::Error::other(error.to_string()))?;
@@ -176,13 +187,13 @@ mod tests {
         );
         assert!(result.skipped.iter().any(|file| file.path == "README.md"
             && file.skipped_reason == Some(SkippedReason::Unsupported)));
-        assert!(
-            result
-                .skipped
-                .iter()
-                .any(|file| file.path == "node_modules/pkg/index.ts"
-                    && file.skipped_reason == Some(SkippedReason::Excluded))
-        );
+        let all_paths = result
+            .files
+            .iter()
+            .map(|path| normalize_path(path.strip_prefix(temp.path()).unwrap()))
+            .chain(result.skipped.iter().map(|file| file.path.clone()))
+            .collect::<Vec<_>>();
+        assert!(!all_paths.iter().any(|path| path.contains("node_modules")));
     }
 
     #[test]

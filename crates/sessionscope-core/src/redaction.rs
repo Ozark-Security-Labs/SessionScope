@@ -25,11 +25,23 @@ static URL_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
     )
     .expect("URL param regex should compile")
 });
-static SENSITIVE_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
+static COOKIE_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?ix)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b\s*[:=]\s*["']?)([A-Za-z0-9._~+/=-]{6,})(["']?)"#,
+        r#"(?ix)(\b(?:[A-Za-z_][A-Za-z0-9_]*|cookies\(\))\s*\.\s*(?:cookie|set_cookie|set)\s*\(\s*["'][^"']+["']\s*,\s*)(["'])([^"']*)(["'])"#,
     )
-    .expect("sensitive assignment regex should compile")
+    .expect("cookie call regex should compile")
+});
+static SENSITIVE_QUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?ix)(["']?\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b["']?\s*[:=]\s*)(["'])([^"']*)(["'])"#,
+    )
+    .expect("sensitive quoted assignment regex should compile")
+});
+static SENSITIVE_UNQUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?ix)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b\s*[:=]\s*)([^\s,;)\]\[}'"]+)"#,
+    )
+    .expect("sensitive unquoted assignment regex should compile")
 });
 static SENSITIVE_CLAIM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
@@ -86,16 +98,22 @@ pub fn redact_sensitive_values(input: &str) -> String {
     let mut output = PRIVATE_KEY_RE.replace_all(input, REDACTION).to_string();
     output = redact_cookie_headers(&output);
     output = BEARER_RE
-        .replace_all(&output, format!("$1{REDACTION}"))
+        .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string();
     output = URL_PARAM_RE
-        .replace_all(&output, format!("$1{REDACTION}"))
+        .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string();
-    output = SENSITIVE_ASSIGNMENT_RE
-        .replace_all(&output, format!("$1{REDACTION}$3"))
+    output = COOKIE_CALL_RE
+        .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
+    output = SENSITIVE_QUOTED_ASSIGNMENT_RE
+        .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
+    output = SENSITIVE_UNQUOTED_ASSIGNMENT_RE
+        .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string();
     output = SENSITIVE_CLAIM_RE
-        .replace_all(&output, format!("$1{REDACTION}$3"))
+        .replace_all(&output, format!("${{1}}{REDACTION}${{3}}"))
         .to_string();
     output = JWT_RE.replace_all(&output, REDACTION).to_string();
     LONG_TOKEN_RE
@@ -333,6 +351,39 @@ mod tests {
         assert!(output.contains("\"aud\":\"api\""));
         assert!(!output.contains("abcd1234SECRET"));
         assert!(!output.contains("user-123"));
+    }
+
+    #[test]
+    fn redacts_full_quoted_sensitive_assignments_with_punctuation() {
+        let output = redact_sensitive_values(
+            "\"client_secret\": \"prod-secret:tenant@example.com with spaces\"; api_key='key$with:symbols@example.com'",
+        );
+
+        assert!(output.contains("\"client_secret\": \"[REDACTED]\""));
+        assert!(output.contains("api_key='[REDACTED]'"));
+        assert!(!output.contains("prod-secret"));
+        assert!(!output.contains("tenant@example.com"));
+        assert!(!output.contains("key$with"));
+    }
+
+    #[test]
+    fn redacts_framework_cookie_call_values() {
+        for source in [
+            "res.cookie(\"session\", \"short-secret\", { httpOnly: true, secure: true })",
+            "response.set_cookie(\"session\", \"short-secret\", httponly=True)",
+            "cookies().set(\"access\", \"short-secret\", { sameSite: \"lax\" })",
+        ] {
+            let output = redact_sensitive_values(source);
+
+            assert!(output.contains("[REDACTED]"), "{source} was not redacted");
+            assert!(!output.contains("short-secret"));
+            assert!(output.contains("session") || output.contains("access"));
+            assert!(
+                output.contains("httpOnly")
+                    || output.contains("httponly")
+                    || output.contains("sameSite")
+            );
+        }
     }
 
     #[test]

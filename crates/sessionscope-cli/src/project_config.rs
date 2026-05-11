@@ -108,7 +108,7 @@ impl ProjectConfig {
 
     pub fn parse(contents: &str) -> Result<Self, ConfigError> {
         let config: Self = toml::from_str(contents)
-            .map_err(|error| ConfigError::Parse(format!("invalid {CONFIG_FILE_NAME}: {error}")))?;
+            .map_err(|error| ConfigError::Parse(format_parse_error(contents, &error)))?;
         config.validate()?;
         Ok(config)
     }
@@ -157,6 +157,34 @@ impl ProjectConfig {
 
         Ok(())
     }
+}
+
+fn format_parse_error(contents: &str, error: &toml::de::Error) -> String {
+    if let Some(span) = error.span() {
+        let (line, column) = line_column(contents, span.start);
+        format!("invalid {CONFIG_FILE_NAME}; check TOML syntax near line {line}, column {column}")
+    } else {
+        format!("invalid {CONFIG_FILE_NAME}; check TOML syntax")
+    }
+}
+
+fn line_column(contents: &str, byte_offset: usize) -> (usize, usize) {
+    let mut line = 1;
+    let mut column = 1;
+
+    for (index, ch) in contents.char_indices() {
+        if index >= byte_offset {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+
+    (line, column)
 }
 
 fn validate_non_empty_list(values: Option<&Vec<String>>, field: &str) -> Result<(), ConfigError> {
@@ -225,5 +253,17 @@ mod tests {
         assert!(ProjectConfig::parse("formats = [\"xml\"]\n").is_err());
         assert!(ProjectConfig::parse("max_file_size_bytes = 0\n").is_err());
         assert!(ProjectConfig::parse("unexpected = true\n").is_err());
+    }
+
+    #[test]
+    fn parse_errors_do_not_echo_config_source() {
+        let error = ProjectConfig::parse("client_secret = \"super-secret-value\n")
+            .expect_err("invalid TOML should fail")
+            .to_string();
+
+        assert!(error.contains("invalid sessionscope.toml"));
+        assert!(error.contains("line 1"));
+        assert!(!error.contains("client_secret"));
+        assert!(!error.contains("super-secret-value"));
     }
 }
