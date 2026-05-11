@@ -393,6 +393,13 @@ dependencies = [
 [[package]]
 name = "sessionscope-testing"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sessionscope-core",
+ "sessionscope-detectors",
+ "sessionscope-model",
+]
 
 [[package]]
 name = "syn"

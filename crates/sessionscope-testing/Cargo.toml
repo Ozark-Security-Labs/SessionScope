@@ -5,9 +5,17 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+sessionscope-core = { path = "../sessionscope-core" }
+sessionscope-detectors = { path = "../sessionscope-detectors" }
+sessionscope-model = { path = "../sessionscope-model" }
+
 [lib]
 path = "src/lib.rs"
 
 [lints]
 workspace = true
-

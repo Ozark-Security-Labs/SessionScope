@@ -1,0 +1,14 @@
+{
+  "fixture_id": "django.session-and-reset-flow",
+  "framework": "django",
+  "source_files": ["settings.py", "views.py"],
+  "expected_artifacts": ["session_cookie:sessionid", "password_reset_token"],
+  "expected_lifecycle_stages": ["issue", "store", "revoke", "expire"],
+  "expected_findings": [
+    "django_session_cookie_secure_evidence_present",
+    "django_session_cookie_httponly_evidence_present",
+    "reset_token_expiry_evidence_present",
+    "logout_revocation_evidence_present"
+  ],
+  "notes": "Covers Django secure session settings, signing-based reset token issue, timeout configuration, and logout revocation."
+}
