@@ -14,7 +14,7 @@ permissions:
 jobs:
   analyze:
     name: Analyze Rust
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - uses: github/codeql-action/init@68bde559dea0fdcac2102bfdf6230c5f70eb485e
