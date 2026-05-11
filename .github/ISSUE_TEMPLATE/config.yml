@@ -1,0 +1,6 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Private security report
+    url: https://github.com/Ozark-Security-Labs/SessionScope/security/advisories/new
+    about: Report suspected vulnerabilities in SessionScope privately.
+

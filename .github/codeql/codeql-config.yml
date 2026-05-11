@@ -1,0 +1,11 @@
+name: SessionScope CodeQL config
+
+paths:
+  - crates
+
+paths-ignore:
+  - target
+  - fixtures
+  - tests/fixtures
+  - tests/golden
+
