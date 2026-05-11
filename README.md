@@ -25,7 +25,7 @@ Many checks can be reviewed statically by mapping token lifecycle paths and conf
 
 ## Product thesis
 
-Authentication security is not just “does login work?” It is a lifecycle problem.
+Authentication security is not just "does login work?" It is a lifecycle problem.
 
 SessionScope builds a map of token issuance, storage, validation, refresh, revocation, and expiry so reviewers can see lifecycle gaps clearly.
 
@@ -112,11 +112,11 @@ SessionScope should classify:
 
 SessionScope should prefer precise statements:
 
-- “No audience validation evidence detected near JWT verification.”
-- “This cookie-setting call does not set Secure.”
-- “Refresh token rotation evidence was not found.”
+- "No audience validation evidence detected near JWT verification."
+- "This cookie-setting call does not set Secure."
+- "Refresh token rotation evidence was not found."
 
-It should avoid unsupported claims like “authentication bypass” unless proven by deterministic evidence.
+It should avoid unsupported claims like "authentication bypass" unless proven by deterministic evidence.
 
 ## CLI sketch
 
@@ -172,16 +172,34 @@ SessionScope is not intended to:
 
 ## Development
 
-SessionScope is scaffolded as a Rust Cargo workspace.
+SessionScope is scaffolded as a Rust Cargo workspace using the Rust 2024
+edition. Install the stable Rust toolchain from <https://rustup.rs/> before
+running local checks.
 
-Useful local commands:
+The workspace is split into focused crates for the CLI, core scanner pipeline,
+shared model, detectors, classifiers, reporters, and test helpers. The CLI
+binary is named `sessionscope`.
+
+Canonical local checks:
 
 ```bash
-cargo fmt --all --check
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo check --workspace
 cargo test --workspace --all-targets
+```
+
+Useful CLI commands while developing:
+
+```bash
 cargo run -p sessionscope-cli -- --help
+cargo run -p sessionscope-cli -- version
 cargo run -p sessionscope-cli -- scan --path . --format markdown
 ```
+
+The scanner is defensive and offline-only. Do not add analyzer behavior that
+prints token values, private keys, bearer strings, cookie values, or other
+runtime secrets.
 
 ## Status
 

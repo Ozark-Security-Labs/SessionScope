@@ -26,7 +26,7 @@ pub fn run(args: impl IntoIterator<Item = String>) -> CommandResult {
         Some("explain") => explain::run(&args[1..]),
         Some("baseline") => baseline::run(&args[1..]),
         Some("diff") => diff::run(&args[1..]),
-        Some(other) => Err(format!("unknown command `{other}`").into()),
+        Some(_) => Err("unknown command; run `sessionscope --help`".into()),
     }
 }
 

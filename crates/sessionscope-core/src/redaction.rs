@@ -20,6 +20,10 @@ pub fn redact_sensitive_values(input: &str) -> String {
 }
 
 fn looks_sensitive(value: &str) -> bool {
+    if let Some((_, assigned_value)) = value.split_once('=') {
+        return looks_sensitive(assigned_value);
+    }
+
     let trimmed =
         value.trim_matches(|ch: char| !ch.is_ascii_alphanumeric() && ch != '.' && ch != '_');
     let dot_count = trimmed.matches('.').count();
@@ -39,6 +43,14 @@ mod tests {
     fn redacts_jwt_like_values() {
         let output =
             redact_sensitive_values("Authorization: Bearer aaa.bbb.cccccccccccccccccccccc");
+
+        assert!(output.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn redacts_long_token_like_values() {
+        let output =
+            redact_sensitive_values("SESSION_TOKEN=abcdefghijklmnopqrstuvwxyzABCDEF0123456789");
 
         assert!(output.contains("[REDACTED]"));
     }

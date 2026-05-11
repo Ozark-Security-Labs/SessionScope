@@ -7,7 +7,7 @@ use crate::ScanConfig;
 pub fn discover_files(config: &ScanConfig) -> io::Result<Vec<PathBuf>> {
     let mut files = Vec::new();
     visit_dir(&config.root, config, &mut files)?;
-    files.sort_by(|left, right| normalize_path(left).cmp(&normalize_path(right)));
+    files.sort_by_key(|path| normalize_path(path));
     Ok(files)
 }
 
