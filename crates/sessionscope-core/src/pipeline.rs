@@ -30,8 +30,10 @@ pub fn scan_path(
     config: ScanConfig,
     registry: Arc<DetectorRegistry>,
 ) -> Result<ScanReport, ScanError> {
-    let files = discover_files(&config).map_err(ScanError::Discovery)?;
-    let mut results = scan_files(config, registry, files.clone());
+    let discovery = discover_files(&config).map_err(ScanError::Discovery)?;
+    let files_discovered = discovery.files.len() + discovery.skipped.len();
+    let mut results = scan_files(config, registry, discovery.files);
+    results.extend(discovery.skipped);
     results.sort_by(|left, right| left.path.cmp(&right.path));
 
     let files_scanned = results
@@ -50,7 +52,7 @@ pub fn scan_path(
     Ok(ScanReport {
         schema_version: SCHEMA_VERSION.to_string(),
         summary: ScanSummary {
-            files_discovered: files.len(),
+            files_discovered,
             files_scanned,
             files_skipped,
             diagnostics: Vec::new(),
@@ -99,14 +101,14 @@ fn scan_file(config: &ScanConfig, registry: &DetectorRegistry, path: PathBuf) ->
         .strip_prefix(&config.root)
         .map_or_else(|_| normalize_path(&path), normalize_path);
 
+    if language == sessionscope_model::Language::Unknown {
+        return FileScanResult::skipped(display_path, language, SkippedReason::Unsupported);
+    }
+
     let source = match read_source(&path, config.max_file_size_bytes) {
         Ok(source) => source,
         Err(reason) => return FileScanResult::skipped(display_path, language, reason),
     };
-
-    if language == sessionscope_model::Language::Unknown {
-        return FileScanResult::skipped(display_path, language, SkippedReason::Unsupported);
-    }
 
     let detector_input = DetectorInput {
         path: &display_path,

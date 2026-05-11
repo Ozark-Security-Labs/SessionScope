@@ -20,6 +20,9 @@ pub enum SkippedReason {
     Binary,
     TooLarge,
     Unsupported,
+    Excluded,
+    Ignored,
+    SensitivePath,
     ReadError(String),
 }
 

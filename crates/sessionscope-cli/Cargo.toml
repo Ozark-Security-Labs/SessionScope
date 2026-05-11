@@ -15,6 +15,9 @@ sessionscope-core = { path = "../sessionscope-core" }
 sessionscope-detectors = { path = "../sessionscope-detectors" }
 sessionscope-reporters = { path = "../sessionscope-reporters" }
 
+[dev-dependencies]
+serde_json = "1.0"
+tempfile = "3.27.0"
+
 [lints]
 workspace = true
-

@@ -160,6 +160,12 @@ Owns the scanner pipeline and operational concerns:
 
 This crate should not contain framework-specific detection rules.
 
+Repository discovery should respect `.gitignore` where practical, apply
+built-in dependency/vendor/build excludes, and apply user-provided include and
+exclude globs as repository-relative patterns. Sensitive paths such as env files
+and private-key material should be skipped before source loading even if a user
+include pattern matches them.
+
 ### `sessionscope-model`
 
 Owns stable data structures shared across the application:
@@ -407,6 +413,10 @@ SessionScope should distinguish:
 Parse failures in one file should not abort the full scan unless the user opts
 into strict behavior. Reports should include non-sensitive skipped and failed
 file counts so reviewers understand coverage.
+
+Skipped-file reasons should describe only operational categories such as
+`unsupported`, `excluded`, `sensitive_path`, `too_large`, `binary`, and
+`read_error`. They should not include source contents or secret-bearing values.
 
 ## Trust Boundary
 

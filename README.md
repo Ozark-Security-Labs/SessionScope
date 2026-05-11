@@ -125,8 +125,9 @@ It should avoid unsupported claims like "authentication bypass" unless proven by
 
 ```bash
 sessionscope init
-sessionscope scan --format markdown --output sessions.md
-sessionscope scan --format json --output sessions.json
+sessionscope scan --path . --format markdown --output sessions.md
+sessionscope scan --path . --include "src/**/*.ts" --exclude "**/*.test.ts" --format json --output sessions.json
+sessionscope scan --path . --max-file-size 1000000
 sessionscope explain FINDING_ID
 sessionscope diff main...HEAD
 sessionscope baseline create
@@ -198,6 +199,7 @@ Useful CLI commands while developing:
 cargo run -p sessionscope-cli -- --help
 cargo run -p sessionscope-cli -- version
 cargo run -p sessionscope-cli -- scan --path . --format markdown
+cargo run -p sessionscope-cli -- scan --path . --include "src/**/*.ts" --exclude "**/*.test.ts" --max-file-size 1000000 --format json
 ```
 
 The scanner is defensive and offline-only. Do not add analyzer behavior that

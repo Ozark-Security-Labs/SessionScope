@@ -107,6 +107,10 @@ A scan report contains:
 - merged evidence
 - findings
 
+Skipped file reasons are serialized as non-sensitive categories: `binary`,
+`too_large`, `unsupported`, `excluded`, `ignored`, `sensitive_path`, or
+`read_error`.
+
 JSON report output serializes the full `ScanReport` model. Reporters should not
 receive raw secret-bearing source snippets, and output formats should continue
 escaping or formatting defensively.
