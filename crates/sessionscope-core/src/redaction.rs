@@ -179,6 +179,21 @@ fn sanitize_artifact(artifact: &mut Artifact) {
         *display_name = redact_sensitive_values(display_name);
     }
     sanitize_strings(&mut artifact.framework_hints);
+    if let Some(attributes) = &mut artifact.cookie_attributes {
+        for observation in [
+            &mut attributes.http_only,
+            &mut attributes.secure,
+            &mut attributes.same_site,
+            &mut attributes.max_age,
+            &mut attributes.expires,
+            &mut attributes.path,
+            &mut attributes.domain,
+        ] {
+            if let Some(value) = &mut observation.value {
+                *value = redact_sensitive_values(value);
+            }
+        }
+    }
 }
 
 fn sanitize_evidence(evidence: &mut Evidence) {
@@ -303,9 +318,16 @@ fn truncate_chars(value: &str, max_chars: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use sessionscope_model::SourceLocation;
+    use sessionscope_detectors::DetectionOutput;
+    use sessionscope_model::{
+        Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
+        CookieAttributeState, CookieAttributes, LifecycleEvidence, SourceLocation,
+    };
 
-    use super::{ExcerptOptions, redact_sensitive_values, safe_excerpt_at_location_with_options};
+    use super::{
+        ExcerptOptions, redact_sensitive_values, safe_excerpt_at_location_with_options,
+        sanitize_detection_output,
+    };
 
     #[test]
     fn redacts_jwt_like_values() {
@@ -425,5 +447,57 @@ mod tests {
                 .0
                 .contains("abcdefghijklmnopqrstuvwxyzABCDEF0123456789")
         );
+    }
+
+    #[test]
+    fn sanitizes_cookie_attribute_values() {
+        let secret = "abcdefghijklmnopqrstuvwxyzABCDEF0123456789";
+        let output = sanitize_detection_output(DetectionOutput {
+            artifacts: vec![Artifact {
+                id: ArtifactId("artifact_cookie".to_string()),
+                artifact_type: ArtifactType::SessionCookie,
+                display_name: Some("session".to_string()),
+                locations: Vec::new(),
+                lifecycle_evidence: LifecycleEvidence::default(),
+                confidence: Confidence::High,
+                framework_hints: Vec::new(),
+                cookie_attributes: Some(cookie_attributes_with_value(secret)),
+            }],
+            evidence: Vec::new(),
+            diagnostics: Vec::new(),
+        });
+
+        let value = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("attributes should remain")
+            .domain
+            .value
+            .as_deref()
+            .expect("value should remain");
+        assert_eq!(value, "[REDACTED]");
+    }
+
+    fn cookie_attributes_with_value(value: &str) -> CookieAttributes {
+        let missing = CookieAttributeObservation {
+            state: CookieAttributeState::Missing,
+            value: None,
+            evidence_ids: Vec::new(),
+            confidence: Confidence::High,
+        };
+        CookieAttributes {
+            http_only: missing.clone(),
+            secure: missing.clone(),
+            same_site: missing.clone(),
+            max_age: missing.clone(),
+            expires: missing.clone(),
+            path: missing.clone(),
+            domain: CookieAttributeObservation {
+                state: CookieAttributeState::Present,
+                value: Some(value.to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::High,
+            },
+        }
     }
 }

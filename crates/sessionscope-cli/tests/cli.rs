@@ -124,6 +124,7 @@ fn scan_json_runs_builtin_cookie_detector() {
     let parsed: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
 
+    assert_eq!(parsed["schema_version"], "0.2.0");
     assert_eq!(
         parsed["findings"].as_array().expect("findings array").len(),
         0
@@ -137,6 +138,8 @@ fn scan_json_runs_builtin_cookie_detector() {
                     .as_array()
                     .expect("store array")
                     .is_empty()
+                && artifact["cookie_attributes"]["http_only"]["state"] == "missing"
+                && artifact["cookie_attributes"]["path"]["state"] == "framework_default"
         }),
         "scan JSON should include the detected signed session cookie"
     );

@@ -167,6 +167,7 @@ mod tests {
                     },
                     confidence: Confidence::High,
                     framework_hints: Vec::new(),
+                    cookie_attributes: None,
                 }],
                 evidence: vec![Evidence {
                     id: evidence_id,

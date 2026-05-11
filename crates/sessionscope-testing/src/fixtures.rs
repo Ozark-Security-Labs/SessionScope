@@ -218,6 +218,7 @@ mod tests {
                         artifact.display_name.as_deref() == display_name
                             && artifact.artifact_type == artifact_type
                             && !artifact.lifecycle_evidence.store.is_empty()
+                            && artifact.cookie_attributes.is_some()
                     }),
                     "{} should include {artifact_type:?} named {display_name:?}",
                     root.display()
