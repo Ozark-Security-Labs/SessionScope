@@ -48,7 +48,7 @@ pub fn scan_path(
     }
 
     Ok(ScanReport {
-        schema_version: SCHEMA_VERSION,
+        schema_version: SCHEMA_VERSION.to_string(),
         summary: ScanSummary {
             files_discovered: files.len(),
             files_scanned,

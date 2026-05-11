@@ -81,6 +81,9 @@ Suggested fix:
 
 ## Core concepts
 
+The versioned inventory and finding schema is documented in
+[`docs/SCHEMA.md`](docs/SCHEMA.md).
+
 ### Lifecycle stages
 
 SessionScope models auth artifacts through stages:

@@ -1,26 +1,39 @@
 use sessionscope_model::ScanReport;
 
 pub fn render(report: &ScanReport) -> String {
-    format!(
-        concat!(
-            "{{\n",
-            "  \"schema_version\": \"{}\",\n",
-            "  \"summary\": {{\n",
-            "    \"files_discovered\": {},\n",
-            "    \"files_scanned\": {},\n",
-            "    \"files_skipped\": {},\n",
-            "    \"findings\": {}\n",
-            "  }}\n",
-            "}}\n"
-        ),
-        escape_json(report.schema_version),
-        report.summary.files_discovered,
-        report.summary.files_scanned,
-        report.summary.files_skipped,
-        report.findings.len()
-    )
+    serde_json::to_string_pretty(report).expect("ScanReport serialization should not fail")
 }
 
-fn escape_json(input: &str) -> String {
-    input.replace('\\', "\\\\").replace('"', "\\\"")
+#[cfg(test)]
+mod tests {
+    use sessionscope_model::{SCHEMA_VERSION, ScanReport, ScanSummary};
+
+    use super::render;
+
+    #[test]
+    fn renders_parseable_full_scan_report() {
+        let report = ScanReport {
+            schema_version: SCHEMA_VERSION.to_string(),
+            summary: ScanSummary {
+                files_discovered: 1,
+                files_scanned: 1,
+                files_skipped: 0,
+                diagnostics: Vec::new(),
+            },
+            files: Vec::new(),
+            artifacts: Vec::new(),
+            evidence: Vec::new(),
+            findings: Vec::new(),
+        };
+
+        let rendered = render(&report);
+        let parsed: serde_json::Value =
+            serde_json::from_str(&rendered).expect("rendered JSON should parse");
+
+        assert_eq!(parsed["schema_version"], SCHEMA_VERSION);
+        assert_eq!(parsed["summary"]["files_discovered"], 1);
+        assert!(parsed["artifacts"].is_array());
+        assert!(parsed["evidence"].is_array());
+        assert!(parsed["findings"].is_array());
+    }
 }

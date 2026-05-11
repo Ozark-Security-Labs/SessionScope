@@ -6,6 +6,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+serde_json = "1.0"
 sessionscope-model = { path = "../sessionscope-model" }
 
 [lib]
@@ -13,4 +14,3 @@ path = "src/lib.rs"
 
 [lints]
 workspace = true
-

@@ -1,6 +1,8 @@
 use crate::{Artifact, Evidence, Finding};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Language {
     JavaScript,
     TypeScript,
@@ -12,7 +14,8 @@ pub enum Language {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SkippedReason {
     Binary,
     TooLarge,
@@ -20,7 +23,7 @@ pub enum SkippedReason {
     ReadError(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileScanResult {
     pub path: String,
     pub language: Language,
@@ -54,7 +57,7 @@ impl FileScanResult {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ScanSummary {
     pub files_discovered: usize,
     pub files_scanned: usize,
@@ -62,9 +65,9 @@ pub struct ScanSummary {
     pub diagnostics: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScanReport {
-    pub schema_version: &'static str,
+    pub schema_version: String,
     pub summary: ScanSummary,
     pub files: Vec<FileScanResult>,
     pub artifacts: Vec<Artifact>,
