@@ -20,12 +20,28 @@ Unacceptable use includes:
 - Credential theft or token abuse
 - Instructions for bypassing security controls
 
+## Supported versions
+
+SessionScope is early-stage software. Until the first stable release, security
+fixes will target the default branch and the latest tagged release, if one
+exists.
+
 ## Reporting vulnerabilities
 
-If this repository later contains implementation code and you discover a security issue in the tool itself, please open a private report through GitHub Security Advisories if enabled, or contact the repository owner directly.
+If you discover a security issue in SessionScope itself, please open a private
+report through GitHub Security Advisories:
 
-Do not disclose sensitive customer data, credentials, or exploit details in public issues.
+https://github.com/Ozark-Security-Labs/SessionScope/security/advisories/new
+
+Do not disclose sensitive customer data, credentials, tokens, exploit payloads,
+or detailed bypass instructions in public issues.
 
 ## Finding language
 
 This project should report evidence-bound hypotheses unless a finding is mechanically proven. Reports should avoid overstating confidence and should include source evidence and reviewer questions.
+
+## Sensitive test data
+
+Fixtures, tests, reports, and documentation examples must use obvious
+placeholders only. Do not add real tokens, API keys, private keys, production
+cookies, customer code, or copied vulnerability data to this repository.

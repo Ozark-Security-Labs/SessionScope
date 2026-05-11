@@ -1,0 +1,30 @@
+name: dependency determinism
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "7 10 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  deterministic-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - id: deterministic-deps
+        uses: Ozark-Security-Labs/deterministic-deps@3333c99d112d075bfeb8df7a26f21155b2b8db9f
+        with:
+          mode: advisory
+          sarif: true
+          remote-validation: true
+      - uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e
+        if: always() && steps.deterministic-deps.outputs.sarif-path != ''
+        with:
+          sarif_file: ${{ steps.deterministic-deps.outputs.sarif-path }}
+          category: deterministic-deps
+
