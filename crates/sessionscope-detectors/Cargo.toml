@@ -1,0 +1,16 @@
+[package]
+name = "sessionscope-detectors"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sessionscope-model = { path = "../sessionscope-model" }
+
+[lib]
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+

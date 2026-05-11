@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "crates/sessionscope-cli",
+    "crates/sessionscope-core",
+    "crates/sessionscope-model",
+    "crates/sessionscope-detectors",
+    "crates/sessionscope-classifier",
+    "crates/sessionscope-reporters",
+    "crates/sessionscope-testing",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/Ozark-Security-Labs/SessionScope"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+

@@ -170,6 +170,22 @@ SessionScope is not intended to:
 - steal or decode secrets
 - replace manual security review
 
+## Development
+
+SessionScope is scaffolded as a Rust Cargo workspace.
+
+Useful local commands:
+
+```bash
+cargo fmt --all --check
+cargo test --workspace --all-targets
+cargo run -p sessionscope-cli -- --help
+cargo run -p sessionscope-cli -- scan --path . --format markdown
+```
+
 ## Status
 
-This repository currently contains the initial product concept and documentation. Implementation milestones will be added next.
+This repository contains the initial product documentation and Rust workspace
+scaffold. The CLI, pipeline, detector, classifier, reporter, and test-helper
+crates are present, with detector and classifier behavior to be implemented in
+the next milestones.

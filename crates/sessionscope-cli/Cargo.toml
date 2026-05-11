@@ -1,0 +1,20 @@
+[package]
+name = "sessionscope-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "sessionscope"
+path = "src/main.rs"
+
+[dependencies]
+sessionscope-classifier = { path = "../sessionscope-classifier" }
+sessionscope-core = { path = "../sessionscope-core" }
+sessionscope-detectors = { path = "../sessionscope-detectors" }
+sessionscope-reporters = { path = "../sessionscope-reporters" }
+
+[lints]
+workspace = true
+
