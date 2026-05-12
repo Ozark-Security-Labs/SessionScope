@@ -7,8 +7,10 @@ pub mod trust_boundary;
 use sessionscope_model::ScanReport;
 
 pub fn classify(mut report: ScanReport) -> ScanReport {
+    report.lifecycle_paths = lifecycle::link(&report);
     report.findings = cookies::classify(&report);
     report.findings.extend(jwt::classify(&report));
+    report.findings.extend(lifecycle::classify(&report));
     sort_findings(&mut report);
     report
 }

@@ -23,6 +23,7 @@ mod tests {
             files: Vec::new(),
             artifacts: Vec::new(),
             evidence: Vec::new(),
+            lifecycle_paths: Vec::new(),
             findings: Vec::new(),
         };
 
@@ -39,9 +40,11 @@ mod tests {
         assert!(parsed.get("files").is_some());
         assert!(parsed.get("artifacts").is_some());
         assert!(parsed.get("evidence").is_some());
+        assert!(parsed.get("lifecycle_paths").is_some());
         assert!(parsed.get("findings").is_some());
         assert!(parsed["artifacts"].is_array());
         assert!(parsed["evidence"].is_array());
+        assert!(parsed["lifecycle_paths"].is_array());
         assert!(parsed["findings"].is_array());
         assert_eq!(deserialized.schema_version, SCHEMA_VERSION);
     }

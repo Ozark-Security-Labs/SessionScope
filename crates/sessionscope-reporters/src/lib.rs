@@ -8,8 +8,8 @@ use std::fmt;
 use sessionscope_core::redaction::sanitized_report;
 use sessionscope_model::{
     Artifact, CookieAttributeObservation, CookieAttributes, Evidence, EvidenceId,
-    JwtAttributeObservation, JwtAttributes, JwtIdentityClaims, LifecycleEvidence, ScanReport,
-    SourceLocation,
+    JwtAttributeObservation, JwtAttributes, JwtIdentityClaims, LifecycleEvidence, LifecyclePath,
+    ScanReport, SourceLocation,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +72,7 @@ fn canonicalize_report(report: &mut ScanReport) {
 
     sort_artifacts(&mut report.artifacts);
     sort_evidence(&mut report.evidence);
+    sort_lifecycle_paths(&mut report.lifecycle_paths);
 }
 
 fn sort_artifacts(artifacts: &mut [Artifact]) {
@@ -102,6 +103,24 @@ fn sort_evidence(evidence: &mut [Evidence]) {
             .cmp(&location_key(&right.location))
             .then_with(|| left.lifecycle_stage.cmp(&right.lifecycle_stage))
             .then_with(|| left.detector_id.cmp(&right.detector_id))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+}
+
+fn sort_lifecycle_paths(paths: &mut [LifecyclePath]) {
+    for path in paths.iter_mut() {
+        path.artifact_ids.sort();
+        for step in &mut path.stages {
+            sort_evidence_ids(&mut step.evidence_ids);
+            step.evidence_ids.dedup();
+        }
+        path.stages.sort_by_key(|step| step.stage);
+    }
+
+    paths.sort_by(|left, right| {
+        left.artifact_ids
+            .cmp(&right.artifact_ids)
+            .then_with(|| left.stages.cmp(&right.stages))
             .then_with(|| left.id.cmp(&right.id))
     });
 }
@@ -232,6 +251,7 @@ mod tests {
                 dynamic: false,
                 framework_default: false,
             }],
+            lifecycle_paths: Vec::new(),
             findings: vec![Finding {
                 id: FindingId("finding_report_secret".to_string()),
                 category: FindingCategory::HighConfidenceMisconfiguration,

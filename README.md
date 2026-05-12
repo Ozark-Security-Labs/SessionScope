@@ -138,7 +138,7 @@ version. A compact cookie audit excerpt looks like:
 
 ```json
 {
-  "schema_version": "0.3.0",
+  "schema_version": "0.4.0",
   "summary": {
     "files_discovered": 1,
     "files_scanned": 1,
@@ -215,6 +215,21 @@ version. A compact cookie audit excerpt looks like:
       "excerpt": "response.cookie(\"session\", [REDACTED], ...)",
       "dynamic": false,
       "framework_default": false
+    }
+  ],
+  "lifecycle_paths": [
+    {
+      "id": "lifecycle_path_...",
+      "artifact_ids": ["artifact_..."],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": ["evidence_cookie_store"]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
     }
   ],
   "findings": [

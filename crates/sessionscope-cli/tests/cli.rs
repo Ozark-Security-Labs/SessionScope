@@ -137,8 +137,14 @@ fn scan_json_runs_builtin_cookie_detector() {
     let parsed: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
 
-    assert_eq!(parsed["schema_version"], "0.3.0");
+    assert_eq!(parsed["schema_version"], "0.4.0");
     let findings = parsed["findings"].as_array().expect("findings array");
+    assert!(
+        parsed["lifecycle_paths"]
+            .as_array()
+            .is_some_and(|paths| !paths.is_empty()),
+        "scan JSON should include linked lifecycle paths"
+    );
     assert!(
         findings.iter().any(|finding| {
             finding["category"] == "high_confidence_misconfiguration"
@@ -197,7 +203,13 @@ fn scan_json_runs_builtin_jwt_detector() {
     assert!(output.status.success());
     let parsed: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
-    assert_eq!(parsed["schema_version"], "0.3.0");
+    assert_eq!(parsed["schema_version"], "0.4.0");
+    assert!(
+        parsed["lifecycle_paths"]
+            .as_array()
+            .is_some_and(|paths| !paths.is_empty()),
+        "scan JSON should include linked lifecycle paths"
+    );
     assert!(
         parsed["artifacts"]
             .as_array()
@@ -264,7 +276,7 @@ fn scan_json_output_writes_file_without_stdout_inventory() {
     let written = fs::read_to_string(output_path).expect("JSON output should be written");
     let parsed: serde_json::Value =
         serde_json::from_str(&written).expect("written scan JSON should parse");
-    assert_eq!(parsed["schema_version"], "0.3.0");
+    assert_eq!(parsed["schema_version"], "0.4.0");
     assert!(
         parsed["artifacts"]
             .as_array()
@@ -312,6 +324,7 @@ fn scan_markdown_stdout_renders_lifecycle_report_for_cookie_fixture() {
     let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
     assert!(stdout.contains("# SessionScope Report"));
     assert!(stdout.contains("## Findings"));
+    assert!(stdout.contains("## Lifecycle Paths"));
     assert!(stdout.contains("## Artifacts"));
     assert!(stdout.contains("### `session_cookie`"));
     assert!(stdout.contains("Category: `high_confidence_misconfiguration`"));

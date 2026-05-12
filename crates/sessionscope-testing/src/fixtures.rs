@@ -381,7 +381,16 @@ mod tests {
         );
         assert_ids_match(&first, &second, "artifacts");
         assert_ids_match(&first, &second, "evidence");
+        assert_ids_match(&first, &second, "lifecycle_paths");
         assert_ids_match(&first, &second, "findings");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&first).expect("rendered JSON should parse");
+        assert!(
+            parsed["lifecycle_paths"]
+                .as_array()
+                .is_some_and(|paths| !paths.is_empty()),
+            "fixture should include linked lifecycle paths"
+        );
         assert!(!first.contains(PLACEHOLDER_JWT));
         assert!(!first.contains("PLACEHOLDER_RESET_TOKEN"));
         assert!(!first.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));

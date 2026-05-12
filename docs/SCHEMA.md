@@ -1,7 +1,7 @@
 # SessionScope Schema
 
 SessionScope uses the `sessionscope-model` crate as its internal inventory
-model and JSON wire schema. The current schema version is `0.3.0`.
+model and JSON wire schema. The current schema version is `0.4.0`.
 
 Design decisions for dynamic evidence, framework defaults, confidence, and
 AuthMap-style alignment are recorded in
@@ -18,7 +18,7 @@ Serialized reports include:
 
 ```json
 {
-  "schema_version": "0.3.0"
+  "schema_version": "0.4.0"
 }
 ```
 
@@ -69,6 +69,26 @@ Lifecycle evidence is grouped by stage:
 - `revoke`
 - `expire`
 - `introspect`
+
+## Lifecycle Paths
+
+Lifecycle paths are classifier-linked views over artifact evidence. They do not
+replace artifact-local lifecycle evidence; they make deterministic linked paths
+explicit for reports and downstream tooling.
+
+Each lifecycle path includes:
+
+- stable lifecycle path ID: `lifecycle_path_<hex>`
+- related artifact IDs
+- ordered stage steps, each with a lifecycle stage and evidence IDs
+- confidence: `low`, `medium`, or `high`
+- dynamic flag
+- optional reviewer question for dynamic or framework-default-dependent paths
+
+Path IDs are derived only from non-secret facts such as artifact IDs, lifecycle
+stages, evidence IDs, and normalized source locations. Paths currently link
+same-artifact lifecycle evidence; future detectors may add refresh, revoke,
+reset-token, bearer/API-key, and provider evidence without changing this shape.
 
 Cookie artifacts may include a `cookie_attributes` object with structured
 observations for:
@@ -236,6 +256,7 @@ A scan report contains:
 - per-file scan results
 - merged artifacts
 - merged evidence
+- lifecycle paths
 - findings
 
 Skipped file reasons are serialized as non-sensitive categories: `binary`,
