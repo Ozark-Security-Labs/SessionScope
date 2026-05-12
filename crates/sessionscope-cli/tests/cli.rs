@@ -125,9 +125,17 @@ fn scan_json_runs_builtin_cookie_detector() {
         serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
 
     assert_eq!(parsed["schema_version"], "0.2.0");
-    assert_eq!(
-        parsed["findings"].as_array().expect("findings array").len(),
-        0
+    let findings = parsed["findings"].as_array().expect("findings array");
+    assert!(
+        findings.iter().any(|finding| {
+            finding["category"] == "high_confidence_misconfiguration"
+                && finding["severity"] == "high"
+                && finding["title"]
+                    .as_str()
+                    .expect("finding title")
+                    .contains("HttpOnly")
+        }),
+        "scan JSON should include a high-confidence missing HttpOnly finding"
     );
     let artifacts = parsed["artifacts"].as_array().expect("artifacts array");
     assert!(

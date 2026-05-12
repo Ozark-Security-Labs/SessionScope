@@ -91,9 +91,10 @@ pub fn fixture_source_text(case: &FixtureCase) -> io::Result<Vec<(String, String
 mod tests {
     use std::sync::Arc;
 
+    use sessionscope_classifier::classify;
     use sessionscope_core::{ScanConfig, scan_path};
     use sessionscope_detectors::DetectorRegistry;
-    use sessionscope_model::{ArtifactType, SkippedReason};
+    use sessionscope_model::{ArtifactType, FindingCategory, SkippedReason};
 
     use super::{fixture_cases, fixture_root, fixture_source_text};
 
@@ -225,6 +226,31 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn express_cookie_fixture_classifies_legacy_cookie_findings() {
+        let root = fixture_root()
+            .join("express")
+            .join("cookie-session-lifecycle");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("express cookie fixture should scan"),
+        );
+
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.title.contains("legacy_session")
+                && finding.title.contains("HttpOnly")
+        }));
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.title.contains("legacy_session")
+                && finding.title.contains("Secure")
+        }));
     }
 
     #[test]

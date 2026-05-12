@@ -1,5 +1,6 @@
 use sessionscope_model::{
-    Artifact, CookieAttributeState, ScanReport, SkippedReason, SourceLocation,
+    Artifact, CookieAttributeState, Finding, FindingCategory, ScanReport, Severity, SkippedReason,
+    SourceLocation,
 };
 
 pub fn render(report: &ScanReport) -> String {
@@ -34,6 +35,13 @@ pub fn render(report: &ScanReport) -> String {
         }
     }
 
+    if !report.findings.is_empty() {
+        output.push_str("\n## Findings\n\n");
+        for finding in &report.findings {
+            render_finding(&mut output, finding);
+        }
+    }
+
     let cookie_artifacts = report
         .artifacts
         .iter()
@@ -47,6 +55,31 @@ pub fn render(report: &ScanReport) -> String {
     }
 
     output
+}
+
+fn render_finding(output: &mut String, finding: &Finding) {
+    output.push_str(&format!(
+        "### {}\n\n- Severity: `{}`\n- Category: `{}`\n",
+        finding.title,
+        format_severity(finding.severity),
+        format_category(finding.category)
+    ));
+    if !finding.evidence_ids.is_empty() {
+        let evidence = finding
+            .evidence_ids
+            .iter()
+            .map(|id| format!("`{}`", id.0))
+            .collect::<Vec<_>>()
+            .join(", ");
+        output.push_str(&format!("- Evidence: {evidence}\n"));
+    }
+    output.push_str(&format!("\n{}\n\n", finding.description));
+    if let Some(suggested_fix) = &finding.suggested_fix {
+        output.push_str(&format!("Suggested fix: {suggested_fix}\n\n"));
+    }
+    if let Some(reviewer_question) = &finding.reviewer_question {
+        output.push_str(&format!("Reviewer question: {reviewer_question}\n\n"));
+    }
 }
 
 fn render_cookie_artifact(output: &mut String, artifact: &Artifact) {
@@ -106,6 +139,25 @@ fn format_state(state: CookieAttributeState) -> &'static str {
     }
 }
 
+fn format_severity(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Info => "info",
+        Severity::Low => "low",
+        Severity::Medium => "medium",
+        Severity::High => "high",
+    }
+}
+
+fn format_category(category: FindingCategory) -> &'static str {
+    match category {
+        FindingCategory::HighConfidenceMisconfiguration => "high_confidence_misconfiguration",
+        FindingCategory::MissingValidationEvidence => "missing_validation_evidence",
+        FindingCategory::LifecycleGap => "lifecycle_gap",
+        FindingCategory::DynamicReviewRequired => "dynamic_review_required",
+        FindingCategory::FrameworkDefaultAssumed => "framework_default_assumed",
+    }
+}
+
 fn format_skipped_reason(reason: &SkippedReason) -> &'static str {
     match reason {
         SkippedReason::Binary => "binary",
@@ -122,8 +174,8 @@ fn format_skipped_reason(reason: &SkippedReason) -> &'static str {
 mod tests {
     use sessionscope_model::{
         Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
-        CookieAttributeState, CookieAttributes, LifecycleEvidence, SCHEMA_VERSION, ScanReport,
-        ScanSummary, SourceLocation,
+        CookieAttributeState, CookieAttributes, EvidenceId, Finding, FindingCategory, FindingId,
+        LifecycleEvidence, SCHEMA_VERSION, ScanReport, ScanSummary, Severity, SourceLocation,
     };
 
     use super::render;
@@ -163,6 +215,36 @@ mod tests {
         assert!(rendered.contains("| HttpOnly | `present` | true | `High` | 0 |"));
         assert!(rendered.contains("| Secure | `dynamic` |"));
         assert!(rendered.contains("`app.ts:3:5`"));
+    }
+
+    #[test]
+    fn renders_findings_with_review_context() {
+        let report = ScanReport {
+            schema_version: SCHEMA_VERSION.to_string(),
+            summary: ScanSummary::default(),
+            files: Vec::new(),
+            artifacts: Vec::new(),
+            evidence: Vec::new(),
+            findings: vec![Finding {
+                id: FindingId("finding_cookie".to_string()),
+                category: FindingCategory::DynamicReviewRequired,
+                severity: Severity::Medium,
+                artifact_ids: vec![ArtifactId("artifact_cookie".to_string())],
+                evidence_ids: vec![EvidenceId("evidence_cookie".to_string())],
+                title: "Cookie has dynamic Secure evidence".to_string(),
+                description: "The Secure attribute appears dynamic.".to_string(),
+                suggested_fix: Some("Confirm production Secure behavior.".to_string()),
+                reviewer_question: Some("Can production guarantee Secure?".to_string()),
+            }],
+        };
+
+        let rendered = render(&report);
+
+        assert!(rendered.contains("## Findings"));
+        assert!(rendered.contains("Severity: `medium`"));
+        assert!(rendered.contains("Category: `dynamic_review_required`"));
+        assert!(rendered.contains("Suggested fix: Confirm production Secure behavior."));
+        assert!(rendered.contains("Reviewer question: Can production guarantee Secure?"));
     }
 
     fn attributes() -> CookieAttributes {
