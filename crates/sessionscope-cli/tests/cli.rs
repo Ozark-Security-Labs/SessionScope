@@ -156,6 +156,66 @@ fn scan_json_runs_builtin_cookie_detector() {
 }
 
 #[test]
+fn scan_json_output_writes_file_without_stdout_inventory() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
+    )
+    .expect("app source should be written");
+    let output_path = temp.path().join("sessions.json");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json",
+        "--output",
+        output_path.to_str().expect("output path should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "--output should not echo inventory JSON to stdout"
+    );
+    let written = fs::read_to_string(output_path).expect("JSON output should be written");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&written).expect("written scan JSON should parse");
+    assert_eq!(parsed["schema_version"], "0.2.0");
+    assert!(
+        parsed["artifacts"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty())
+    );
+    assert!(!written.contains("PLACEHOLDER_RESET_TOKEN"));
+}
+
+#[test]
+fn scan_json_output_write_failure_includes_path_context() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(temp.path().join("app.ts"), "const app = true;")
+        .expect("app source should be written");
+    let output_path = temp.path().join("missing").join("sessions.json");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json",
+        "--output",
+        output_path.to_str().expect("output path should be UTF-8"),
+    ]);
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("failed to write scan output"));
+    assert!(stderr.contains("sessions.json"));
+}
+
+#[test]
 fn scan_rejects_invalid_max_file_size() {
     let output = run_sessionscope(&["scan", "--max-file-size", "0"]);
 

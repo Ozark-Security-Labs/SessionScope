@@ -95,6 +95,9 @@ mod tests {
     use sessionscope_core::{ScanConfig, scan_path};
     use sessionscope_detectors::DetectorRegistry;
     use sessionscope_model::{ArtifactType, FindingCategory, SkippedReason};
+    use sessionscope_reporters::{ReportFormat, render};
+
+    use crate::snapshots::normalize_snapshot_paths;
 
     use super::{fixture_cases, fixture_root, fixture_source_text};
 
@@ -254,6 +257,27 @@ mod tests {
     }
 
     #[test]
+    fn express_cookie_fixture_renders_deterministic_json_inventory() {
+        let root = fixture_root()
+            .join("express")
+            .join("cookie-session-lifecycle");
+
+        let first = render_classified_json(&root);
+        let second = render_classified_json(&root);
+
+        assert_eq!(
+            normalize_snapshot_paths(&first),
+            normalize_snapshot_paths(&second)
+        );
+        assert_ids_match(&first, &second, "artifacts");
+        assert_ids_match(&first, &second, "evidence");
+        assert_ids_match(&first, &second, "findings");
+        assert!(!first.contains(PLACEHOLDER_JWT));
+        assert!(!first.contains("PLACEHOLDER_RESET_TOKEN"));
+        assert!(!first.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+    }
+
+    #[test]
     fn fixture_sources_use_only_obvious_placeholder_secrets() {
         for case in fixture_cases().expect("fixture cases should load") {
             for (path, text) in fixture_source_text(&case).expect("source text should load") {
@@ -314,5 +338,39 @@ mod tests {
                     .any(|allowed| part.contains(allowed))
                     && !part.contains("PLACEHOLDER")
             })
+    }
+
+    fn render_classified_json(root: &std::path::Path) -> String {
+        let report = classify(
+            scan_path(ScanConfig::new(root), Arc::new(DetectorRegistry::builtin()))
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+        );
+
+        render(&report, ReportFormat::Json)
+    }
+
+    fn assert_ids_match(first: &str, second: &str, key: &str) {
+        assert_eq!(
+            ids(first, key),
+            ids(second, key),
+            "{key} IDs should be stable"
+        );
+    }
+
+    fn ids(rendered: &str, key: &str) -> Vec<String> {
+        let parsed: serde_json::Value =
+            serde_json::from_str(rendered).expect("rendered JSON should parse");
+
+        parsed[key]
+            .as_array()
+            .unwrap_or_else(|| panic!("{key} should be an array"))
+            .iter()
+            .map(|item| {
+                item["id"]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("{key} item should have an id"))
+                    .to_string()
+            })
+            .collect()
     }
 }

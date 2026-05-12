@@ -91,7 +91,12 @@ pub fn run(args: &[String]) -> CommandResult {
     let rendered = render(&report, format);
 
     if let Some(output) = output {
-        fs::write(output, rendered)?;
+        fs::write(&output, rendered).map_err(|error| {
+            format!(
+                "failed to write scan output to {}: {error}",
+                output.display()
+            )
+        })?;
     } else {
         print!("{rendered}");
     }

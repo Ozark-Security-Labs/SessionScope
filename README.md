@@ -133,6 +133,107 @@ sessionscope diff main...HEAD
 sessionscope baseline create
 ```
 
+JSON reports are machine-readable inventories using the documented schema
+version. A compact cookie audit excerpt looks like:
+
+```json
+{
+  "schema_version": "0.2.0",
+  "summary": {
+    "files_discovered": 1,
+    "files_scanned": 1,
+    "files_skipped": 0,
+    "diagnostics": []
+  },
+  "artifacts": [
+    {
+      "id": "artifact_...",
+      "artifact_type": "session_cookie",
+      "display_name": "session",
+      "locations": [{ "path": "src/app.ts", "line": 12, "column": 3 }],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": ["evidence_cookie_store"],
+        "transmit": ["evidence_cookie_secure"],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": ["express"],
+      "cookie_attributes": {
+        "http_only": {
+          "state": "missing",
+          "evidence_ids": ["evidence_cookie_http_only"],
+          "confidence": "high"
+        },
+        "secure": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": ["evidence_cookie_secure"],
+          "confidence": "high"
+        },
+        "same_site": {
+          "state": "present",
+          "value": "lax",
+          "evidence_ids": ["evidence_cookie_same_site"],
+          "confidence": "high"
+        },
+        "max_age": {
+          "state": "missing",
+          "evidence_ids": ["evidence_cookie_max_age"],
+          "confidence": "high"
+        },
+        "expires": {
+          "state": "missing",
+          "evidence_ids": ["evidence_cookie_expires"],
+          "confidence": "high"
+        },
+        "path": {
+          "state": "framework_default",
+          "value": "/",
+          "evidence_ids": ["evidence_cookie_path"],
+          "confidence": "low"
+        },
+        "domain": {
+          "state": "missing",
+          "evidence_ids": ["evidence_cookie_domain"],
+          "confidence": "high"
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evidence_cookie_store",
+      "lifecycle_stage": "store",
+      "location": { "path": "src/app.ts", "line": 12, "column": 3 },
+      "detector_id": "cookie.set",
+      "confidence": "high",
+      "excerpt": "response.cookie(\"session\", [REDACTED], ...)",
+      "dynamic": false,
+      "framework_default": false
+    }
+  ],
+  "findings": [
+    {
+      "id": "finding_...",
+      "category": "high_confidence_misconfiguration",
+      "severity": "high",
+      "artifact_ids": ["artifact_..."],
+      "evidence_ids": ["evidence_cookie_http_only"],
+      "title": "Session-like cookie `session` does not set HttpOnly",
+      "description": "No HttpOnly attribute evidence was detected for this cookie-setting call.",
+      "suggested_fix": "Set HttpOnly on session cookies so client-side scripts cannot read them.",
+      "reviewer_question": "Is this cookie intended to be inaccessible to browser JavaScript?"
+    }
+  ],
+  "files": []
+}
+```
+
 ## GitHub Action sketch
 
 ```yaml

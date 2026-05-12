@@ -14,6 +14,7 @@ sessionscope-classifier = { path = "../sessionscope-classifier" }
 sessionscope-core = { path = "../sessionscope-core" }
 sessionscope-detectors = { path = "../sessionscope-detectors" }
 sessionscope-model = { path = "../sessionscope-model" }
+sessionscope-reporters = { path = "../sessionscope-reporters" }
 
 [lib]
 path = "src/lib.rs"

@@ -6,7 +6,10 @@ mod sarif;
 use std::fmt;
 
 use sessionscope_core::redaction::sanitized_report;
-use sessionscope_model::ScanReport;
+use sessionscope_model::{
+    Artifact, CookieAttributeObservation, CookieAttributes, Evidence, EvidenceId,
+    LifecycleEvidence, ScanReport, SourceLocation,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReportFormat {
@@ -44,13 +47,103 @@ impl ReportFormat {
 }
 
 pub fn render(report: &ScanReport, format: ReportFormat) -> String {
-    let report = sanitized_report(report);
+    let mut report = sanitized_report(report);
+    canonicalize_report(&mut report);
     match format {
         ReportFormat::Json => json::render(&report),
         ReportFormat::Markdown => markdown::render(&report),
         ReportFormat::Sarif => sarif::render(&report),
         ReportFormat::GithubSummary => github_summary::render(&report),
     }
+}
+
+fn canonicalize_report(report: &mut ScanReport) {
+    report
+        .files
+        .sort_by(|left, right| left.path.cmp(&right.path));
+    report.summary.diagnostics.sort();
+
+    for file in &mut report.files {
+        file.diagnostics.sort();
+        sort_artifacts(&mut file.artifacts);
+        sort_evidence(&mut file.evidence);
+    }
+
+    sort_artifacts(&mut report.artifacts);
+    sort_evidence(&mut report.evidence);
+}
+
+fn sort_artifacts(artifacts: &mut [Artifact]) {
+    for artifact in artifacts.iter_mut() {
+        artifact.locations.sort_by_key(location_key);
+        artifact.framework_hints.sort();
+        sort_lifecycle_evidence(&mut artifact.lifecycle_evidence);
+        if let Some(attributes) = &mut artifact.cookie_attributes {
+            sort_cookie_attribute_evidence_ids(attributes);
+        }
+    }
+
+    artifacts.sort_by(|left, right| {
+        first_location_key(&left.locations)
+            .cmp(&first_location_key(&right.locations))
+            .then_with(|| left.display_name.cmp(&right.display_name))
+            .then_with(|| left.artifact_type.cmp(&right.artifact_type))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+}
+
+fn sort_evidence(evidence: &mut [Evidence]) {
+    evidence.sort_by(|left, right| {
+        location_key(&left.location)
+            .cmp(&location_key(&right.location))
+            .then_with(|| left.lifecycle_stage.cmp(&right.lifecycle_stage))
+            .then_with(|| left.detector_id.cmp(&right.detector_id))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+}
+
+fn first_location_key(locations: &[SourceLocation]) -> (String, usize, usize) {
+    locations
+        .first()
+        .map(location_key)
+        .unwrap_or_else(|| (String::new(), usize::MAX, usize::MAX))
+}
+
+fn location_key(location: &SourceLocation) -> (String, usize, usize) {
+    (
+        location.path.replace('\\', "/"),
+        location.line.unwrap_or(usize::MAX),
+        location.column.unwrap_or(usize::MAX),
+    )
+}
+
+fn sort_lifecycle_evidence(lifecycle_evidence: &mut LifecycleEvidence) {
+    sort_evidence_ids(&mut lifecycle_evidence.issue);
+    sort_evidence_ids(&mut lifecycle_evidence.store);
+    sort_evidence_ids(&mut lifecycle_evidence.transmit);
+    sort_evidence_ids(&mut lifecycle_evidence.validate);
+    sort_evidence_ids(&mut lifecycle_evidence.refresh);
+    sort_evidence_ids(&mut lifecycle_evidence.revoke);
+    sort_evidence_ids(&mut lifecycle_evidence.expire);
+    sort_evidence_ids(&mut lifecycle_evidence.introspect);
+}
+
+fn sort_cookie_attribute_evidence_ids(attributes: &mut CookieAttributes) {
+    sort_observation_evidence_ids(&mut attributes.http_only);
+    sort_observation_evidence_ids(&mut attributes.secure);
+    sort_observation_evidence_ids(&mut attributes.same_site);
+    sort_observation_evidence_ids(&mut attributes.max_age);
+    sort_observation_evidence_ids(&mut attributes.expires);
+    sort_observation_evidence_ids(&mut attributes.path);
+    sort_observation_evidence_ids(&mut attributes.domain);
+}
+
+fn sort_observation_evidence_ids(observation: &mut CookieAttributeObservation) {
+    sort_evidence_ids(&mut observation.evidence_ids);
+}
+
+fn sort_evidence_ids(evidence_ids: &mut [EvidenceId]) {
+    evidence_ids.sort();
 }
 
 #[cfg(test)]

@@ -53,6 +53,10 @@ static JWT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{6,}\b")
         .expect("JWT regex should compile")
 });
+static PLACEHOLDER_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bPLACEHOLDER[A-Z0-9_]*(?:TOKEN|SECRET|JWT)[A-Z0-9_]*\b")
+        .expect("placeholder secret regex should compile")
+});
 static LONG_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b[A-Za-z0-9_+/=-]{32,}\b").expect("long token regex should compile")
 });
@@ -116,6 +120,9 @@ pub fn redact_sensitive_values(input: &str) -> String {
         .replace_all(&output, format!("${{1}}{REDACTION}${{3}}"))
         .to_string();
     output = JWT_RE.replace_all(&output, REDACTION).to_string();
+    output = PLACEHOLDER_SECRET_RE
+        .replace_all(&output, REDACTION)
+        .to_string();
     LONG_TOKEN_RE
         .replace_all(&output, |captures: &regex::Captures<'_>| {
             let value = captures.get(0).expect("full capture should exist").as_str();
@@ -414,6 +421,17 @@ mod tests {
 
         assert!(output.contains("[REDACTED]"));
         assert!(!output.contains("abcdefghijklmnopqrstuvwxyzABCDEF0123456789"));
+    }
+
+    #[test]
+    fn redacts_placeholder_secret_values() {
+        let output = redact_sensitive_values(
+            "const rotatedRefreshToken = \"PLACEHOLDER_RESET_TOKEN_ROTATED\"; const signingSecret = \"PLACEHOLDER_SECRET_DO_NOT_USE\";",
+        );
+
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains("PLACEHOLDER_RESET_TOKEN_ROTATED"));
+        assert!(!output.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
     }
 
     #[test]

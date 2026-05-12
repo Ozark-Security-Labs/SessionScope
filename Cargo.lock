@@ -447,6 +447,7 @@ dependencies = [
  "sessionscope-core",
  "sessionscope-detectors",
  "sessionscope-model",
+ "sessionscope-reporters",
 ]
 
 [[package]]
