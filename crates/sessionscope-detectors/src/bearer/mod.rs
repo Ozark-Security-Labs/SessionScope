@@ -86,7 +86,7 @@ fn detect_javascript_like(input: &DetectorInput<'_>) -> DetectionOutput {
     };
 
     let mut signals = Vec::new();
-    collect_js_signals(tree.root_node(), input.source, &mut signals);
+    collect_js_signals(tree.root_node(), input.source, input.path, &mut signals);
     signals_to_output(input, signals)
 }
 
@@ -96,11 +96,15 @@ fn detect_python(input: &DetectorInput<'_>) -> DetectionOutput {
     };
 
     let mut signals = Vec::new();
-    collect_python_signals(tree.root_node(), input.source, &mut signals);
+    collect_python_signals(tree.root_node(), input.source, input.path, &mut signals);
     signals_to_output(input, signals)
 }
 
 fn detect_config(input: &DetectorInput<'_>) -> DetectionOutput {
+    if is_sessionscope_fixture_metadata(input.path, input.source) {
+        return DetectionOutput::default();
+    }
+
     let mut signals = Vec::new();
     for (index, line) in input.source.lines().enumerate() {
         let normalized = normalize_symbol(line);
@@ -116,7 +120,9 @@ fn detect_config(input: &DetectorInput<'_>) -> DetectionOutput {
             LifecycleStage::Store
         };
         signals.push(Signal {
-            detector_id: if has_quoted_sensitive_literal(line, &normalized) {
+            detector_id: if is_public_config_context(&normalized) {
+                "bearer.store.public_config"
+            } else if has_quoted_sensitive_literal(line, &normalized) {
                 "bearer.literal.static"
             } else {
                 "bearer.store.config"
@@ -135,37 +141,37 @@ fn detect_config(input: &DetectorInput<'_>) -> DetectionOutput {
     signals_to_output(input, signals)
 }
 
-fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+fn collect_js_signals(node: Node<'_>, source: &str, path: &str, signals: &mut Vec<Signal>) {
     match node.kind() {
-        "call_expression" => collect_js_call_signal(node, source, signals),
+        "call_expression" => collect_js_call_signal(node, source, path, signals),
         "variable_declarator" | "assignment_expression" | "pair" => {
-            collect_assignment_signal(node, source, "javascript", signals)
+            collect_assignment_signal(node, source, path, "javascript", signals)
         }
         _ => {}
     }
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_js_signals(child, source, signals);
+        collect_js_signals(child, source, path, signals);
     }
 }
 
-fn collect_python_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+fn collect_python_signals(node: Node<'_>, source: &str, path: &str, signals: &mut Vec<Signal>) {
     match node.kind() {
-        "call" => collect_python_call_signal(node, source, signals),
+        "call" => collect_python_call_signal(node, source, path, signals),
         "assignment" | "keyword_argument" | "pair" => {
-            collect_assignment_signal(node, source, "python", signals)
+            collect_assignment_signal(node, source, path, "python", signals)
         }
         _ => {}
     }
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_python_signals(child, source, signals);
+        collect_python_signals(child, source, path, signals);
     }
 }
 
-fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+fn collect_js_call_signal(node: Node<'_>, source: &str, path: &str, signals: &mut Vec<Signal>) {
     let text = node_text(node, source);
     let normalized = normalize_symbol_without_literals(&text);
     let raw_normalized = normalize_symbol(&text);
@@ -204,6 +210,10 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
     if is_store_call(&normalized) {
         let detector_id = if is_browser_storage_call(&normalized) {
             "bearer.store.browser"
+        } else if is_public_config_context(context) {
+            "bearer.store.public_config"
+        } else if is_frontend_exposed_path(path) {
+            "bearer.store.frontend_bundle"
         } else {
             "bearer.store"
         };
@@ -252,10 +262,40 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
             source,
         ));
     }
+    if is_scope_context(&normalized) {
+        signals.push(signal(
+            "bearer.scope",
+            if is_issue_call(&normalized) {
+                LifecycleStage::Issue
+            } else {
+                LifecycleStage::Validate
+            },
+            artifact_type,
+            display_name.clone(),
+            js_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
     if is_expire_call(&normalized) {
         signals.push(signal(
             "bearer.expire",
             LifecycleStage::Expire,
+            artifact_type,
+            display_name.clone(),
+            js_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_rotation_call(&normalized) {
+        signals.push(signal(
+            "bearer.rotate",
+            LifecycleStage::Refresh,
             artifact_type,
             display_name.clone(),
             js_framework_hint(&normalized),
@@ -293,7 +333,7 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
     }
 }
 
-fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+fn collect_python_call_signal(node: Node<'_>, source: &str, path: &str, signals: &mut Vec<Signal>) {
     let text = node_text(node, source);
     let normalized = normalize_symbol_without_literals(&text);
     let raw_normalized = normalize_symbol(&text);
@@ -326,8 +366,15 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
         ));
     }
     if is_store_call(&normalized) {
+        let detector_id = if is_public_config_context(context) {
+            "bearer.store.public_config"
+        } else if is_frontend_exposed_path(path) {
+            "bearer.store.frontend_bundle"
+        } else {
+            "bearer.store"
+        };
         signals.push(signal(
-            "bearer.store",
+            detector_id,
             LifecycleStage::Store,
             artifact_type,
             display_name.clone(),
@@ -371,10 +418,40 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
             source,
         ));
     }
+    if is_scope_context(&normalized) {
+        signals.push(signal(
+            "bearer.scope",
+            if is_issue_call(&normalized) {
+                LifecycleStage::Issue
+            } else {
+                LifecycleStage::Validate
+            },
+            artifact_type,
+            display_name.clone(),
+            python_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
     if is_expire_call(&normalized) {
         signals.push(signal(
             "bearer.expire",
             LifecycleStage::Expire,
+            artifact_type,
+            display_name.clone(),
+            python_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_rotation_call(&normalized) {
+        signals.push(signal(
+            "bearer.rotate",
+            LifecycleStage::Refresh,
             artifact_type,
             display_name.clone(),
             python_framework_hint(&normalized),
@@ -415,6 +492,7 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
 fn collect_assignment_signal(
     node: Node<'_>,
     source: &str,
+    path: &str,
     framework_hint: &'static str,
     signals: &mut Vec<Signal>,
 ) {
@@ -444,7 +522,11 @@ fn collect_assignment_signal(
     } else {
         LifecycleStage::Store
     };
-    let detector_id = if has_quoted_sensitive_literal(&text, &normalized) {
+    let detector_id = if is_public_config_context(context) {
+        "bearer.store.public_config"
+    } else if is_frontend_exposed_path(path) && stage == LifecycleStage::Store {
+        "bearer.store.frontend_bundle"
+    } else if has_quoted_sensitive_literal(&text, &normalized) {
         "bearer.literal.static"
     } else if is_inbound_header_read(&normalized) {
         "bearer.read.inbound"
@@ -458,13 +540,31 @@ fn collect_assignment_signal(
         detector_id,
         stage,
         artifact_type,
-        display_name,
+        display_name.clone(),
         framework_hint,
         Confidence::High,
         false,
         node,
         source,
     ));
+
+    if is_scope_context(&normalized) {
+        signals.push(signal(
+            "bearer.scope",
+            if stage == LifecycleStage::Store {
+                LifecycleStage::Issue
+            } else {
+                LifecycleStage::Validate
+            },
+            artifact_type,
+            display_name,
+            framework_hint,
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -600,7 +700,10 @@ fn contains_token_context(normalized: &str) -> bool {
                 || normalized.contains("revoke")
                 || normalized.contains("expires")
                 || normalized.contains("localstorage")
-                || normalized.contains("sessionstorage")))
+                || normalized.contains("sessionstorage")
+                || normalized.contains("scope")
+                || normalized.contains("audience")
+                || normalized.contains("permission")))
 }
 
 fn is_token_config_line(normalized: &str) -> bool {
@@ -611,6 +714,44 @@ fn is_token_config_line(normalized: &str) -> bool {
             || normalized.contains("apikey")
             || normalized.contains("api_key")
             || normalized.contains("token"))
+}
+
+fn is_public_config_context(normalized: &str) -> bool {
+    normalized.contains("next_public")
+        || normalized.contains("vite_")
+        || normalized.contains("react_app")
+        || normalized.contains("public_")
+        || normalized.contains("publicruntimeconfig")
+        || normalized.contains("runtimeconfig")
+        || normalized.contains("clientconfig")
+        || normalized.contains("window.__")
+}
+
+fn is_frontend_exposed_path(path: &str) -> bool {
+    let normalized = path.replace('\\', "/").to_ascii_lowercase();
+    normalized.contains("/client/")
+        || normalized.contains("/frontend/")
+        || normalized.contains("/public/")
+        || normalized.contains("/static/")
+        || normalized.contains("/browser/")
+        || normalized.ends_with(".tsx")
+}
+
+fn is_scope_context(normalized: &str) -> bool {
+    (normalized.contains("scope")
+        || normalized.contains("scopes")
+        || normalized.contains("audience")
+        || normalized.contains("permission")
+        || normalized.contains("permissions"))
+        && contains_token_context(normalized)
+}
+
+fn is_sessionscope_fixture_metadata(path: &str, source: &str) -> bool {
+    (path.ends_with("expected.json")
+        || path.ends_with("expected.yaml")
+        || path.ends_with("expected.toml"))
+        && source.contains("expected_artifacts")
+        && source.contains("expected_findings")
 }
 
 fn is_issue_call(normalized: &str) -> bool {
@@ -686,7 +827,17 @@ fn is_revoke_call(normalized: &str) -> bool {
         || normalized.contains("disable")
         || normalized.contains("delete")
         || normalized.contains("destroy")
-        || normalized.contains("rotate")
+}
+
+fn is_rotation_call(normalized: &str) -> bool {
+    (normalized.contains("rotate")
+        || normalized.contains("roll")
+        || normalized.contains("regenerate")
+        || normalized.contains("replace"))
+        && (normalized.contains("token")
+            || normalized.contains("apikey")
+            || normalized.contains("api_key")
+            || normalized.contains("key"))
 }
 
 fn is_dynamic_provider_call(normalized: &str) -> bool {
@@ -940,12 +1091,20 @@ mod tests {
     use super::*;
 
     fn detect(language: Language, source: &str) -> DetectionOutput {
-        BearerTokenDetector.detect(&DetectorInput {
-            path: match language {
+        detect_at(
+            match language {
                 Language::Python => "app.py",
                 Language::Json => "config.json",
                 _ => "app.ts",
             },
+            language,
+            source,
+        )
+    }
+
+    fn detect_at(path: &str, language: Language, source: &str) -> DetectionOutput {
+        BearerTokenDetector.detect(&DetectorInput {
+            path,
             language,
             source,
         })
@@ -1045,6 +1204,63 @@ const csrfTokenLabel = "not auth storage";
 
         assert_detector(&output, "bearer.dynamic_provider", LifecycleStage::Transmit);
         assert!(output.evidence.iter().any(|evidence| evidence.dynamic));
+    }
+
+    #[test]
+    fn public_config_and_frontend_paths_are_tagged() {
+        let config_output = detect(
+            Language::Json,
+            r#"{ "NEXT_PUBLIC_API_KEY": "PLACEHOLDER_API_KEY_DO_NOT_USE" }"#,
+        );
+        assert_detector(
+            &config_output,
+            "bearer.store.public_config",
+            LifecycleStage::Store,
+        );
+        assert!(!detected_text(&config_output).contains("PLACEHOLDER_API_KEY_DO_NOT_USE"));
+
+        let frontend_output = detect_at(
+            "src/client/app.ts",
+            Language::TypeScript,
+            r#"const apiKey = process.env.API_KEY;"#,
+        );
+        assert_detector(
+            &frontend_output,
+            "bearer.store.frontend_bundle",
+            LifecycleStage::Store,
+        );
+    }
+
+    #[test]
+    fn detects_scope_and_rotation_evidence() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+const token = generateServiceToken({ scopes: ["orders:read"] });
+requireScope(token, "orders:read");
+await rotateServiceToken(token);
+"#,
+        );
+
+        assert_detector(&output, "bearer.scope", LifecycleStage::Issue);
+        assert_detector(&output, "bearer.scope", LifecycleStage::Validate);
+        assert_detector(&output, "bearer.rotate", LifecycleStage::Refresh);
+    }
+
+    #[test]
+    fn ignores_sessionscope_fixture_metadata() {
+        let output = detect_at(
+            "fixtures/generic-ts/example/expected.json",
+            Language::Json,
+            r#"{
+  "fixture_id": "example",
+  "expected_artifacts": ["api_key"],
+  "expected_findings": ["bearer_public_runtime_config_exposure"]
+}"#,
+        );
+
+        assert!(output.artifacts.is_empty(), "{:?}", output.artifacts);
+        assert!(output.evidence.is_empty(), "{:?}", output.evidence);
     }
 
     fn assert_artifact(output: &DetectionOutput, artifact_type: ArtifactType, name: &str) {

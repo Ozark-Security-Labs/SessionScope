@@ -1,0 +1,18 @@
+{
+  "fixture_id": "generic-ts.unsafe-bearer-handling",
+  "framework": "generic-typescript",
+  "source_files": ["src/client/app.ts"],
+  "expected_artifacts": ["api_key", "service_token", "access_token"],
+  "expected_lifecycle_stages": ["issue", "store", "transmit"],
+  "expected_findings": [
+    "public_runtime_config:api_key",
+    "frontend_bundle:api_key",
+    "browser_storage:api_key",
+    "url_query:access_token",
+    "missing_expiry:service_token",
+    "missing_rotation_or_revocation:service_token",
+    "missing_scope:service_token",
+    "dynamic_review:provider"
+  ],
+  "notes": "Covers unsafe API key and opaque bearer handling in public config, frontend bundle code, browser storage, URL query forwarding, and incomplete service token lifecycle evidence."
+}

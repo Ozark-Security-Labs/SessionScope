@@ -703,6 +703,62 @@ mod tests {
     }
 
     #[test]
+    fn unsafe_bearer_fixtures_classify_reviewable_findings() {
+        let cases = [
+            fixture_root()
+                .join("generic-ts")
+                .join("unsafe-bearer-handling"),
+            fixture_root()
+                .join("generic-python")
+                .join("unsafe-bearer-handling"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::HighConfidenceMisconfiguration
+                    && (finding.title.contains("URL query")
+                        || finding.title.contains("public runtime config")
+                        || finding.title.contains("frontend bundle")
+                        || finding.title.contains("browser storage"))
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::LifecycleGap
+                    && finding.title.contains("expiry")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::LifecycleGap
+                    && finding.title.contains("rotation or revocation")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::MissingValidationEvidence
+                    && finding.title.contains("scope")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::DynamicReviewRequired
+                    && finding.reviewer_question.is_some()
+            }));
+
+            for format in [
+                ReportFormat::Json,
+                ReportFormat::Markdown,
+                ReportFormat::Sarif,
+            ] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("PLACEHOLDER_API_KEY_DO_NOT_USE"));
+                assert!(!rendered.contains("internal-api"));
+            }
+        }
+    }
+
+    #[test]
     fn express_cookie_fixture_renders_deterministic_json_inventory() {
         let root = fixture_root()
             .join("express")

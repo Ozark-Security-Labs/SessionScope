@@ -1,0 +1,16 @@
+{
+  "fixture_id": "generic-python.unsafe-bearer-handling",
+  "framework": "generic-python",
+  "source_files": ["app.py"],
+  "expected_artifacts": ["api_key", "service_token", "x_api_key"],
+  "expected_lifecycle_stages": ["issue", "store", "transmit"],
+  "expected_findings": [
+    "url_query:api_key",
+    "missing_validation:x_api_key",
+    "missing_expiry:service_token",
+    "missing_rotation_or_revocation:service_token",
+    "missing_scope:service_token",
+    "dynamic_review:provider"
+  ],
+  "notes": "Covers unsafe Python API key forwarding through query strings, inbound key reads without local validation, provider-managed review context, and incomplete service token lifecycle evidence."
+}
