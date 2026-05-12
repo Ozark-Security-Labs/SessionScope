@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use sessionscope_model::{
     Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeState, Evidence, EvidenceId,
-    Finding, FindingCategory, JwtAttributeState, LifecycleEvidence, LifecycleStage, ScanReport,
-    Severity, SkippedReason, SourceLocation,
+    Finding, FindingCategory, JwtAttributeState, LifecycleEvidence, LifecyclePath, LifecycleStage,
+    ScanReport, Severity, SkippedReason, SourceLocation,
 };
 
 pub fn render(report: &ScanReport) -> String {
@@ -17,6 +17,7 @@ pub fn render(report: &ScanReport) -> String {
             "- Files skipped: {}\n",
             "- Artifacts: {}\n",
             "- Evidence records: {}\n",
+            "- Lifecycle paths: {}\n",
             "- Findings: {}\n",
             "- Diagnostics: {}\n"
         ),
@@ -26,12 +27,14 @@ pub fn render(report: &ScanReport) -> String {
         report.summary.files_skipped,
         report.artifacts.len(),
         report.evidence.len(),
+        report.lifecycle_paths.len(),
         report.findings.len(),
         report.summary.diagnostics.len()
     );
 
     render_skipped_files(&mut output, report);
     render_findings(&mut output, report);
+    render_lifecycle_paths(&mut output, report);
     render_artifacts(&mut output, report);
     output
 }
@@ -141,6 +144,69 @@ fn render_artifacts(output: &mut String, report: &ScanReport) {
         for artifact in artifacts {
             render_artifact(output, artifact, &evidence_by_id);
         }
+    }
+}
+
+fn render_lifecycle_paths(output: &mut String, report: &ScanReport) {
+    output.push_str("\n## Lifecycle Paths\n\n");
+    if report.lifecycle_paths.is_empty() {
+        output.push_str("No lifecycle paths were linked.\n");
+        return;
+    }
+
+    let evidence_by_id = evidence_by_id(report);
+    for path in &report.lifecycle_paths {
+        render_lifecycle_path(output, path, &evidence_by_id);
+    }
+}
+
+fn render_lifecycle_path(
+    output: &mut String,
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) {
+    output.push_str(&format!("### {}\n\n", code_span(&path.id.0)));
+    output.push_str(&format!(
+        "- Artifacts: {}\n- Confidence: {}\n- Dynamic: {}\n",
+        format_artifact_ids(&path.artifact_ids),
+        code_span(format_confidence(path.confidence)),
+        code_span(bool_text(path.dynamic))
+    ));
+    if let Some(question) = &path.reviewer_question {
+        output.push_str(&format!("- Reviewer question: {}\n", inline_text(question)));
+    }
+    output.push('\n');
+
+    output.push_str("| Stage | Evidence | Source locations |\n");
+    output.push_str("| --- | --- | --- |\n");
+    for step in &path.stages {
+        output.push_str(&format!(
+            "| {} | {} | {} |\n",
+            code_span(format_lifecycle_stage(step.stage)),
+            format_evidence_ids(&step.evidence_ids),
+            format_step_locations(step, evidence_by_id)
+        ));
+    }
+    output.push('\n');
+}
+
+fn format_step_locations(
+    step: &sessionscope_model::LifecyclePathStep,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> String {
+    let locations = step
+        .evidence_ids
+        .iter()
+        .filter_map(|id| evidence_by_id.get(id.0.as_str()))
+        .map(|evidence| code_span(format_location(&evidence.location)))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    if locations.is_empty() {
+        "unknown".to_string()
+    } else {
+        locations.join(", ")
     }
 }
 
@@ -546,8 +612,9 @@ mod tests {
         Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
         CookieAttributeState, CookieAttributes, Evidence, EvidenceId, FileScanResult, Finding,
         FindingCategory, FindingId, JwtAttributeObservation, JwtAttributeState, JwtAttributes,
-        JwtIdentityClaims, Language, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION,
-        SanitizedExcerpt, ScanReport, ScanSummary, Severity, SkippedReason, SourceLocation,
+        JwtIdentityClaims, Language, LifecycleEvidence, LifecyclePath, LifecyclePathId,
+        LifecyclePathStep, LifecycleStage, SCHEMA_VERSION, SanitizedExcerpt, ScanReport,
+        ScanSummary, Severity, SkippedReason, SourceLocation,
     };
 
     use super::render;
@@ -560,16 +627,59 @@ mod tests {
             files: Vec::new(),
             artifacts: Vec::new(),
             evidence: Vec::new(),
+            lifecycle_paths: Vec::new(),
             findings: Vec::new(),
         };
 
         let rendered = render(&report);
 
-        assert!(rendered.contains("- Schema version: `0.3.0`"));
+        assert!(rendered.contains("- Schema version: `0.4.0`"));
         assert!(rendered.contains("No skipped files."));
         assert!(rendered.contains("No findings were detected."));
+        assert!(rendered.contains("No lifecycle paths were linked."));
         assert!(rendered.contains("No artifacts were detected."));
         assert!(rendered.contains("No lifecycle evidence was detected."));
+    }
+
+    #[test]
+    fn renders_lifecycle_paths() {
+        let evidence_id = EvidenceId("evidence_jwt_issue".to_string());
+        let artifact_id = ArtifactId("artifact_access_jwt".to_string());
+        let report = ScanReport {
+            schema_version: SCHEMA_VERSION.to_string(),
+            summary: ScanSummary::default(),
+            files: Vec::new(),
+            artifacts: Vec::new(),
+            evidence: vec![Evidence {
+                id: evidence_id.clone(),
+                lifecycle_stage: LifecycleStage::Issue,
+                location: location("src/auth.ts", 10, 3),
+                detector_id: "jwt.issue".to_string(),
+                confidence: Confidence::High,
+                excerpt: Some(SanitizedExcerpt("jwt.sign([REDACTED])".to_string())),
+                dynamic: false,
+                framework_default: false,
+            }],
+            lifecycle_paths: vec![LifecyclePath {
+                id: LifecyclePathId("lifecycle_path_access".to_string()),
+                artifact_ids: vec![artifact_id],
+                stages: vec![LifecyclePathStep {
+                    stage: LifecycleStage::Issue,
+                    evidence_ids: vec![evidence_id],
+                }],
+                confidence: Confidence::High,
+                dynamic: false,
+                reviewer_question: Some("Where is this JWT validated?".to_string()),
+            }],
+            findings: Vec::new(),
+        };
+
+        let rendered = render(&report);
+
+        assert!(rendered.contains("## Lifecycle Paths"));
+        assert!(rendered.contains("### `lifecycle_path_access`"));
+        assert!(rendered.contains("- Reviewer question: Where is this JWT validated?"));
+        assert!(rendered.contains("| `issue` | `evidence_jwt_issue` | `src/auth.ts:10:3` |"));
     }
 
     #[test]
@@ -601,6 +711,7 @@ mod tests {
                 dynamic: false,
                 framework_default: false,
             }],
+            lifecycle_paths: Vec::new(),
             findings: vec![Finding {
                 id: FindingId("finding_cookie".to_string()),
                 category: FindingCategory::DynamicReviewRequired,
@@ -662,6 +773,7 @@ mod tests {
                 dynamic: false,
                 framework_default: false,
             }],
+            lifecycle_paths: Vec::new(),
             findings: vec![Finding {
                 id: FindingId("finding_missing_audience".to_string()),
                 category: FindingCategory::MissingValidationEvidence,
@@ -730,6 +842,7 @@ mod tests {
                 dynamic: false,
                 framework_default: false,
             }],
+            lifecycle_paths: Vec::new(),
             findings: Vec::new(),
         };
 
@@ -779,6 +892,7 @@ mod tests {
                 dynamic: false,
                 framework_default: false,
             }],
+            lifecycle_paths: Vec::new(),
             findings: vec![Finding {
                 id: FindingId("finding`cookie".to_string()),
                 category: FindingCategory::HighConfidenceMisconfiguration,

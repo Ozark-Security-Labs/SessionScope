@@ -1,0 +1,9 @@
+{
+  "fixture_id": "express.refresh-rotation",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["refresh_token"],
+  "expected_lifecycle_stages": ["issue", "store", "validate", "refresh", "revoke", "expire"],
+  "expected_findings": ["refresh_rotation_evidence_present"],
+  "notes": "Covers refresh-token rotation with old-token invalidation and new token storage."
+}

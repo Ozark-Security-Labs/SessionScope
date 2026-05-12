@@ -377,6 +377,7 @@ mod tests {
             files: Vec::new(),
             artifacts: vec![artifact],
             evidence: Vec::new(),
+            lifecycle_paths: Vec::new(),
             findings: Vec::new(),
         })
     }

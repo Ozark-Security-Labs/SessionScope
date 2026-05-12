@@ -1,5 +1,6 @@
 use crate::cookies::CookieSetDetector;
 use crate::jwt::JwtDetector;
+use crate::sessions::{RefreshTokenLifecycleDetector, SessionLifecycleDetector};
 use crate::{DetectionOutput, Detector, DetectorInput};
 
 #[derive(Default)]
@@ -16,6 +17,8 @@ impl DetectorRegistry {
         Self::empty()
             .with_detector(Box::new(CookieSetDetector))
             .with_detector(Box::new(JwtDetector))
+            .with_detector(Box::new(SessionLifecycleDetector))
+            .with_detector(Box::new(RefreshTokenLifecycleDetector))
     }
 
     pub fn with_detector(mut self, detector: Box<dyn Detector>) -> Self {

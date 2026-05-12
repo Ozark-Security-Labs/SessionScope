@@ -1,7 +1,7 @@
 # SessionScope Schema
 
 SessionScope uses the `sessionscope-model` crate as its internal inventory
-model and JSON wire schema. The current schema version is `0.3.0`.
+model and JSON wire schema. The current schema version is `0.4.0`.
 
 Design decisions for dynamic evidence, framework defaults, confidence, and
 AuthMap-style alignment are recorded in
@@ -18,7 +18,7 @@ Serialized reports include:
 
 ```json
 {
-  "schema_version": "0.3.0"
+  "schema_version": "0.4.0"
 }
 ```
 
@@ -69,6 +69,46 @@ Lifecycle evidence is grouped by stage:
 - `revoke`
 - `expire`
 - `introspect`
+
+## Lifecycle Paths
+
+Lifecycle paths are classifier-linked views over artifact evidence. They do not
+replace artifact-local lifecycle evidence; they make deterministic linked paths
+explicit for reports and downstream tooling.
+
+Each lifecycle path includes:
+
+- stable lifecycle path ID: `lifecycle_path_<hex>`
+- related artifact IDs
+- ordered stage steps, each with a lifecycle stage and evidence IDs
+- confidence: `low`, `medium`, or `high`
+- dynamic flag
+- optional reviewer question for dynamic or framework-default-dependent paths
+
+Path IDs are derived only from non-secret facts such as artifact IDs, lifecycle
+stages, evidence IDs, and normalized source locations. Paths link same-artifact
+lifecycle evidence and may merge revoke evidence into an existing path when
+static display names or known session-cookie aliases, compatible artifact types,
+and bounded source context line up. Refresh-token paths are linked only when
+evidence is source-local to the same route/function-sized region; unrelated
+`refresh_token` flows remain separate even when their display names match.
+
+Logout cookie deletion is represented as `revoke` lifecycle evidence, but
+`logout.cookie_clear` only proves that browser-side state is cleared. It does
+not satisfy server-side revocation checks for sessions, refresh tokens, or
+provider tokens unless linked evidence such as `logout.session_destroy`,
+`logout.token_revoke`, or `logout.provider_revoke` is also present.
+When a cookie is set with static `path` or `domain` attributes, linked
+clear-cookie evidence is reviewed for matching deletion options. Broader
+cross-route control-flow analysis for inconsistent logout paths is deferred
+unless a deterministic same-cookie signal exists in the local source evidence.
+
+Refresh-token detector evidence uses the existing lifecycle stages. Static
+rotation or revocation evidence, such as marking the previous refresh token
+used, deleting it, denylisting it, or revoking a token family, may satisfy the
+server-side revoke stage when linked into the same refresh-token path.
+Provider-managed refresh evidence is dynamic review context unless local source
+also shows deterministic rotation or revocation behavior.
 
 Cookie artifacts may include a `cookie_attributes` object with structured
 observations for:
@@ -236,6 +276,7 @@ A scan report contains:
 - per-file scan results
 - merged artifacts
 - merged evidence
+- lifecycle paths
 - findings
 
 Skipped file reasons are serialized as non-sensitive categories: `binary`,

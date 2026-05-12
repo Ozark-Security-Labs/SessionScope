@@ -12,9 +12,12 @@ pub use artifact::{
 };
 pub use evidence::{Confidence, Evidence, EvidenceId, SanitizedExcerpt, SourceLocation};
 pub use finding::{Finding, FindingCategory, FindingId, Severity};
-pub use lifecycle::LifecycleStage;
+pub use lifecycle::{LifecyclePath, LifecyclePathId, LifecyclePathStep, LifecycleStage};
 pub use report::{FileScanResult, Language, ScanReport, ScanSummary, SkippedReason};
-pub use schema::{SCHEMA_VERSION, stable_artifact_id, stable_evidence_id, stable_finding_id};
+pub use schema::{
+    SCHEMA_VERSION, stable_artifact_id, stable_evidence_id, stable_finding_id,
+    stable_lifecycle_path_id,
+};
 
 #[cfg(test)]
 mod tests {
@@ -24,8 +27,9 @@ mod tests {
         Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
         CookieAttributeState, CookieAttributes, Evidence, EvidenceId, Finding, FindingCategory,
         FindingId, JwtAttributeObservation, JwtAttributeState, JwtAttributes, JwtIdentityClaims,
-        LifecycleEvidence, LifecycleStage, SCHEMA_VERSION, SanitizedExcerpt, Severity,
-        SourceLocation, stable_artifact_id, stable_evidence_id, stable_finding_id,
+        LifecycleEvidence, LifecyclePath, LifecyclePathId, LifecyclePathStep, LifecycleStage,
+        SCHEMA_VERSION, SanitizedExcerpt, Severity, SourceLocation, stable_artifact_id,
+        stable_evidence_id, stable_finding_id, stable_lifecycle_path_id,
     };
 
     fn source_location() -> SourceLocation {
@@ -104,8 +108,52 @@ mod tests {
     }
 
     #[test]
+    fn round_trips_lifecycle_path() {
+        let path = LifecyclePath {
+            id: LifecyclePathId("lifecycle_path_access_jwt".to_string()),
+            artifact_ids: vec![ArtifactId("artifact_access_jwt".to_string())],
+            stages: vec![
+                LifecyclePathStep {
+                    stage: LifecycleStage::Issue,
+                    evidence_ids: vec![EvidenceId("evidence_issue".to_string())],
+                },
+                LifecyclePathStep {
+                    stage: LifecycleStage::Validate,
+                    evidence_ids: vec![EvidenceId("evidence_validate".to_string())],
+                },
+            ],
+            confidence: Confidence::High,
+            dynamic: false,
+            reviewer_question: None,
+        };
+
+        let serialized = serde_json::to_string(&path).expect("lifecycle path should serialize");
+        let deserialized: LifecyclePath =
+            serde_json::from_str(&serialized).expect("lifecycle path should deserialize");
+
+        assert_eq!(deserialized, path);
+        assert!(serialized.contains("\"stage\":\"issue\""));
+        assert_eq!(
+            stable_lifecycle_path_id(&[
+                "artifact_access_jwt",
+                "issue",
+                "evidence_issue",
+                "validate",
+                "evidence_validate",
+            ]),
+            stable_lifecycle_path_id(&[
+                "artifact_access_jwt",
+                "issue",
+                "evidence_issue",
+                "validate",
+                "evidence_validate",
+            ])
+        );
+    }
+
+    #[test]
     fn enum_wire_values_are_snake_case() {
-        assert_eq!(SCHEMA_VERSION, "0.3.0");
+        assert_eq!(SCHEMA_VERSION, "0.4.0");
         assert_eq!(
             serde_json::to_value(FindingCategory::HighConfidenceMisconfiguration)
                 .expect("category should serialize"),

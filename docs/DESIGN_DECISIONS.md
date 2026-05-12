@@ -142,3 +142,51 @@ Rules:
   requirement exists.
 - Detectors should keep token lifecycle evidence separate from authorization
   policy evidence until such an integration is designed.
+
+## SS-DEC-005: Logout Cookie Clearing And Server-Side Revocation
+
+Client-side cookie clearing is lifecycle evidence, but it is not proof that the
+server-side session, refresh token, or provider token was revoked.
+
+Rules:
+
+- Detectors may emit `revoke` evidence for cookie deletion APIs such as
+  Express `clearCookie`, Next.js `cookies().delete`, FastAPI
+  `delete_cookie`, and Django `delete_cookie`.
+- Cookie clear evidence uses `logout.cookie_clear` and should be treated as a
+  browser-side action only.
+- Server-side invalidation evidence should use more specific detector IDs such
+  as `logout.session_destroy`, `logout.token_revoke`, or
+  `logout.provider_revoke`.
+- `logout.handler` identifies logout control flow, but it does not satisfy
+  server-side revocation checks by itself.
+- Lifecycle classifiers may ask a reviewer question when logout only clears a
+  cookie and no linked server-side revocation evidence is present.
+- Cookie deletion should use the same static `path` and `domain` attributes
+  used when the cookie was set; mismatches or omitted set attributes are
+  review-required lifecycle context.
+- Provider and wrapper revocation calls are static-analysis context only; they
+  should stay medium or low confidence unless local source proves the exact
+  backend behavior.
+
+## SS-DEC-006: Refresh-Token Rotation And Provider-Managed Behavior
+
+Refresh-token rotation and reuse handling require server-side lifecycle
+evidence. Seeing a refresh handler or provider SDK call is useful context, but
+it is not proof that previous refresh tokens are invalidated.
+
+Rules:
+
+- Refresh handlers, token generation, storage, validation, expiry, rotation,
+  reuse detection, and revocation should be emitted as lifecycle evidence when
+  statically visible.
+- Old-token invalidation, mark-used updates, denylist writes, token-family
+  revocation, and provider revoke calls may satisfy server-side revocation
+  checks when linked to the same refresh-token path.
+- Refresh-token evidence is linked by bounded source context or explicit safe
+  local keys, not by the common `refresh_token` display name alone.
+- Provider-managed refresh behavior should be represented as dynamic review
+  context unless local source proves the provider rotates or revokes previous
+  refresh tokens.
+- Clearing a refresh cookie remains client-side evidence only; it does not
+  satisfy refresh-token rotation or revocation checks.

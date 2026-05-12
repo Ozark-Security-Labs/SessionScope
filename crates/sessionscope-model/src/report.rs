@@ -1,4 +1,4 @@
-use crate::{Artifact, Evidence, Finding};
+use crate::{Artifact, Evidence, Finding, LifecyclePath};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -75,5 +75,6 @@ pub struct ScanReport {
     pub files: Vec<FileScanResult>,
     pub artifacts: Vec<Artifact>,
     pub evidence: Vec<Evidence>,
+    pub lifecycle_paths: Vec<LifecyclePath>,
     pub findings: Vec<Finding>,
 }

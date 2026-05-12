@@ -1,6 +1,6 @@
-pub const SCHEMA_VERSION: &str = "0.3.0";
+pub const SCHEMA_VERSION: &str = "0.4.0";
 
-use crate::{ArtifactId, EvidenceId, FindingId};
+use crate::{ArtifactId, EvidenceId, FindingId, LifecyclePathId};
 
 /// Create a deterministic artifact ID from normalized, non-secret inputs.
 ///
@@ -25,6 +25,15 @@ pub fn stable_evidence_id(parts: &[impl AsRef<str>]) -> EvidenceId {
 /// related artifact IDs, related evidence IDs, and normalized source location.
 pub fn stable_finding_id(parts: &[impl AsRef<str>]) -> FindingId {
     FindingId(format!("finding_{:016x}", stable_hash(parts)))
+}
+
+/// Create a deterministic lifecycle path ID from normalized, non-secret inputs.
+///
+/// Inputs should identify linked artifact IDs, lifecycle stages, evidence IDs,
+/// and normalized source locations. Never pass token values, bearer strings, or
+/// runtime secrets.
+pub fn stable_lifecycle_path_id(parts: &[impl AsRef<str>]) -> LifecyclePathId {
+    LifecyclePathId(format!("lifecycle_path_{:016x}", stable_hash(parts)))
 }
 
 fn stable_hash(parts: &[impl AsRef<str>]) -> u64 {

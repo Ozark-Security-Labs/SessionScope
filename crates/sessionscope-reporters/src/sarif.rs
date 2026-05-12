@@ -170,6 +170,7 @@ mod tests {
                 dynamic: false,
                 framework_default: false,
             }],
+            lifecycle_paths: Vec::new(),
             findings: vec![Finding {
                 id: FindingId("finding_cookie".to_string()),
                 category: FindingCategory::HighConfidenceMisconfiguration,

@@ -3,8 +3,8 @@ use std::sync::LazyLock;
 use regex::Regex;
 use sessionscope_detectors::DetectionOutput;
 use sessionscope_model::{
-    Artifact, Evidence, FileScanResult, Finding, SanitizedExcerpt, ScanReport, SkippedReason,
-    SourceLocation,
+    Artifact, Evidence, FileScanResult, Finding, LifecyclePath, SanitizedExcerpt, ScanReport,
+    SkippedReason, SourceLocation,
 };
 
 pub const REDACTION: &str = "[REDACTED]";
@@ -216,6 +216,9 @@ pub fn sanitize_report(report: &mut ScanReport) {
     for finding in &mut report.findings {
         sanitize_finding(finding);
     }
+    for path in &mut report.lifecycle_paths {
+        sanitize_lifecycle_path(path);
+    }
 }
 
 fn sanitize_file_scan_result(result: &mut FileScanResult) {
@@ -305,6 +308,12 @@ fn sanitize_finding(finding: &mut Finding) {
         *suggested_fix = redact_sensitive_values(suggested_fix);
     }
     if let Some(reviewer_question) = &mut finding.reviewer_question {
+        *reviewer_question = redact_sensitive_values(reviewer_question);
+    }
+}
+
+fn sanitize_lifecycle_path(path: &mut LifecyclePath) {
+    if let Some(reviewer_question) = &mut path.reviewer_question {
         *reviewer_question = redact_sensitive_values(reviewer_question);
     }
 }

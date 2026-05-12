@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-ts.provider-revoke",
+  "framework": "generic-ts",
+  "source_files": ["logout.ts"],
+  "expected_artifacts": ["provider_revoke:refresh_token"],
+  "expected_lifecycle_stages": ["revoke"],
+  "expected_findings": ["provider_revoke_evidence_present"],
+  "notes": "Covers provider abstraction revocation evidence without live provider calls."
+}

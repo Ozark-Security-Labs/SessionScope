@@ -61,6 +61,7 @@ pub fn scan_path(
         files: results,
         artifacts,
         evidence,
+        lifecycle_paths: Vec::new(),
         findings: Vec::new(),
     })
 }

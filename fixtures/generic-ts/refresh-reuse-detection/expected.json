@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-ts.refresh-reuse-detection",
+  "framework": "generic-ts",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["refresh_token"],
+  "expected_lifecycle_stages": ["validate", "revoke"],
+  "expected_findings": ["refresh_reuse_detection_evidence_present"],
+  "notes": "Covers refresh-token reuse detection with token-family revocation evidence."
+}
