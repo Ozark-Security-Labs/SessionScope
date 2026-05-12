@@ -8,7 +8,8 @@ use std::fmt;
 use sessionscope_core::redaction::sanitized_report;
 use sessionscope_model::{
     Artifact, CookieAttributeObservation, CookieAttributes, Evidence, EvidenceId,
-    LifecycleEvidence, ScanReport, SourceLocation,
+    JwtAttributeObservation, JwtAttributes, JwtIdentityClaims, LifecycleEvidence, ScanReport,
+    SourceLocation,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,6 +82,9 @@ fn sort_artifacts(artifacts: &mut [Artifact]) {
         if let Some(attributes) = &mut artifact.cookie_attributes {
             sort_cookie_attribute_evidence_ids(attributes);
         }
+        if let Some(attributes) = &mut artifact.jwt_attributes {
+            sort_jwt_attribute_evidence_ids(attributes);
+        }
     }
 
     artifacts.sort_by(|left, right| {
@@ -139,6 +143,39 @@ fn sort_cookie_attribute_evidence_ids(attributes: &mut CookieAttributes) {
 }
 
 fn sort_observation_evidence_ids(observation: &mut CookieAttributeObservation) {
+    sort_evidence_ids(&mut observation.evidence_ids);
+}
+
+fn sort_jwt_attribute_evidence_ids(attributes: &mut JwtAttributes) {
+    sort_jwt_observation_evidence_ids(&mut attributes.operation);
+    sort_jwt_observation_evidence_ids(&mut attributes.algorithm);
+    sort_jwt_observation_evidence_ids(&mut attributes.key_reference);
+    sort_jwt_observation_evidence_ids(&mut attributes.issuer);
+    sort_jwt_observation_evidence_ids(&mut attributes.audience);
+    sort_jwt_observation_evidence_ids(&mut attributes.expiration);
+    sort_jwt_observation_evidence_ids(&mut attributes.signature_verification);
+    sort_jwt_observation_evidence_ids(&mut attributes.expiry_enforcement);
+    if let Some(identity_claims) = &mut attributes.identity_claims {
+        sort_identity_claim_evidence_ids(identity_claims);
+    }
+}
+
+fn sort_identity_claim_evidence_ids(identity_claims: &mut JwtIdentityClaims) {
+    sort_jwt_observation_evidence_ids(&mut identity_claims.subject);
+    sort_jwt_observation_evidence_ids(&mut identity_claims.user_id);
+    sort_jwt_observation_evidence_ids(&mut identity_claims.tenant_id);
+    sort_jwt_observation_evidence_ids(&mut identity_claims.org_id);
+    sort_jwt_observation_evidence_ids(&mut identity_claims.workspace_id);
+    sort_jwt_observation_evidence_ids(&mut identity_claims.roles);
+    sort_jwt_observation_evidence_ids(&mut identity_claims.scopes);
+    sort_jwt_observation_evidence_ids(&mut identity_claims.groups);
+    sort_jwt_observation_evidence_ids(&mut identity_claims.email);
+    sort_jwt_observation_evidence_ids(&mut identity_claims.email_verified);
+    sort_jwt_observation_evidence_ids(&mut identity_claims.auth_method);
+    sort_jwt_observation_evidence_ids(&mut identity_claims.auth_class);
+}
+
+fn sort_jwt_observation_evidence_ids(observation: &mut JwtAttributeObservation) {
     sort_evidence_ids(&mut observation.evidence_ids);
 }
 

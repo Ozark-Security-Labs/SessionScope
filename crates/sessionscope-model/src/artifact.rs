@@ -82,6 +82,22 @@ pub struct JwtAttributeObservation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JwtIdentityClaims {
+    pub subject: JwtAttributeObservation,
+    pub user_id: JwtAttributeObservation,
+    pub tenant_id: JwtAttributeObservation,
+    pub org_id: JwtAttributeObservation,
+    pub workspace_id: JwtAttributeObservation,
+    pub roles: JwtAttributeObservation,
+    pub scopes: JwtAttributeObservation,
+    pub groups: JwtAttributeObservation,
+    pub email: JwtAttributeObservation,
+    pub email_verified: JwtAttributeObservation,
+    pub auth_method: JwtAttributeObservation,
+    pub auth_class: JwtAttributeObservation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JwtAttributes {
     pub operation: JwtAttributeObservation,
     pub algorithm: JwtAttributeObservation,
@@ -91,6 +107,8 @@ pub struct JwtAttributes {
     pub expiration: JwtAttributeObservation,
     pub signature_verification: JwtAttributeObservation,
     pub expiry_enforcement: JwtAttributeObservation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity_claims: Option<JwtIdentityClaims>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

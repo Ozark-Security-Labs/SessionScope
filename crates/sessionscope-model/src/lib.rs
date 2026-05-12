@@ -7,7 +7,8 @@ pub mod schema;
 
 pub use artifact::{
     Artifact, ArtifactId, ArtifactType, CookieAttributeObservation, CookieAttributeState,
-    CookieAttributes, JwtAttributeObservation, JwtAttributeState, JwtAttributes, LifecycleEvidence,
+    CookieAttributes, JwtAttributeObservation, JwtAttributeState, JwtAttributes, JwtIdentityClaims,
+    LifecycleEvidence,
 };
 pub use evidence::{Confidence, Evidence, EvidenceId, SanitizedExcerpt, SourceLocation};
 pub use finding::{Finding, FindingCategory, FindingId, Severity};
@@ -22,9 +23,9 @@ mod tests {
     use super::{
         Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
         CookieAttributeState, CookieAttributes, Evidence, EvidenceId, Finding, FindingCategory,
-        FindingId, JwtAttributeObservation, JwtAttributeState, JwtAttributes, LifecycleEvidence,
-        LifecycleStage, SCHEMA_VERSION, SanitizedExcerpt, Severity, SourceLocation,
-        stable_artifact_id, stable_evidence_id, stable_finding_id,
+        FindingId, JwtAttributeObservation, JwtAttributeState, JwtAttributes, JwtIdentityClaims,
+        LifecycleEvidence, LifecycleStage, SCHEMA_VERSION, SanitizedExcerpt, Severity,
+        SourceLocation, stable_artifact_id, stable_evidence_id, stable_finding_id,
     };
 
     fn source_location() -> SourceLocation {
@@ -197,7 +198,7 @@ mod tests {
             key_reference: missing.clone(),
             issuer: observed,
             audience: missing.clone(),
-            expiration: missing,
+            expiration: missing.clone(),
             signature_verification: JwtAttributeObservation {
                 state: JwtAttributeState::Present,
                 value: Some("verified".to_string()),
@@ -210,6 +211,25 @@ mod tests {
                 evidence_ids: Vec::new(),
                 confidence: Confidence::Low,
             },
+            identity_claims: Some(JwtIdentityClaims {
+                subject: JwtAttributeObservation {
+                    state: JwtAttributeState::Present,
+                    value: Some("userId".to_string()),
+                    evidence_ids: Vec::new(),
+                    confidence: Confidence::High,
+                },
+                user_id: missing.clone(),
+                tenant_id: missing.clone(),
+                org_id: missing.clone(),
+                workspace_id: missing.clone(),
+                roles: missing.clone(),
+                scopes: missing.clone(),
+                groups: missing.clone(),
+                email: missing.clone(),
+                email_verified: missing.clone(),
+                auth_method: missing.clone(),
+                auth_class: missing,
+            }),
         };
 
         let serialized = serde_json::to_string(&attributes).expect("jwt attributes serialize");
@@ -221,6 +241,14 @@ mod tests {
         assert!(serialized.contains("\"key_reference\""));
         assert!(serialized.contains("\"signature_verification\""));
         assert!(serialized.contains("\"expiry_enforcement\""));
+        assert!(serialized.contains("\"identity_claims\""));
+        assert!(serialized.contains("\"subject\""));
+
+        let mut attributes_without_claims = attributes;
+        attributes_without_claims.identity_claims = None;
+        let serialized_without_claims =
+            serde_json::to_string(&attributes_without_claims).expect("jwt attributes serialize");
+        assert!(!serialized_without_claims.contains("\"identity_claims\""));
     }
 
     #[test]

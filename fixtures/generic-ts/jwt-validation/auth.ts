@@ -5,11 +5,17 @@ const ISSUER = "https://placeholder.issuer.invalid";
 const AUDIENCE = "placeholder-service";
 
 export function issueAccessJwt(userId: string): string {
+  const claims = {
+    sub: userId,
+    tenant_id: "placeholder-tenant",
+    roles: ["admin"],
+    scope: "read:sessions",
+    email: "person@example.com",
+    emailVerified: true,
+    amr: "pwd",
+  };
   return jwt.sign(
-    {
-      sub: userId,
-      scope: "read:sessions",
-    },
+    claims,
     JWT_SECRET,
     {
       issuer: ISSUER,

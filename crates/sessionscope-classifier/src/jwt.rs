@@ -333,6 +333,7 @@ mod tests {
                 Some("explicit"),
                 EvidenceId("evidence_expiry_enforcement".to_string()),
             ),
+            identity_claims: None,
         }
     }
 

@@ -176,6 +176,9 @@ fn scan_json_runs_builtin_jwt_detector() {
         concat!(
             "import jwt from \"jsonwebtoken\";\n",
             "const JWT_SECRET = \"PLACEHOLDER_SECRET_DO_NOT_USE\";\n",
+            "export function issueAccessJwt(userId: string, tenantId: string) {\n",
+            "  return jwt.sign({ sub: userId, tenant_id: tenantId, email: \"person@example.com\" }, JWT_SECRET, { expiresIn: \"15m\" });\n",
+            "}\n",
             "export function verifyAccessJwt(token: string) {\n",
             "  return jwt.verify(token, JWT_SECRET);\n",
             "}\n"
@@ -207,6 +210,12 @@ fn scan_json_runs_builtin_jwt_detector() {
                     && artifact["jwt_attributes"]["signature_verification"]["state"] == "present"
                     && artifact["jwt_attributes"]["expiry_enforcement"]["state"]
                         == "framework_default"
+                    && artifact["jwt_attributes"]["identity_claims"]["subject"]["state"]
+                        == "present"
+                    && artifact["jwt_attributes"]["identity_claims"]["tenant_id"]["state"]
+                        == "present"
+                    && artifact["jwt_attributes"]["identity_claims"]["email"]["value"]
+                        == "[literal]"
             })
     );
     assert!(
@@ -224,6 +233,7 @@ fn scan_json_runs_builtin_jwt_detector() {
     );
     let serialized = String::from_utf8_lossy(&output.stdout);
     assert!(!serialized.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+    assert!(!serialized.contains("person@example.com"));
 }
 
 #[test]
@@ -309,6 +319,39 @@ fn scan_markdown_stdout_renders_lifecycle_report_for_cookie_fixture() {
     assert!(stdout.contains("**Suggested fix:**"));
     assert!(stdout.contains("**Reviewer question:**"));
     assert!(!stdout.contains("PLACEHOLDER_RESET_TOKEN"));
+    assert!(!stdout.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+}
+
+#[test]
+fn scan_markdown_stdout_renders_jwt_identity_claims() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("auth.ts"),
+        concat!(
+            "import jwt from \"jsonwebtoken\";\n",
+            "const JWT_SECRET = \"PLACEHOLDER_SECRET_DO_NOT_USE\";\n",
+            "export function issueAccessJwt(userId: string) {\n",
+            "  return jwt.sign({ sub: userId, scope: \"read:sessions\", email: \"person@example.com\" }, JWT_SECRET, { expiresIn: \"15m\" });\n",
+            "}\n"
+        ),
+    )
+    .expect("auth source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "markdown",
+    ]);
+
+    assert!(output.status.success());
+    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("| JWT identity claim | State | Value | Confidence | Evidence |"));
+    assert!(stdout.contains("| Subject | `present` | userId | `high` | 1 |"));
+    assert!(stdout.contains("| Scopes | `present` | \\[literal\\] | `high` | 1 |"));
+    assert!(!stdout.contains("person@example.com"));
+    assert!(!stdout.contains("read:sessions"));
     assert!(!stdout.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
 }
 

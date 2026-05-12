@@ -13,6 +13,11 @@ def issue_access_jwt(user_id: str) -> str:
     return jwt.encode(
         {
             "sub": user_id,
+            "workspace_id": "placeholder-workspace",
+            "groups": ["admins"],
+            "email": "person@example.com",
+            "email_verified": True,
+            "acr": "urn:mfa",
             "iss": ISSUER,
             "aud": AUDIENCE,
             "iat": now,

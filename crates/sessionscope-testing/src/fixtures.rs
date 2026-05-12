@@ -335,6 +335,38 @@ mod tests {
     }
 
     #[test]
+    fn generic_jwt_fixtures_render_sanitized_identity_claims() {
+        for root in [
+            fixture_root().join("generic-ts").join("jwt-validation"),
+            fixture_root().join("generic-python").join("jwt-and-reset"),
+        ] {
+            let rendered = render_classified_json(&root);
+            let parsed: serde_json::Value =
+                serde_json::from_str(&rendered).expect("rendered JSON should parse");
+            assert!(
+                parsed["artifacts"]
+                    .as_array()
+                    .expect("artifacts")
+                    .iter()
+                    .any(|artifact| {
+                        artifact["display_name"] == "access_jwt"
+                            && artifact["jwt_attributes"]["identity_claims"]["subject"]["state"]
+                                == "present"
+                    }),
+                "{} should include sanitized JWT identity claims",
+                root.display()
+            );
+            assert!(!rendered.contains("person@example.com"));
+            assert!(!rendered.contains("placeholder-tenant"));
+            assert!(!rendered.contains("placeholder-workspace"));
+            assert!(!rendered.contains("read:sessions"));
+            assert!(!rendered.contains("urn:mfa"));
+            assert!(!rendered.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+            assert!(!rendered.contains(PLACEHOLDER_JWT));
+        }
+    }
+
+    #[test]
     fn express_cookie_fixture_renders_deterministic_json_inventory() {
         let root = fixture_root()
             .join("express")

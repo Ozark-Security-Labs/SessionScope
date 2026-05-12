@@ -273,6 +273,34 @@ fn render_jwt_attributes(output: &mut String, attributes: &sessionscope_model::J
         ));
     }
     output.push('\n');
+
+    if let Some(identity_claims) = &attributes.identity_claims {
+        output.push_str("| JWT identity claim | State | Value | Confidence | Evidence |\n");
+        output.push_str("| --- | --- | --- | --- | ---: |\n");
+        for (label, observation) in [
+            ("Subject", &identity_claims.subject),
+            ("User ID", &identity_claims.user_id),
+            ("Tenant ID", &identity_claims.tenant_id),
+            ("Org ID", &identity_claims.org_id),
+            ("Workspace ID", &identity_claims.workspace_id),
+            ("Roles", &identity_claims.roles),
+            ("Scopes", &identity_claims.scopes),
+            ("Groups", &identity_claims.groups),
+            ("Email", &identity_claims.email),
+            ("Email verified", &identity_claims.email_verified),
+            ("Auth method", &identity_claims.auth_method),
+            ("Auth class", &identity_claims.auth_class),
+        ] {
+            output.push_str(&format!(
+                "| {label} | {} | {} | {} | {} |\n",
+                code_span(format_jwt_state(observation.state)),
+                table_cell(observation.value.as_deref().unwrap_or("-")),
+                code_span(format_confidence(observation.confidence)),
+                observation.evidence_ids.len()
+            ));
+        }
+        output.push('\n');
+    }
 }
 
 fn lifecycle_rows(lifecycle_evidence: &LifecycleEvidence) -> Vec<(LifecycleStage, &EvidenceId)> {
@@ -518,8 +546,8 @@ mod tests {
         Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
         CookieAttributeState, CookieAttributes, Evidence, EvidenceId, FileScanResult, Finding,
         FindingCategory, FindingId, JwtAttributeObservation, JwtAttributeState, JwtAttributes,
-        Language, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION, SanitizedExcerpt, ScanReport,
-        ScanSummary, Severity, SkippedReason, SourceLocation,
+        JwtIdentityClaims, Language, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION,
+        SanitizedExcerpt, ScanReport, ScanSummary, Severity, SkippedReason, SourceLocation,
     };
 
     use super::render;
@@ -661,6 +689,10 @@ mod tests {
         assert!(
             rendered.contains("| Signature verification | `present` | verified | `high` | 0 |")
         );
+        assert!(
+            rendered.contains("| JWT identity claim | State | Value | Confidence | Evidence |")
+        );
+        assert!(rendered.contains("| Subject | `present` | userId | `high` | 1 |"));
         assert!(rendered.contains(
             "| Expiry enforcement | `framework_default` | library\\_default | `low` | 0 |"
         ));
@@ -823,7 +855,7 @@ mod tests {
         let present = JwtAttributeObservation {
             state: JwtAttributeState::Present,
             value: Some("ISSUER".to_string()),
-            evidence_ids: vec![evidence_id],
+            evidence_ids: vec![evidence_id.clone()],
             confidence: Confidence::High,
         };
         let missing = JwtAttributeObservation {
@@ -843,7 +875,7 @@ mod tests {
             key_reference: missing.clone(),
             issuer: present,
             audience: missing.clone(),
-            expiration: missing,
+            expiration: missing.clone(),
             signature_verification: JwtAttributeObservation {
                 state: JwtAttributeState::Present,
                 value: Some("verified".to_string()),
@@ -856,6 +888,25 @@ mod tests {
                 evidence_ids: Vec::new(),
                 confidence: Confidence::Low,
             },
+            identity_claims: Some(JwtIdentityClaims {
+                subject: JwtAttributeObservation {
+                    state: JwtAttributeState::Present,
+                    value: Some("userId".to_string()),
+                    evidence_ids: vec![evidence_id],
+                    confidence: Confidence::High,
+                },
+                user_id: missing.clone(),
+                tenant_id: missing.clone(),
+                org_id: missing.clone(),
+                workspace_id: missing.clone(),
+                roles: missing.clone(),
+                scopes: missing.clone(),
+                groups: missing.clone(),
+                email: missing.clone(),
+                email_verified: missing.clone(),
+                auth_method: missing.clone(),
+                auth_class: missing,
+            }),
         }
     }
 

@@ -4,8 +4,8 @@ use std::sync::LazyLock;
 use regex::Regex;
 use sessionscope_model::{
     Artifact, ArtifactType, Confidence, Evidence, JwtAttributeObservation, JwtAttributeState,
-    JwtAttributes, Language, LifecycleEvidence, LifecycleStage, SanitizedExcerpt, SourceLocation,
-    stable_artifact_id, stable_evidence_id,
+    JwtAttributes, JwtIdentityClaims, Language, LifecycleEvidence, LifecycleStage,
+    SanitizedExcerpt, SourceLocation, stable_artifact_id, stable_evidence_id,
 };
 use tree_sitter::{Node, Parser, Tree};
 
@@ -25,6 +25,22 @@ static JWT_RE: LazyLock<Regex> = LazyLock::new(|| {
 static LONG_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)(secret|private[_-]?key|signing[_-]?key|token|jwt)\s*[:=]\s*["'][^"']*["']"#)
         .expect("sensitive literal regex should compile")
+});
+static SENSITIVE_CLAIM_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?ix)(["']?(?:sub|email|email_verified|emailVerified|phone|address|sid|jti|user_id|userId|uid|tenant|tenant_id|tenantId|org|org_id|organization_id|organizationId|workspace|workspace_id|workspaceId|role|roles|scope|scopes|groups|amr|acr|auth_method|authMethod|auth_class|authClass)["']?\s*:\s*["'])([^"']+)(["'])"#,
+    )
+    .expect("sensitive claim regex should compile")
+});
+static SENSITIVE_CLAIM_COLLECTION_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?ix)(["']?(?:role|roles|scope|scopes|groups|amr|acr|auth_method|authMethod|auth_class|authClass)["']?\s*:\s*)(\[[^\]]*\]|\{[^}]*\})"#,
+    )
+    .expect("sensitive claim collection regex should compile")
+});
+static EMAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+        .expect("email regex should compile")
 });
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -79,10 +95,22 @@ enum JwtField {
     Expiration,
     SignatureVerification,
     ExpiryEnforcement,
+    Subject,
+    UserId,
+    TenantId,
+    OrgId,
+    WorkspaceId,
+    Roles,
+    Scopes,
+    Groups,
+    Email,
+    EmailVerified,
+    AuthMethod,
+    AuthClass,
 }
 
 impl JwtField {
-    const ALL: [Self; 8] = [
+    const ALL: [Self; 20] = [
         Self::Operation,
         Self::Algorithm,
         Self::KeyReference,
@@ -91,6 +119,33 @@ impl JwtField {
         Self::Expiration,
         Self::SignatureVerification,
         Self::ExpiryEnforcement,
+        Self::Subject,
+        Self::UserId,
+        Self::TenantId,
+        Self::OrgId,
+        Self::WorkspaceId,
+        Self::Roles,
+        Self::Scopes,
+        Self::Groups,
+        Self::Email,
+        Self::EmailVerified,
+        Self::AuthMethod,
+        Self::AuthClass,
+    ];
+
+    const IDENTITY_CLAIMS: [Self; 12] = [
+        Self::Subject,
+        Self::UserId,
+        Self::TenantId,
+        Self::OrgId,
+        Self::WorkspaceId,
+        Self::Roles,
+        Self::Scopes,
+        Self::Groups,
+        Self::Email,
+        Self::EmailVerified,
+        Self::AuthMethod,
+        Self::AuthClass,
     ];
 
     fn wire_name(self) -> &'static str {
@@ -103,6 +158,18 @@ impl JwtField {
             Self::Expiration => "expiration",
             Self::SignatureVerification => "signature_verification",
             Self::ExpiryEnforcement => "expiry_enforcement",
+            Self::Subject => "subject",
+            Self::UserId => "user_id",
+            Self::TenantId => "tenant_id",
+            Self::OrgId => "org_id",
+            Self::WorkspaceId => "workspace_id",
+            Self::Roles => "roles",
+            Self::Scopes => "scopes",
+            Self::Groups => "groups",
+            Self::Email => "email",
+            Self::EmailVerified => "email_verified",
+            Self::AuthMethod => "auth_method",
+            Self::AuthClass => "auth_class",
         }
     }
 
@@ -116,6 +183,18 @@ impl JwtField {
             Self::Expiration => "expiration",
             Self::SignatureVerification => "signature verification",
             Self::ExpiryEnforcement => "expiry enforcement",
+            Self::Subject => "subject claim",
+            Self::UserId => "user ID claim",
+            Self::TenantId => "tenant ID claim",
+            Self::OrgId => "organization ID claim",
+            Self::WorkspaceId => "workspace ID claim",
+            Self::Roles => "roles claim",
+            Self::Scopes => "scopes claim",
+            Self::Groups => "groups claim",
+            Self::Email => "email claim",
+            Self::EmailVerified => "email verified claim",
+            Self::AuthMethod => "auth method claim",
+            Self::AuthClass => "auth class claim",
         }
     }
 
@@ -410,6 +489,36 @@ fn apply_field_evidence_ids(
     attributes.expiry_enforcement.evidence_ids = evidence_ids
         .remove(&JwtField::ExpiryEnforcement)
         .unwrap_or_default();
+    if let Some(identity_claims) = &mut attributes.identity_claims {
+        identity_claims.subject.evidence_ids =
+            evidence_ids.remove(&JwtField::Subject).unwrap_or_default();
+        identity_claims.user_id.evidence_ids =
+            evidence_ids.remove(&JwtField::UserId).unwrap_or_default();
+        identity_claims.tenant_id.evidence_ids =
+            evidence_ids.remove(&JwtField::TenantId).unwrap_or_default();
+        identity_claims.org_id.evidence_ids =
+            evidence_ids.remove(&JwtField::OrgId).unwrap_or_default();
+        identity_claims.workspace_id.evidence_ids = evidence_ids
+            .remove(&JwtField::WorkspaceId)
+            .unwrap_or_default();
+        identity_claims.roles.evidence_ids =
+            evidence_ids.remove(&JwtField::Roles).unwrap_or_default();
+        identity_claims.scopes.evidence_ids =
+            evidence_ids.remove(&JwtField::Scopes).unwrap_or_default();
+        identity_claims.groups.evidence_ids =
+            evidence_ids.remove(&JwtField::Groups).unwrap_or_default();
+        identity_claims.email.evidence_ids =
+            evidence_ids.remove(&JwtField::Email).unwrap_or_default();
+        identity_claims.email_verified.evidence_ids = evidence_ids
+            .remove(&JwtField::EmailVerified)
+            .unwrap_or_default();
+        identity_claims.auth_method.evidence_ids = evidence_ids
+            .remove(&JwtField::AuthMethod)
+            .unwrap_or_default();
+        identity_claims.auth_class.evidence_ids = evidence_ids
+            .remove(&JwtField::AuthClass)
+            .unwrap_or_default();
+    }
 }
 
 fn aggregate_jwt_attributes(
@@ -419,6 +528,33 @@ fn aggregate_jwt_attributes(
     for field in JwtField::ALL {
         fields.insert(field, aggregate_field(field, observations.get(&field)));
     }
+    let has_identity_claims = JwtField::IDENTITY_CLAIMS
+        .iter()
+        .any(|field| observations.contains_key(field));
+    let identity_claims = has_identity_claims.then(|| JwtIdentityClaims {
+        subject: fields.remove(&JwtField::Subject).expect("subject exists"),
+        user_id: fields.remove(&JwtField::UserId).expect("user ID exists"),
+        tenant_id: fields
+            .remove(&JwtField::TenantId)
+            .expect("tenant ID exists"),
+        org_id: fields.remove(&JwtField::OrgId).expect("org ID exists"),
+        workspace_id: fields
+            .remove(&JwtField::WorkspaceId)
+            .expect("workspace ID exists"),
+        roles: fields.remove(&JwtField::Roles).expect("roles exists"),
+        scopes: fields.remove(&JwtField::Scopes).expect("scopes exists"),
+        groups: fields.remove(&JwtField::Groups).expect("groups exists"),
+        email: fields.remove(&JwtField::Email).expect("email exists"),
+        email_verified: fields
+            .remove(&JwtField::EmailVerified)
+            .expect("email verified exists"),
+        auth_method: fields
+            .remove(&JwtField::AuthMethod)
+            .expect("auth method exists"),
+        auth_class: fields
+            .remove(&JwtField::AuthClass)
+            .expect("auth class exists"),
+    });
 
     JwtAttributes {
         operation: fields
@@ -441,6 +577,7 @@ fn aggregate_jwt_attributes(
         expiry_enforcement: fields
             .remove(&JwtField::ExpiryEnforcement)
             .expect("expiry enforcement exists"),
+        identity_claims,
     }
 }
 
@@ -732,6 +869,7 @@ fn js_jose_sign_call<'tree>(
         line,
         column,
     );
+    add_identity_claim_fields_from_text(&mut fields, &text, line, column);
     add_missing_for_issue_fields(&mut fields, line, column);
 
     let display_name = infer_jwt_display_name(function_name, node, source);
@@ -786,6 +924,7 @@ fn add_js_sign_fields(
             line,
             column,
         );
+        add_identity_claim_fields(fields, payload, source, option_aliases);
     }
     if let Some(options) = argument_nodes.get(2).copied() {
         add_js_options_fields(
@@ -1186,6 +1325,7 @@ fn add_python_encode_fields(
             line,
             column,
         );
+        add_identity_claim_fields(fields, payload, source, option_aliases);
     }
     if let Some(value) = python_keyword_value(argument_nodes, source, "algorithm") {
         add_present_node(fields, JwtField::Algorithm, value, source);
@@ -1689,6 +1829,7 @@ fn field_set_from_object(node: Node<'_>, source: &str) -> FieldSet {
             },
         );
     }
+    add_identity_claim_fields_from_object(&mut fields, node, source);
     FieldSet {
         fields,
         dynamic: object_has_dynamic_spread(node, source),
@@ -1720,6 +1861,115 @@ fn add_object_field(
             .entry(field)
             .or_insert_with(|| dynamic_field(field, line, column));
     }
+}
+
+fn add_identity_claim_fields(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    payload: Node<'_>,
+    source: &str,
+    aliases: &BTreeMap<String, FieldSet>,
+) {
+    if is_object_literal(payload) || is_dictionary(payload) {
+        add_identity_claim_fields_from_object(fields, payload, source);
+    } else if payload.kind() == "identifier" {
+        let alias_name = node_text(payload, source);
+        if let Some(alias) = aliases.get(&alias_name) {
+            for field in JwtField::IDENTITY_CLAIMS {
+                if let Some(value) = alias.fields.get(&field) {
+                    fields.entry(field).or_insert_with(|| value.clone());
+                }
+            }
+        }
+    }
+}
+
+fn add_identity_claim_fields_from_object(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    object: Node<'_>,
+    source: &str,
+) {
+    for (field, names) in identity_claim_mappings() {
+        for name in names {
+            if let Some(value) = object_property_value(object, source, name) {
+                add_present_identity_node(fields, field, value, source);
+                break;
+            }
+        }
+    }
+}
+
+fn add_identity_claim_fields_from_text(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    text: &str,
+    line: usize,
+    column: usize,
+) {
+    for (field, names) in identity_claim_mappings() {
+        for name in names {
+            let pattern = format!(
+                r#"(?s)(?:^|[{{,])\s*["']?{}["']?\s*:\s*([^,}}\n]+)"#,
+                regex::escape(name)
+            );
+            let regex = Regex::new(&pattern).expect("claim regex should compile");
+            if let Some(capture) = regex.captures(text) {
+                fields.entry(field).or_insert_with(|| JwtFieldEvidence {
+                    state: JwtAttributeState::Present,
+                    value: Some(safe_identity_value(field, capture[1].trim())),
+                    confidence: Confidence::High,
+                    line,
+                    column,
+                    excerpt: format!("{} is present", field.display_name()).into(),
+                });
+                break;
+            }
+        }
+    }
+}
+
+fn identity_claim_mappings() -> [(JwtField, &'static [&'static str]); 12] {
+    [
+        (JwtField::Subject, &["sub"]),
+        (JwtField::UserId, &["user_id", "userId", "uid"]),
+        (JwtField::TenantId, &["tenant", "tenant_id", "tenantId"]),
+        (
+            JwtField::OrgId,
+            &["org", "org_id", "organization_id", "organizationId"],
+        ),
+        (
+            JwtField::WorkspaceId,
+            &["workspace", "workspace_id", "workspaceId"],
+        ),
+        (JwtField::Roles, &["role", "roles"]),
+        (JwtField::Scopes, &["scope", "scopes"]),
+        (JwtField::Groups, &["groups"]),
+        (JwtField::Email, &["email"]),
+        (
+            JwtField::EmailVerified,
+            &["email_verified", "emailVerified"],
+        ),
+        (JwtField::AuthMethod, &["amr", "auth_method", "authMethod"]),
+        (JwtField::AuthClass, &["acr", "auth_class", "authClass"]),
+    ]
+}
+
+fn add_present_identity_node(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    field: JwtField,
+    node: Node<'_>,
+    source: &str,
+) {
+    let (line, column) = node_line_column(node);
+    fields.insert(
+        field,
+        JwtFieldEvidence {
+            state: JwtAttributeState::Present,
+            value: Some(safe_identity_value(field, &node_text(node, source))),
+            confidence: Confidence::High,
+            line,
+            column,
+            excerpt: format!("{} is present", field.display_name()).into(),
+        },
+    );
 }
 
 fn add_present_node(
@@ -2098,6 +2348,27 @@ fn safe_node_value(node: Node<'_>, source: &str) -> String {
     safe_text_value(&node_text(node, source))
 }
 
+fn safe_identity_value(field: JwtField, text: &str) -> String {
+    let trimmed = text.trim();
+    if field == JwtField::EmailVerified
+        && matches!(
+            trimmed.to_ascii_lowercase().as_str(),
+            "true" | "false" | "True" | "False"
+        )
+    {
+        return trimmed.to_ascii_lowercase();
+    }
+    if parse_string_text(trimmed).is_some()
+        || trimmed.starts_with('[')
+        || trimmed.starts_with('{')
+        || trimmed.chars().all(|character| character.is_ascii_digit())
+    {
+        "[literal]".to_string()
+    } else {
+        safe_text_value(trimmed)
+    }
+}
+
 fn safe_text_value(text: &str) -> String {
     let trimmed = text.trim();
     if parse_string_text(trimmed).is_some() || trimmed.starts_with('[') || trimmed.starts_with('{')
@@ -2191,6 +2462,13 @@ fn redact_excerpt(text: &str) -> String {
             format!("{left}\"{REDACTION}\"")
         })
         .to_string();
+    output = SENSITIVE_CLAIM_RE
+        .replace_all(&output, format!("${{1}}{REDACTION}${{3}}"))
+        .to_string();
+    output = SENSITIVE_CLAIM_COLLECTION_RE
+        .replace_all(&output, format!("${{1}}{REDACTION}"))
+        .to_string();
+    output = EMAIL_RE.replace_all(&output, REDACTION).to_string();
     output
 }
 
@@ -2351,14 +2629,66 @@ export function verifyLegacyJwt(token: string) {
     }
 
     #[test]
+    fn detects_jsonwebtoken_identity_claims_from_payload_alias() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+import jwt from "jsonwebtoken";
+const JWT_SECRET = "PLACEHOLDER_SECRET_DO_NOT_USE";
+export function issueAccessJwt(userId: string, tenantId: string, authMethod: string) {
+  const claims = {
+    sub: userId,
+    tenant_id: tenantId,
+    roles: ["admin"],
+    email: "person@example.com",
+    emailVerified: true,
+    amr: authMethod,
+  };
+  return jwt.sign(claims, JWT_SECRET, { expiresIn: "15m" });
+}
+"#,
+        );
+
+        let artifact = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("access_jwt"))
+            .expect("access JWT artifact should exist");
+        let identity_claims = artifact
+            .jwt_attributes
+            .as_ref()
+            .expect("jwt attributes")
+            .identity_claims
+            .as_ref()
+            .expect("identity claims");
+        assert_eq!(identity_claims.subject.state, JwtAttributeState::Present);
+        assert_eq!(identity_claims.subject.value.as_deref(), Some("userId"));
+        assert_eq!(identity_claims.tenant_id.state, JwtAttributeState::Present);
+        assert_eq!(identity_claims.tenant_id.value.as_deref(), Some("tenantId"));
+        assert_eq!(identity_claims.roles.value.as_deref(), Some("[literal]"));
+        assert_eq!(identity_claims.email.value.as_deref(), Some("[literal]"));
+        assert_eq!(
+            identity_claims.email_verified.value.as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            identity_claims.auth_method.value.as_deref(),
+            Some("authMethod")
+        );
+        let detected = detected_text(&output);
+        assert!(!detected.contains("person@example.com"));
+        assert!(!detected.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+    }
+
+    #[test]
     fn detects_jose_sign_and_verify() {
         let output = detect(
             Language::TypeScript,
             r#"
 import { jwtVerify, SignJWT } from "jose";
 const secret = new TextEncoder().encode("PLACEHOLDER_SECRET_DO_NOT_USE");
-export async function issueAccessJwt() {
-  return await new SignJWT({ sub: "user" })
+export async function issueAccessJwt(userId: string, orgId: string) {
+  return await new SignJWT({ sub: userId, org_id: orgId, scopes: ["read:users"] })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuer(issuer)
     .setAudience(audience)
@@ -2388,6 +2718,17 @@ export async function verifyAccessJwt(token: string) {
                 .state,
             JwtAttributeState::FrameworkDefault
         );
+        let identity_claims = artifact
+            .jwt_attributes
+            .as_ref()
+            .expect("attributes")
+            .identity_claims
+            .as_ref()
+            .expect("identity claims");
+        assert_eq!(identity_claims.subject.value.as_deref(), Some("userId"));
+        assert_eq!(identity_claims.org_id.value.as_deref(), Some("orgId"));
+        assert_eq!(identity_claims.scopes.value.as_deref(), Some("[literal]"));
+        assert!(!detected_text(&output).contains("read:users"));
     }
 
     #[test]
@@ -2399,7 +2740,18 @@ import jwt as pyjwt
 JWT_SECRET = "PLACEHOLDER_SECRET_DO_NOT_USE"
 
 def issue_access_jwt(user_id):
-    return pyjwt.encode({"sub": user_id, "iss": ISSUER, "aud": AUDIENCE, "exp": expires_at}, JWT_SECRET, algorithm="HS256")
+    claims = {
+        "sub": user_id,
+        "workspace_id": workspace_id,
+        "groups": ["admins"],
+        "email": "person@example.com",
+        "email_verified": True,
+        "acr": "urn:mfa",
+        "iss": ISSUER,
+        "aud": AUDIENCE,
+        "exp": expires_at,
+    }
+    return pyjwt.encode(claims, JWT_SECRET, algorithm="HS256")
 
 def verify_legacy_jwt(token):
     return pyjwt.decode(token, JWT_SECRET, algorithms=["HS256"])
@@ -2426,7 +2778,38 @@ def inspect_access_jwt(token):
                 .iter()
                 .any(|artifact| !artifact.lifecycle_evidence.introspect.is_empty())
         );
-        assert!(!detected_text(&output).contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+        let access = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("access_jwt"))
+            .expect("access JWT should exist");
+        let identity_claims = access
+            .jwt_attributes
+            .as_ref()
+            .expect("attributes")
+            .identity_claims
+            .as_ref()
+            .expect("identity claims");
+        assert_eq!(identity_claims.subject.value.as_deref(), Some("user_id"));
+        assert_eq!(
+            identity_claims.workspace_id.value.as_deref(),
+            Some("workspace_id")
+        );
+        assert_eq!(identity_claims.groups.value.as_deref(), Some("[literal]"));
+        assert_eq!(identity_claims.email.value.as_deref(), Some("[literal]"));
+        assert_eq!(
+            identity_claims.email_verified.value.as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            identity_claims.auth_class.value.as_deref(),
+            Some("[literal]")
+        );
+        let detected = detected_text(&output);
+        assert!(!detected.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+        assert!(!detected.contains("person@example.com"));
+        assert!(!detected.contains("admins"));
+        assert!(!detected.contains("urn:mfa"));
     }
 
     #[test]
@@ -2503,7 +2886,7 @@ const text = "jwt.sign(payload, secret)";
             .iter()
             .filter_map(|artifact| artifact.jwt_attributes.as_ref())
             .flat_map(|attributes| {
-                [
+                let mut observations = vec![
                     &attributes.operation,
                     &attributes.algorithm,
                     &attributes.key_reference,
@@ -2512,7 +2895,24 @@ const text = "jwt.sign(payload, secret)";
                     &attributes.expiration,
                     &attributes.signature_verification,
                     &attributes.expiry_enforcement,
-                ]
+                ];
+                if let Some(identity_claims) = &attributes.identity_claims {
+                    observations.extend([
+                        &identity_claims.subject,
+                        &identity_claims.user_id,
+                        &identity_claims.tenant_id,
+                        &identity_claims.org_id,
+                        &identity_claims.workspace_id,
+                        &identity_claims.roles,
+                        &identity_claims.scopes,
+                        &identity_claims.groups,
+                        &identity_claims.email,
+                        &identity_claims.email_verified,
+                        &identity_claims.auth_method,
+                        &identity_claims.auth_class,
+                    ]);
+                }
+                observations
             })
             .filter_map(|observation| observation.value.as_deref())
             .collect::<Vec<_>>()
