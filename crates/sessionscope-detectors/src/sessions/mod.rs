@@ -30,6 +30,10 @@ static SENSITIVE_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
     )
     .expect("sensitive literal regex should compile")
 });
+static QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'"#)
+        .expect("quoted literal regex should compile")
+});
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SessionLifecycleDetector;
@@ -79,6 +83,58 @@ struct Signal {
     excerpt: SanitizedExcerpt,
 }
 
+#[derive(Debug, Clone)]
+struct SignalSpec {
+    detector_id: &'static str,
+    stage: LifecycleStage,
+    artifact_type: ArtifactType,
+    display_name: String,
+    framework_hint: &'static str,
+    confidence: Confidence,
+    dynamic: bool,
+}
+
+impl SignalSpec {
+    fn new(
+        detector_id: &'static str,
+        stage: LifecycleStage,
+        artifact_type: ArtifactType,
+        display_name: impl Into<String>,
+        framework_hint: &'static str,
+        confidence: Confidence,
+        dynamic: bool,
+    ) -> Self {
+        Self {
+            detector_id,
+            stage,
+            artifact_type,
+            display_name: display_name.into(),
+            framework_hint,
+            confidence,
+            dynamic,
+        }
+    }
+
+    fn revoke(
+        detector_id: &'static str,
+        artifact_type: ArtifactType,
+        display_name: impl Into<String>,
+        framework_hint: &'static str,
+        confidence: Confidence,
+        dynamic: bool,
+    ) -> Self {
+        Self::new(
+            detector_id,
+            LifecycleStage::Revoke,
+            artifact_type,
+            display_name,
+            framework_hint,
+            confidence,
+            dynamic,
+        )
+    }
+}
+
 fn detect_javascript_like(input: &DetectorInput<'_>) -> DetectionOutput {
     let Some(tree) = parse_javascript_like(input, input.source) else {
         return DetectionOutput::default();
@@ -122,21 +178,20 @@ fn detect_refresh_python(input: &DetectorInput<'_>) -> DetectionOutput {
 fn collect_refresh_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
     match node.kind() {
         "call_expression" => collect_refresh_js_call_signal(node, source, signals),
-        "function_declaration" | "method_definition" => {
+        "function_declaration" | "method_definition"
             if js_function_name(node, source)
                 .as_deref()
-                .is_some_and(|name| name.to_ascii_lowercase().contains("refresh"))
-            {
-                signals.push(refresh_signal(
-                    "refresh.handler",
-                    LifecycleStage::Refresh,
-                    node,
-                    source,
-                    "javascript",
-                    Confidence::Medium,
-                    true,
-                ));
-            }
+                .is_some_and(|name| name.to_ascii_lowercase().contains("refresh")) =>
+        {
+            signals.push(refresh_signal(
+                "refresh.handler",
+                LifecycleStage::Refresh,
+                node,
+                source,
+                "javascript",
+                Confidence::Medium,
+                true,
+            ));
         }
         "export_statement" => {
             let text = node_text(node, source);
@@ -169,7 +224,7 @@ fn collect_refresh_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Si
 
 fn collect_refresh_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
     let text = node_text(node, source);
-    let normalized = normalize_symbol(&text);
+    let normalized = normalize_symbol_without_literals(&text);
 
     if is_js_refresh_route(&text) {
         signals.push(refresh_signal(
@@ -343,7 +398,7 @@ fn collect_refresh_python_call_signal(node: Node<'_>, source: &str, signals: &mu
         .map(|function| node_text(function, source))
         .unwrap_or_default();
     let text = node_text(node, source);
-    let normalized = normalize_symbol(&format!("{function} {text}"));
+    let normalized = normalize_symbol_without_literals(&format!("{function} {text}"));
 
     if is_refresh_store_call(&normalized) {
         signals.push(refresh_signal(
@@ -472,37 +527,38 @@ fn collect_refresh_python_call_signal(node: Node<'_>, source: &str, signals: &mu
 fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
     match node.kind() {
         "call_expression" => collect_js_call_signal(node, source, signals),
-        "function_declaration" | "method_definition" => {
-            if js_function_name(node, source)
-                .as_deref()
-                .is_some_and(|name| {
-                    name == "DELETE" || name.to_ascii_lowercase().contains("logout")
-                })
-            {
-                signals.push(signal(
+        "function_declaration" | "method_definition"
+            if js_function_name(node, source).is_some_and(|name| {
+                name == "DELETE" || name.to_ascii_lowercase().contains("logout")
+            }) =>
+        {
+            signals.push(signal(
+                SignalSpec::revoke(
                     "logout.handler",
                     ArtifactType::Unknown,
                     "logout",
                     "javascript",
-                    node,
-                    source,
                     Confidence::Medium,
                     true,
-                ));
-            }
+                ),
+                node,
+                source,
+            ));
         }
         "export_statement" => {
             let text = node_text(node, source);
             if text.contains("function DELETE") || text.contains("const DELETE") {
                 signals.push(signal(
-                    "logout.handler",
-                    ArtifactType::Unknown,
-                    "logout",
-                    "nextjs",
+                    SignalSpec::revoke(
+                        "logout.handler",
+                        ArtifactType::Unknown,
+                        "logout",
+                        "nextjs",
+                        Confidence::Medium,
+                        true,
+                    ),
                     node,
                     source,
-                    Confidence::Medium,
-                    true,
                 ));
             }
         }
@@ -517,50 +573,58 @@ fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
 
 fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
     let text = node_text(node, source);
-    let normalized = normalize_symbol(&text);
+    let normalized = normalize_symbol_without_literals(&text);
 
     if is_js_logout_route(&text) {
         signals.push(signal(
-            "logout.handler",
-            ArtifactType::Unknown,
-            "logout",
-            "express",
+            SignalSpec::revoke(
+                "logout.handler",
+                ArtifactType::Unknown,
+                "logout",
+                "express",
+                Confidence::High,
+                false,
+            ),
             node,
             source,
-            Confidence::High,
-            false,
         ));
     }
 
     if is_js_clear_cookie_call(node, source) {
-        let name = first_call_string_argument(node, source).unwrap_or_else(|| "cookie".to_string());
+        let name = first_call_string_argument(node, source)
+            .and_then(|name| safe_static_cookie_name(&name))
+            .unwrap_or_else(|| "cookie".to_string());
         signals.push(signal(
-            "logout.cookie_clear",
-            cookie_artifact_type(&name),
-            &name,
-            js_cookie_clear_framework(&text),
+            SignalSpec::revoke(
+                "logout.cookie_clear",
+                cookie_artifact_type(&name),
+                name.clone(),
+                js_cookie_clear_framework(&text),
+                if name == "cookie" {
+                    Confidence::Medium
+                } else {
+                    Confidence::High
+                },
+                name == "cookie",
+            ),
             node,
             source,
-            if name == "cookie" {
-                Confidence::Medium
-            } else {
-                Confidence::High
-            },
-            name == "cookie",
         ));
         return;
     }
 
     if is_js_session_destroy_call(&normalized) {
         signals.push(signal(
-            "logout.session_destroy",
-            ArtifactType::SessionRecord,
-            "session",
-            "javascript",
+            SignalSpec::revoke(
+                "logout.session_destroy",
+                ArtifactType::SessionRecord,
+                "session",
+                "javascript",
+                Confidence::High,
+                false,
+            ),
             node,
             source,
-            Confidence::High,
-            false,
         ));
         return;
     }
@@ -568,14 +632,16 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
     if is_js_provider_revoke_call(&normalized) {
         let display_name = token_display_name(&normalized);
         signals.push(signal(
-            "logout.provider_revoke",
-            token_artifact_type(&display_name),
-            &display_name,
-            "provider",
+            SignalSpec::revoke(
+                "logout.provider_revoke",
+                token_artifact_type(&display_name),
+                display_name,
+                "provider",
+                Confidence::Medium,
+                true,
+            ),
             node,
             source,
-            Confidence::Medium,
-            true,
         ));
         return;
     }
@@ -583,14 +649,16 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
     if is_token_revoke_call(&normalized) {
         let display_name = token_display_name(&normalized);
         signals.push(signal(
-            "logout.token_revoke",
-            token_artifact_type(&display_name),
-            &display_name,
-            "javascript",
+            SignalSpec::revoke(
+                "logout.token_revoke",
+                token_artifact_type(&display_name),
+                display_name,
+                "javascript",
+                Confidence::Medium,
+                true,
+            ),
             node,
             source,
-            Confidence::Medium,
-            true,
         ));
     }
 }
@@ -599,20 +667,20 @@ fn collect_python_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal
     if node.kind() == "function_definition" {
         let name = child_by_field(node, "name").map(|name| node_text(name, source));
         let decorators = python_decorator_text(node, source);
-        if name
-            .as_deref()
-            .is_some_and(|name| name.to_ascii_lowercase().contains("logout"))
+        if name.is_some_and(|name| name.to_ascii_lowercase().contains("logout"))
             || decorators.to_ascii_lowercase().contains("/logout")
         {
             signals.push(signal(
-                "logout.handler",
-                ArtifactType::Unknown,
-                "logout",
-                python_framework_hint(&decorators),
+                SignalSpec::revoke(
+                    "logout.handler",
+                    ArtifactType::Unknown,
+                    "logout",
+                    python_framework_hint(&decorators),
+                    Confidence::High,
+                    false,
+                ),
                 node,
                 source,
-                Confidence::High,
-                false,
             ));
         }
     }
@@ -632,51 +700,59 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
         .map(|function| node_text(function, source))
         .unwrap_or_default();
     let text = node_text(node, source);
-    let normalized = normalize_symbol(&format!("{function} {text}"));
+    let normalized = normalize_symbol_without_literals(&format!("{function} {text}"));
 
     if function.ends_with(".delete_cookie") || function == "delete_cookie" {
-        let name = first_call_string_argument(node, source).unwrap_or_else(|| "cookie".to_string());
+        let name = first_call_string_argument(node, source)
+            .and_then(|name| safe_static_cookie_name(&name))
+            .unwrap_or_else(|| "cookie".to_string());
         signals.push(signal(
-            "logout.cookie_clear",
-            cookie_artifact_type(&name),
-            &name,
-            python_cookie_clear_framework(node),
+            SignalSpec::revoke(
+                "logout.cookie_clear",
+                cookie_artifact_type(&name),
+                name.clone(),
+                python_cookie_clear_framework(node),
+                if name == "cookie" {
+                    Confidence::Medium
+                } else {
+                    Confidence::High
+                },
+                name == "cookie",
+            ),
             node,
             source,
-            if name == "cookie" {
-                Confidence::Medium
-            } else {
-                Confidence::High
-            },
-            name == "cookie",
         ));
         return;
     }
 
     if function == "logout" || function.ends_with(".logout") || normalized.contains("authlogout") {
         signals.push(signal(
-            "logout.session_destroy",
-            ArtifactType::SessionRecord,
-            "session",
-            "django",
+            SignalSpec::revoke(
+                "logout.session_destroy",
+                ArtifactType::SessionRecord,
+                "session",
+                "django",
+                Confidence::High,
+                false,
+            ),
             node,
             source,
-            Confidence::High,
-            false,
         ));
         return;
     }
 
     if is_python_session_destroy_call(&normalized) {
         signals.push(signal(
-            "logout.session_destroy",
-            ArtifactType::SessionRecord,
-            "session",
-            python_framework_hint(&text),
+            SignalSpec::revoke(
+                "logout.session_destroy",
+                ArtifactType::SessionRecord,
+                "session",
+                python_framework_hint(&text),
+                Confidence::High,
+                false,
+            ),
             node,
             source,
-            Confidence::High,
-            false,
         ));
         return;
     }
@@ -684,14 +760,16 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
     if is_provider_revoke_text(&normalized) {
         let display_name = token_display_name(&normalized);
         signals.push(signal(
-            "logout.provider_revoke",
-            token_artifact_type(&display_name),
-            &display_name,
-            "provider",
+            SignalSpec::revoke(
+                "logout.provider_revoke",
+                token_artifact_type(&display_name),
+                display_name,
+                "provider",
+                Confidence::Medium,
+                true,
+            ),
             node,
             source,
-            Confidence::Medium,
-            true,
         ));
         return;
     }
@@ -699,14 +777,16 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
     if is_token_revoke_call(&normalized) {
         let display_name = token_display_name(&normalized);
         signals.push(signal(
-            "logout.token_revoke",
-            token_artifact_type(&display_name),
-            &display_name,
-            "python",
+            SignalSpec::revoke(
+                "logout.token_revoke",
+                token_artifact_type(&display_name),
+                display_name,
+                "python",
+                Confidence::Medium,
+                true,
+            ),
             node,
             source,
-            Confidence::Medium,
-            true,
         ));
     }
 }
@@ -777,50 +857,17 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
     output
 }
 
-fn signal(
-    detector_id: &'static str,
-    artifact_type: ArtifactType,
-    display_name: &str,
-    framework_hint: &'static str,
-    node: Node<'_>,
-    source: &str,
-    confidence: Confidence,
-    dynamic: bool,
-) -> Signal {
-    signal_for_stage(
-        detector_id,
-        LifecycleStage::Revoke,
-        artifact_type,
-        display_name,
-        framework_hint,
-        node,
-        source,
-        confidence,
-        dynamic,
-    )
-}
-
-fn signal_for_stage(
-    detector_id: &'static str,
-    stage: LifecycleStage,
-    artifact_type: ArtifactType,
-    display_name: &str,
-    framework_hint: &'static str,
-    node: Node<'_>,
-    source: &str,
-    confidence: Confidence,
-    dynamic: bool,
-) -> Signal {
+fn signal(spec: SignalSpec, node: Node<'_>, source: &str) -> Signal {
     Signal {
-        detector_id,
-        stage,
-        artifact_type,
-        display_name: normalize_display_name(display_name),
-        framework_hint,
+        detector_id: spec.detector_id,
+        stage: spec.stage,
+        artifact_type: spec.artifact_type,
+        display_name: normalize_display_name(&spec.display_name),
+        framework_hint: spec.framework_hint,
         line: node.start_position().row + 1,
         column: node.start_position().column + 1,
-        confidence,
-        dynamic,
+        confidence: spec.confidence,
+        dynamic: spec.dynamic,
         excerpt: SanitizedExcerpt(sanitize_excerpt(&node_text(node, source))),
     }
 }
@@ -834,17 +881,19 @@ fn refresh_signal(
     confidence: Confidence,
     dynamic: bool,
 ) -> Signal {
-    let normalized = normalize_symbol(&node_text(node, source));
-    signal_for_stage(
-        detector_id,
-        stage,
-        refresh_artifact_type(&normalized),
-        "refresh_token",
-        framework_hint,
+    let normalized = normalize_symbol_without_literals(&node_text(node, source));
+    signal(
+        SignalSpec::new(
+            detector_id,
+            stage,
+            refresh_artifact_type(&normalized),
+            "refresh_token",
+            framework_hint,
+            confidence,
+            dynamic,
+        ),
         node,
         source,
-        confidence,
-        dynamic,
     )
 }
 
@@ -906,7 +955,7 @@ fn is_refresh_cookie_store_call(node: Node<'_>, source: &str) -> bool {
     let function = child_by_field(node, "function")
         .map(|function| node_text(function, source))
         .unwrap_or_default();
-    let text = node_text(node, source).to_ascii_lowercase();
+    let text = strip_string_literals(&node_text(node, source)).to_ascii_lowercase();
     (function.ends_with(".cookie")
         || function.ends_with(".set")
         || function.ends_with(".set_cookie")
@@ -1042,9 +1091,8 @@ fn is_refresh_rotate_call(normalized: &str) -> bool {
             || normalized.contains("markused")
             || normalized.contains("mark_refresh_token_used")
             || normalized.contains("usedat")
-            || normalized.contains("replace")
-            || normalized.contains("previousrefresh")
-            || normalized.contains("oldrefresh"))
+            || normalized.contains("revokedat")
+            || normalized.contains("replace"))
 }
 
 fn is_refresh_revoke_call(normalized: &str) -> bool {
@@ -1074,12 +1122,12 @@ fn has_old_token_invalidation_text(normalized: &str) -> bool {
     normalized.contains("revoke")
         || normalized.contains("invalidate")
         || normalized.contains("delete")
+        || normalized.contains("denylist")
+        || normalized.contains("blacklist")
         || normalized.contains("markused")
         || normalized.contains("mark_refresh_token_used")
         || normalized.contains("usedat")
         || normalized.contains("revokedat")
-        || normalized.contains("previousrefresh")
-        || normalized.contains("oldrefresh")
 }
 
 fn has_family_invalidation_text(normalized: &str) -> bool {
@@ -1271,18 +1319,63 @@ fn strip_quotes(value: &str) -> String {
         .to_string()
 }
 
+fn safe_static_cookie_name(value: &str) -> Option<String> {
+    let name = strip_quotes(value);
+    if name.is_empty()
+        || name.len() > 64
+        || name.contains('=')
+        || name.contains('@')
+        || name.contains("://")
+        || JWT_RE.is_match(&name)
+        || BEARER_RE.is_match(&name)
+        || looks_high_entropy(&name)
+    {
+        None
+    } else {
+        Some(name)
+    }
+}
+
+fn looks_high_entropy(value: &str) -> bool {
+    value.len() >= 32
+        && value
+            .chars()
+            .filter(|ch| ch.is_ascii_alphanumeric())
+            .count()
+            >= value.len().saturating_sub(2)
+}
+
 fn sanitize_excerpt(excerpt: &str) -> String {
     let mut redacted = PLACEHOLDER_SECRET_RE
         .replace_all(excerpt, REDACTION)
         .to_string();
     redacted = JWT_RE.replace_all(&redacted, REDACTION).to_string();
     redacted = BEARER_RE.replace_all(&redacted, REDACTION).to_string();
-    SENSITIVE_LITERAL_RE
+    redacted = SENSITIVE_LITERAL_RE
         .replace_all(&redacted, |captures: &regex::Captures<'_>| {
             let key = captures.get(1).map(|key| key.as_str()).unwrap_or("token");
             format!("{key}: \"{REDACTION}\"")
         })
-        .to_string()
+        .to_string();
+    if should_redact_string_literals(&redacted) {
+        redacted = QUOTED_LITERAL_RE
+            .replace_all(&redacted, format!("\"{REDACTION}\""))
+            .to_string();
+    }
+    redacted
+}
+
+fn should_redact_string_literals(excerpt: &str) -> bool {
+    let normalized = normalize_symbol(excerpt);
+    normalized.contains("refresh")
+        || normalized.contains("token")
+        || normalized.contains("revoke")
+        || normalized.contains("provider")
+        || normalized.contains("bearer")
+        || normalized.contains("jwt")
+        || normalized.contains("secret")
+        || normalized.contains("api_key")
+        || normalized.contains("apikey")
 }
 
 fn normalize_symbol(value: &str) -> String {
@@ -1291,6 +1384,14 @@ fn normalize_symbol(value: &str) -> String {
         .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '/'))
         .collect::<String>()
         .to_ascii_lowercase()
+}
+
+fn normalize_symbol_without_literals(value: &str) -> String {
+    normalize_symbol(&strip_string_literals(value))
+}
+
+fn strip_string_literals(value: &str) -> String {
+    QUOTED_LITERAL_RE.replace_all(value, "\"\"").to_string()
 }
 
 fn normalize_display_name(value: &str) -> String {
@@ -1498,6 +1599,27 @@ app.post("/logout", () => revokeRefreshToken("PLACEHOLDER_REFRESH_TOKEN"));
     }
 
     #[test]
+    fn redacts_short_logout_literals() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+app.post("/logout", () => revokeRefreshToken("short-secret"));
+"#,
+        );
+
+        assert_detector(&output, "logout.token_revoke");
+        let text = output
+            .evidence
+            .iter()
+            .filter_map(|evidence| evidence.excerpt.as_ref())
+            .map(|excerpt| excerpt.0.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!text.contains("short-secret"));
+        assert!(text.contains(REDACTION));
+    }
+
+    #[test]
     fn detects_express_refresh_rotation_and_old_token_invalidation() {
         let output = detect_refresh(
             Language::TypeScript,
@@ -1607,6 +1729,37 @@ app.post("/refresh", async (request, response) => {
     }
 
     #[test]
+    fn previous_refresh_token_lookup_does_not_imply_revocation() {
+        let output = detect_refresh(
+            Language::TypeScript,
+            r#"
+app.post("/refresh", async (request, response) => {
+  const previousRefreshToken = request.cookies.refresh_token;
+  const stored = await refreshTokenStore.findUnique({ where: { token: previousRefreshToken } });
+  return response.json({ ok: Boolean(stored) });
+});
+"#,
+        );
+
+        assert_detector(&output, "refresh.handler");
+        assert_detector(&output, "refresh.validate");
+        assert!(
+            !output.evidence.iter().any(|evidence| {
+                evidence.detector_id == "refresh.rotate"
+                    && evidence.lifecycle_stage == LifecycleStage::Revoke
+            }),
+            "previous/old token variable names are not revocation evidence: {:?}",
+            output.evidence
+        );
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "refresh.revoke")
+        );
+    }
+
+    #[test]
     fn detects_reuse_detection_with_family_invalidation() {
         let output = detect_refresh(
             Language::TypeScript,
@@ -1668,6 +1821,46 @@ app.post("/refresh", () => generateRefreshToken("PLACEHOLDER_REFRESH_TOKEN"));
             .join("\n");
         assert!(!text.contains("PLACEHOLDER_REFRESH_TOKEN"));
         assert!(text.contains(REDACTION));
+    }
+
+    #[test]
+    fn refresh_detector_redacts_short_literals_and_ignores_literal_only_matches() {
+        let js_output = detect_refresh(
+            Language::TypeScript,
+            r#"
+const sample = "refreshTokenStore.findUnique({ token: 'dev-refresh-token' })";
+authProvider.refresh("dev-refresh-token");
+"#,
+        );
+        let py_output = detect_refresh(
+            Language::Python,
+            r#"
+sample = "revoke_refresh_token('dev-refresh-token')"
+provider.refresh("dev-refresh-token")
+"#,
+        );
+
+        assert_detector(&js_output, "refresh.provider");
+        assert_detector(&py_output, "refresh.provider");
+        for output in [&js_output, &py_output] {
+            let text = output
+                .evidence
+                .iter()
+                .filter_map(|evidence| evidence.excerpt.as_ref())
+                .map(|excerpt| excerpt.0.as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(!text.contains("dev-refresh-token"));
+            assert!(text.contains(REDACTION));
+            assert!(
+                !output
+                    .evidence
+                    .iter()
+                    .any(|evidence| evidence.detector_id == "refresh.revoke"),
+                "literal-only revoke text should not classify as refresh revoke: {:?}",
+                output.evidence
+            );
+        }
     }
 
     fn assert_detector(output: &DetectionOutput, detector_id: &str) {

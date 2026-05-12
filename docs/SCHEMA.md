@@ -87,16 +87,21 @@ Each lifecycle path includes:
 
 Path IDs are derived only from non-secret facts such as artifact IDs, lifecycle
 stages, evidence IDs, and normalized source locations. Paths link same-artifact
-lifecycle evidence and may merge revoke-only evidence into an existing path
-when static display names and compatible artifact types line up. Future
-detectors may add refresh, reset-token, bearer/API-key, and provider evidence
-without changing this shape.
+lifecycle evidence and may merge revoke evidence into an existing path when
+static display names or known session-cookie aliases, compatible artifact types,
+and bounded source context line up. Refresh-token paths are linked only when
+evidence is source-local to the same route/function-sized region; unrelated
+`refresh_token` flows remain separate even when their display names match.
 
 Logout cookie deletion is represented as `revoke` lifecycle evidence, but
 `logout.cookie_clear` only proves that browser-side state is cleared. It does
 not satisfy server-side revocation checks for sessions, refresh tokens, or
 provider tokens unless linked evidence such as `logout.session_destroy`,
 `logout.token_revoke`, or `logout.provider_revoke` is also present.
+When a cookie is set with static `path` or `domain` attributes, linked
+clear-cookie evidence is reviewed for matching deletion options. Broader
+cross-route control-flow analysis for inconsistent logout paths is deferred
+unless a deterministic same-cookie signal exists in the local source evidence.
 
 Refresh-token detector evidence uses the existing lifecycle stages. Static
 rotation or revocation evidence, such as marking the previous refresh token

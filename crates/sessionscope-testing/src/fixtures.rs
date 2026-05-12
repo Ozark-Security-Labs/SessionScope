@@ -522,6 +522,51 @@ mod tests {
     }
 
     #[test]
+    fn unrelated_refresh_fixtures_do_not_satisfy_each_other() {
+        let root = fixture_root().join("express");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("express fixtures should scan together"),
+        );
+
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("refresh evidence")
+                && finding.evidence_ids.iter().any(|evidence_id| {
+                    report.evidence.iter().any(|evidence| {
+                        evidence.id == *evidence_id
+                            && evidence.location.path.contains("refresh-without-rotation")
+                    })
+                })
+        }));
+    }
+
+    #[test]
+    fn django_sessionid_logout_revocation_prevents_clear_only_gap() {
+        let root = fixture_root().join("django").join("session-and-reset-flow");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("django session fixture should scan"),
+        );
+
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("sessionid")
+                    && finding.title.contains("cleared on logout")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
     fn provider_refresh_fixture_produces_dynamic_review() {
         let root = fixture_root().join("generic-ts").join("provider-refresh");
         let report = classify(

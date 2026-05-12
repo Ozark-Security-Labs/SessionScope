@@ -31,7 +31,7 @@ SessionScope builds a map of token issuance, storage, validation, refresh, revoc
 
 ## Initial scope
 
-SessionScope will start as a CLI and CI-friendly analyzer for common web application patterns.
+SessionScope is a CLI and CI-friendly analyzer for common web application patterns.
 
 Initial targets:
 
@@ -99,7 +99,7 @@ SessionScope models auth artifacts through stages:
 
 ### Token types
 
-SessionScope should classify:
+SessionScope classifies:
 
 - session cookies
 - signed cookies
@@ -113,7 +113,7 @@ SessionScope should classify:
 
 ### Evidence-bound findings
 
-SessionScope should prefer precise statements:
+SessionScope prefers precise statements:
 
 - "No audience validation evidence detected near JWT verification."
 - "This cookie-setting call does not set Secure."
