@@ -62,6 +62,34 @@ pub struct CookieAttributes {
     pub domain: CookieAttributeObservation,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JwtAttributeState {
+    Present,
+    Missing,
+    Dynamic,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JwtAttributeObservation {
+    pub state: JwtAttributeState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub confidence: Confidence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JwtAttributes {
+    pub operation: JwtAttributeObservation,
+    pub algorithm: JwtAttributeObservation,
+    pub key_reference: JwtAttributeObservation,
+    pub issuer: JwtAttributeObservation,
+    pub audience: JwtAttributeObservation,
+    pub expiration: JwtAttributeObservation,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Artifact {
     pub id: ArtifactId,
@@ -73,4 +101,6 @@ pub struct Artifact {
     pub framework_hints: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cookie_attributes: Option<CookieAttributes>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jwt_attributes: Option<JwtAttributes>,
 }

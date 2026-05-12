@@ -179,6 +179,7 @@ mod tests {
                 confidence: Confidence::High,
                 framework_hints: Vec::new(),
                 cookie_attributes: Some(cookie_attributes_with_value(SECRET)),
+                jwt_attributes: None,
             }],
             evidence: vec![Evidence {
                 id: evidence_id.clone(),

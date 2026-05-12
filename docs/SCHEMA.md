@@ -1,7 +1,7 @@
 # SessionScope Schema
 
 SessionScope uses the `sessionscope-model` crate as its internal inventory
-model and JSON wire schema. The current schema version is `0.2.0`.
+model and JSON wire schema. The current schema version is `0.3.0`.
 
 Design decisions for dynamic evidence, framework defaults, confidence, and
 AuthMap-style alignment are recorded in
@@ -18,7 +18,7 @@ Serialized reports include:
 
 ```json
 {
-  "schema_version": "0.2.0"
+  "schema_version": "0.3.0"
 }
 ```
 
@@ -55,8 +55,9 @@ types are:
 - `unknown`
 
 Artifacts include a stable ID, type, optional safe display name, source
-locations, confidence, framework hints, lifecycle evidence references, and
-optional cookie attributes for cookie artifacts.
+locations, confidence, framework hints, lifecycle evidence references, optional
+cookie attributes for cookie artifacts, and optional JWT attributes for JWT
+artifacts.
 
 Lifecycle evidence is grouped by stage:
 
@@ -90,6 +91,26 @@ Each attribute observation includes:
 Cookie attribute observations are evidence inventory, not findings. Dynamic or
 framework-default values must not be treated as proof of insecurity until a
 classifier evaluates them.
+
+JWT artifacts may include a `jwt_attributes` object with structured
+observations for:
+
+- `operation`
+- `algorithm`
+- `key_reference`
+- `issuer`
+- `audience`
+- `expiration`
+
+Each JWT observation includes:
+
+- `state`: `present`, `missing`, `dynamic`, or `unknown`
+- optional sanitized `value`
+- related `evidence_ids`
+- `confidence`
+
+JWT attribute values must be safe static identifiers or redacted placeholders,
+not token values, private keys, signing secrets, or runtime JWT contents.
 
 ## Evidence
 

@@ -137,7 +137,7 @@ fn scan_json_runs_builtin_cookie_detector() {
     let parsed: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
 
-    assert_eq!(parsed["schema_version"], "0.2.0");
+    assert_eq!(parsed["schema_version"], "0.3.0");
     let findings = parsed["findings"].as_array().expect("findings array");
     assert!(
         findings.iter().any(|finding| {
@@ -169,6 +169,61 @@ fn scan_json_runs_builtin_cookie_detector() {
 }
 
 #[test]
+fn scan_json_runs_builtin_jwt_detector() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("auth.ts"),
+        concat!(
+            "import jwt from \"jsonwebtoken\";\n",
+            "const JWT_SECRET = \"PLACEHOLDER_SECRET_DO_NOT_USE\";\n",
+            "export function verifyAccessJwt(token: string) {\n",
+            "  return jwt.verify(token, JWT_SECRET);\n",
+            "}\n"
+        ),
+    )
+    .expect("auth source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json",
+    ]);
+
+    assert!(output.status.success());
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
+    assert_eq!(parsed["schema_version"], "0.3.0");
+    assert!(
+        parsed["artifacts"]
+            .as_array()
+            .expect("artifacts")
+            .iter()
+            .any(|artifact| {
+                artifact["artifact_type"] == "access_jwt"
+                    && artifact["jwt_attributes"]["issuer"]["state"] == "missing"
+                    && artifact["jwt_attributes"]["audience"]["state"] == "missing"
+            })
+    );
+    assert!(
+        parsed["findings"]
+            .as_array()
+            .expect("findings")
+            .iter()
+            .any(|finding| {
+                finding["category"] == "missing_validation_evidence"
+                    && finding["title"]
+                        .as_str()
+                        .expect("finding title")
+                        .contains("issuer")
+            })
+    );
+    let serialized = String::from_utf8_lossy(&output.stdout);
+    assert!(!serialized.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+}
+
+#[test]
 fn scan_json_output_writes_file_without_stdout_inventory() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     fs::write(
@@ -196,7 +251,7 @@ fn scan_json_output_writes_file_without_stdout_inventory() {
     let written = fs::read_to_string(output_path).expect("JSON output should be written");
     let parsed: serde_json::Value =
         serde_json::from_str(&written).expect("written scan JSON should parse");
-    assert_eq!(parsed["schema_version"], "0.2.0");
+    assert_eq!(parsed["schema_version"], "0.3.0");
     assert!(
         parsed["artifacts"]
             .as_array()

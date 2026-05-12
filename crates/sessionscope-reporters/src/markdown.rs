@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use sessionscope_model::{
     Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeState, Evidence, EvidenceId,
-    Finding, FindingCategory, LifecycleEvidence, LifecycleStage, ScanReport, Severity,
-    SkippedReason, SourceLocation,
+    Finding, FindingCategory, JwtAttributeState, LifecycleEvidence, LifecycleStage, ScanReport,
+    Severity, SkippedReason, SourceLocation,
 };
 
 pub fn render(report: &ScanReport) -> String {
@@ -173,6 +173,9 @@ fn render_artifact(
     if let Some(attributes) = &artifact.cookie_attributes {
         render_cookie_attributes(output, attributes);
     }
+    if let Some(attributes) = &artifact.jwt_attributes {
+        render_jwt_attributes(output, attributes);
+    }
 }
 
 fn render_lifecycle_evidence(
@@ -240,6 +243,28 @@ fn render_cookie_attributes(
         output.push_str(&format!(
             "| {label} | {} | {} | {} | {} |\n",
             code_span(format_state(observation.state)),
+            table_cell(observation.value.as_deref().unwrap_or("-")),
+            code_span(format_confidence(observation.confidence)),
+            observation.evidence_ids.len()
+        ));
+    }
+    output.push('\n');
+}
+
+fn render_jwt_attributes(output: &mut String, attributes: &sessionscope_model::JwtAttributes) {
+    output.push_str("| JWT field | State | Value | Confidence | Evidence |\n");
+    output.push_str("| --- | --- | --- | --- | ---: |\n");
+    for (label, observation) in [
+        ("Operation", &attributes.operation),
+        ("Algorithm", &attributes.algorithm),
+        ("Key reference", &attributes.key_reference),
+        ("Issuer", &attributes.issuer),
+        ("Audience", &attributes.audience),
+        ("Expiration", &attributes.expiration),
+    ] {
+        output.push_str(&format!(
+            "| {label} | {} | {} | {} | {} |\n",
+            code_span(format_jwt_state(observation.state)),
             table_cell(observation.value.as_deref().unwrap_or("-")),
             code_span(format_confidence(observation.confidence)),
             observation.evidence_ids.len()
@@ -355,6 +380,15 @@ fn format_state(state: CookieAttributeState) -> &'static str {
         CookieAttributeState::Dynamic => "dynamic",
         CookieAttributeState::FrameworkDefault => "framework_default",
         CookieAttributeState::Unknown => "unknown",
+    }
+}
+
+fn format_jwt_state(state: JwtAttributeState) -> &'static str {
+    match state {
+        JwtAttributeState::Present => "present",
+        JwtAttributeState::Missing => "missing",
+        JwtAttributeState::Dynamic => "dynamic",
+        JwtAttributeState::Unknown => "unknown",
     }
 }
 
@@ -480,8 +514,9 @@ mod tests {
     use sessionscope_model::{
         Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
         CookieAttributeState, CookieAttributes, Evidence, EvidenceId, FileScanResult, Finding,
-        FindingCategory, FindingId, Language, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION,
-        SanitizedExcerpt, ScanReport, ScanSummary, Severity, SkippedReason, SourceLocation,
+        FindingCategory, FindingId, JwtAttributeObservation, JwtAttributeState, JwtAttributes,
+        Language, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION, SanitizedExcerpt, ScanReport,
+        ScanSummary, Severity, SkippedReason, SourceLocation,
     };
 
     use super::render;
@@ -499,7 +534,7 @@ mod tests {
 
         let rendered = render(&report);
 
-        assert!(rendered.contains("- Schema version: `0.2.0`"));
+        assert!(rendered.contains("- Schema version: `0.3.0`"));
         assert!(rendered.contains("No skipped files."));
         assert!(rendered.contains("No findings were detected."));
         assert!(rendered.contains("No artifacts were detected."));
@@ -584,6 +619,7 @@ mod tests {
                 confidence: Confidence::High,
                 framework_hints: vec!["jsonwebtoken".to_string()],
                 cookie_attributes: None,
+                jwt_attributes: Some(jwt_attributes(evidence_id.clone())),
             }],
             evidence: vec![Evidence {
                 id: evidence_id.clone(),
@@ -617,6 +653,8 @@ mod tests {
 
         assert!(rendered.contains("### `access_jwt`"));
         assert!(rendered.contains("#### `access_jwt`"));
+        assert!(rendered.contains("| JWT field | State | Value | Confidence | Evidence |"));
+        assert!(rendered.contains("| Issuer | `present` | ISSUER | `high` | 1 |"));
         assert!(rendered.contains("Category: `missing_validation_evidence`"));
         assert!(rendered.contains("- Source locations: `src/auth.ts:23:10`"));
         assert!(rendered.contains("| `validate` | `evidence_jwt_verify` | src/auth.ts:23:10 | `medium` | jwt.validation | `no` | `no` | jwt.verify\\(token, secret\\) |"));
@@ -739,6 +777,7 @@ mod tests {
             confidence: Confidence::High,
             framework_hints: vec!["express".to_string()],
             cookie_attributes: Some(attributes()),
+            jwt_attributes: None,
         }
     }
 
@@ -768,6 +807,34 @@ mod tests {
             expires: missing.clone(),
             path: missing.clone(),
             domain: missing,
+        }
+    }
+
+    fn jwt_attributes(evidence_id: EvidenceId) -> JwtAttributes {
+        let present = JwtAttributeObservation {
+            state: JwtAttributeState::Present,
+            value: Some("ISSUER".to_string()),
+            evidence_ids: vec![evidence_id],
+            confidence: Confidence::High,
+        };
+        let missing = JwtAttributeObservation {
+            state: JwtAttributeState::Missing,
+            value: None,
+            evidence_ids: Vec::new(),
+            confidence: Confidence::High,
+        };
+        JwtAttributes {
+            operation: JwtAttributeObservation {
+                state: JwtAttributeState::Present,
+                value: Some("validate".to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::High,
+            },
+            algorithm: missing.clone(),
+            key_reference: missing.clone(),
+            issuer: present,
+            audience: missing.clone(),
+            expiration: missing,
         }
     }
 

@@ -30,5 +30,9 @@ export function verifyLegacyJwt(token: string) {
   return jwt.verify(token, JWT_SECRET);
 }
 
+export function inspectAccessJwt(token: string) {
+  return jwt.decode(token);
+}
+
 export const placeholderJwt =
   "PLACEHOLDER_HEADER.PLACEHOLDER_PAYLOAD.PLACEHOLDER_SIGNATURE";

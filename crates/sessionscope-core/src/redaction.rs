@@ -208,6 +208,20 @@ fn sanitize_artifact(artifact: &mut Artifact) {
             }
         }
     }
+    if let Some(attributes) = &mut artifact.jwt_attributes {
+        for observation in [
+            &mut attributes.operation,
+            &mut attributes.algorithm,
+            &mut attributes.key_reference,
+            &mut attributes.issuer,
+            &mut attributes.audience,
+            &mut attributes.expiration,
+        ] {
+            if let Some(value) = &mut observation.value {
+                *value = redact_sensitive_values(value);
+            }
+        }
+    }
 }
 
 fn sanitize_evidence(evidence: &mut Evidence) {
@@ -489,6 +503,7 @@ mod tests {
                 confidence: Confidence::High,
                 framework_hints: Vec::new(),
                 cookie_attributes: Some(cookie_attributes_with_value(secret)),
+                jwt_attributes: None,
             }],
             evidence: Vec::new(),
             diagnostics: Vec::new(),

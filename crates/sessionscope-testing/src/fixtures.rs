@@ -257,6 +257,80 @@ mod tests {
     }
 
     #[test]
+    fn jwt_fixtures_scan_with_builtin_jwt_detector() {
+        let cases = [
+            (
+                fixture_root().join("generic-ts").join("jwt-validation"),
+                vec![
+                    (Some("access_jwt"), ArtifactType::AccessJwt),
+                    (Some("legacy_access_jwt"), ArtifactType::AccessJwt),
+                ],
+            ),
+            (
+                fixture_root().join("generic-python").join("jwt-and-reset"),
+                vec![
+                    (Some("access_jwt"), ArtifactType::AccessJwt),
+                    (Some("legacy_access_jwt"), ArtifactType::AccessJwt),
+                ],
+            ),
+            (
+                fixture_root().join("nextjs").join("route-handler-auth"),
+                vec![(Some("access_jwt"), ArtifactType::AccessJwt)],
+            ),
+            (
+                fixture_root()
+                    .join("fastapi")
+                    .join("dependency-auth-lifecycle"),
+                vec![(Some("access_jwt"), ArtifactType::AccessJwt)],
+            ),
+        ];
+
+        for (root, expected_artifacts) in cases {
+            let report = scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display()));
+
+            for (display_name, artifact_type) in expected_artifacts {
+                assert!(
+                    report.artifacts.iter().any(|artifact| {
+                        artifact.display_name.as_deref() == display_name
+                            && artifact.artifact_type == artifact_type
+                            && artifact.jwt_attributes.is_some()
+                            && (!artifact.lifecycle_evidence.issue.is_empty()
+                                || !artifact.lifecycle_evidence.validate.is_empty())
+                    }),
+                    "{} should include JWT artifact {artifact_type:?} named {display_name:?}",
+                    root.display()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn generic_ts_jwt_fixture_classifies_missing_and_decode_evidence() {
+        let root = fixture_root().join("generic-ts").join("jwt-validation");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("generic TS JWT fixture should scan"),
+        );
+
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::MissingValidationEvidence
+                && finding.title.contains("legacy_access_jwt")
+                && finding.title.contains("issuer")
+        }));
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::MissingValidationEvidence
+                && finding.title.contains("decoded without verification")
+        }));
+    }
+
+    #[test]
     fn express_cookie_fixture_renders_deterministic_json_inventory() {
         let root = fixture_root()
             .join("express")
