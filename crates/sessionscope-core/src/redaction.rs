@@ -31,6 +31,10 @@ static COOKIE_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
     )
     .expect("cookie call regex should compile")
 });
+static COOKIE_VALUE_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?ix)(\bvalue\s*[:=]\s*)(["'])([^"']*)(["'])"#)
+        .expect("cookie value key regex should compile")
+});
 static SENSITIVE_QUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?ix)(["']?\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b["']?\s*[:=]\s*)(["'])([^"']*)(["'])"#,
@@ -108,6 +112,9 @@ pub fn redact_sensitive_values(input: &str) -> String {
         .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string();
     output = COOKIE_CALL_RE
+        .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
+    output = COOKIE_VALUE_KEY_RE
         .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string();
     output = SENSITIVE_QUOTED_ASSIGNMENT_RE
@@ -401,6 +408,8 @@ mod tests {
             "res.cookie(\"session\", \"short-secret\", { httpOnly: true, secure: true })",
             "response.set_cookie(\"session\", \"short-secret\", httponly=True)",
             "cookies().set(\"access\", \"short-secret\", { sameSite: \"lax\" })",
+            "cookies().set({ name: \"session\", value: \"short-secret\", httpOnly: true })",
+            "response.set_cookie(key=\"session\", value=\"short-secret\", httponly=True)",
         ] {
             let output = redact_sensitive_values(source);
 

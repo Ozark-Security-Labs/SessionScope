@@ -284,6 +284,43 @@ fn scan_markdown_output_writes_file_without_stdout_report() {
 }
 
 #[test]
+fn scan_sarif_renders_findings_and_locations() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { sameSite: "none" });"#,
+    )
+    .expect("app source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "sarif",
+    ]);
+
+    assert!(output.status.success());
+    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
+    let parsed: serde_json::Value =
+        serde_json::from_str(stdout).expect("SARIF output should parse");
+    let rules = parsed["runs"][0]["tool"]["driver"]["rules"]
+        .as_array()
+        .expect("rules array");
+    let results = parsed["runs"][0]["results"]
+        .as_array()
+        .expect("results array");
+    assert!(!rules.is_empty(), "SARIF should include finding rules");
+    assert!(!results.is_empty(), "SARIF should include finding results");
+    assert_eq!(parsed["version"], "2.1.0");
+    assert_eq!(
+        results[0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"],
+        "app.ts"
+    );
+    assert!(!stdout.contains("PLACEHOLDER_RESET_TOKEN"));
+}
+
+#[test]
 fn scan_rejects_invalid_max_file_size() {
     let output = run_sessionscope(&["scan", "--max-file-size", "0"]);
 

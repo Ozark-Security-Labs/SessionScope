@@ -11,7 +11,7 @@ pub fn render(report: &ScanReport) -> String {
         concat!(
             "# SessionScope Report\n\n",
             "## Summary\n\n",
-            "- Schema version: `{}`\n",
+            "- Schema version: {}\n",
             "- Files discovered: {}\n",
             "- Files scanned: {}\n",
             "- Files skipped: {}\n",
@@ -20,7 +20,7 @@ pub fn render(report: &ScanReport) -> String {
             "- Findings: {}\n",
             "- Diagnostics: {}\n"
         ),
-        report.schema_version,
+        code_span(&report.schema_version),
         report.summary.files_discovered,
         report.summary.files_scanned,
         report.summary.files_skipped,
@@ -56,9 +56,9 @@ fn render_skipped_files(output: &mut String, report: &ScanReport) {
     output.push_str("| File | Reason |\n| --- | --- |\n");
     for (path, reason) in skipped_files {
         output.push_str(&format!(
-            "| {} | `{}` |\n",
+            "| {} | {} |\n",
             table_cell(path),
-            format_skipped_reason(reason)
+            code_span(format_skipped_reason(reason))
         ));
     }
 }
@@ -78,10 +78,10 @@ fn render_findings(output: &mut String, report: &ScanReport) {
 fn render_finding(output: &mut String, finding: &Finding, report: &ScanReport) {
     output.push_str(&format!("### {}\n\n", inline_text(finding.title.as_str())));
     output.push_str(&format!(
-        "- Severity: `{}`\n- Category: `{}`\n- Finding ID: `{}`\n",
-        format_severity(finding.severity),
-        format_category(finding.category),
-        finding.id.0
+        "- Severity: {}\n- Category: {}\n- Finding ID: {}\n",
+        code_span(format_severity(finding.severity)),
+        code_span(format_category(finding.category)),
+        code_span(&finding.id.0)
     ));
     if !finding.artifact_ids.is_empty() {
         output.push_str(&format!(
@@ -135,8 +135,8 @@ fn render_artifacts(output: &mut String, report: &ScanReport) {
 
     for (artifact_type, artifacts) in grouped {
         output.push_str(&format!(
-            "### `{}`\n\n",
-            format_artifact_type(artifact_type)
+            "### {}\n\n",
+            code_span(format_artifact_type(artifact_type))
         ));
         for artifact in artifacts {
             render_artifact(output, artifact, &evidence_by_id);
@@ -150,15 +150,15 @@ fn render_artifact(
     evidence_by_id: &BTreeMap<&str, &Evidence>,
 ) {
     let name = artifact.display_name.as_deref().unwrap_or("unknown");
-    output.push_str(&format!("#### `{}`\n\n", inline_text(name)));
-    output.push_str(&format!("- Artifact ID: `{}`\n", artifact.id.0));
+    output.push_str(&format!("#### {}\n\n", code_span(name)));
+    output.push_str(&format!("- Artifact ID: {}\n", code_span(&artifact.id.0)));
     output.push_str(&format!(
-        "- Type: `{}`\n",
-        format_artifact_type(artifact.artifact_type)
+        "- Type: {}\n",
+        code_span(format_artifact_type(artifact.artifact_type))
     ));
     output.push_str(&format!(
-        "- Confidence: `{}`\n",
-        format_confidence(artifact.confidence)
+        "- Confidence: {}\n",
+        code_span(format_confidence(artifact.confidence))
     ));
     output.push_str(&format!(
         "- Locations: {}\n",
@@ -191,24 +191,26 @@ fn render_lifecycle_evidence(
     for (stage, evidence_id) in rows {
         let evidence = evidence_by_id.get(evidence_id.0.as_str()).copied();
         output.push_str(&format!(
-            "| `{}` | `{}` | {} | {} | {} | {} | {} | {} |\n",
-            format_lifecycle_stage(stage),
-            evidence_id.0,
+            "| {} | {} | {} | {} | {} | {} | {} | {} |\n",
+            code_span(format_lifecycle_stage(stage)),
+            code_span(&evidence_id.0),
             table_cell(
                 &evidence
                     .map(|record| format_location(&record.location))
                     .unwrap_or_else(|| "unknown location".to_string())
             ),
             evidence
-                .map(|record| format!("`{}`", format_confidence(record.confidence)))
+                .map(|record| code_span(format_confidence(record.confidence)))
                 .unwrap_or_else(|| "-".to_string()),
             table_cell(
                 evidence
                     .map(|record| record.detector_id.as_str())
                     .unwrap_or("-")
             ),
-            bool_cell(evidence.is_some_and(|record| record.dynamic)),
-            bool_cell(evidence.is_some_and(|record| record.framework_default)),
+            code_span(bool_text(evidence.is_some_and(|record| record.dynamic))),
+            code_span(bool_text(
+                evidence.is_some_and(|record| record.framework_default)
+            )),
             table_cell(
                 evidence
                     .and_then(|record| record.excerpt.as_ref())
@@ -236,10 +238,10 @@ fn render_cookie_attributes(
         ("Domain", &attributes.domain),
     ] {
         output.push_str(&format!(
-            "| {label} | `{}` | {} | `{}` | {} |\n",
-            format_state(observation.state),
+            "| {label} | {} | {} | {} | {} |\n",
+            code_span(format_state(observation.state)),
             table_cell(observation.value.as_deref().unwrap_or("-")),
-            format_confidence(observation.confidence),
+            code_span(format_confidence(observation.confidence)),
             observation.evidence_ids.len()
         ));
     }
@@ -277,7 +279,7 @@ fn format_finding_locations(finding: &Finding, report: &ScanReport) -> String {
         .evidence_ids
         .iter()
         .filter_map(|id| evidence_by_id.get(id.0.as_str()))
-        .map(|evidence| format!("`{}`", format_location(&evidence.location)))
+        .map(|evidence| code_span(format_location(&evidence.location)))
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>();
@@ -296,21 +298,21 @@ fn format_locations(locations: &[SourceLocation]) -> String {
 
     locations
         .iter()
-        .map(|location| format!("`{}`", format_location(location)))
+        .map(|location| code_span(format_location(location)))
         .collect::<Vec<_>>()
         .join(", ")
 }
 
 fn format_artifact_ids(ids: &[ArtifactId]) -> String {
     ids.iter()
-        .map(|id| format!("`{}`", id.0))
+        .map(|id| code_span(&id.0))
         .collect::<Vec<_>>()
         .join(", ")
 }
 
 fn format_evidence_ids(ids: &[EvidenceId]) -> String {
     ids.iter()
-        .map(|id| format!("`{}`", id.0))
+        .map(|id| code_span(&id.0))
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -320,11 +322,7 @@ fn format_framework_hints(hints: &[String]) -> String {
         return "none".to_string();
     }
 
-    hints
-        .iter()
-        .map(|hint| format!("`{}`", inline_text(hint)))
-        .collect::<Vec<_>>()
-        .join(", ")
+    hints.iter().map(code_span).collect::<Vec<_>>().join(", ")
 }
 
 fn format_location(location: &SourceLocation) -> String {
@@ -412,20 +410,69 @@ fn format_skipped_reason(reason: &SkippedReason) -> &'static str {
     }
 }
 
-fn bool_cell(value: bool) -> &'static str {
-    if value { "`yes`" } else { "`no`" }
+fn bool_text(value: bool) -> &'static str {
+    if value { "yes" } else { "no" }
 }
 
 fn table_cell(value: &str) -> String {
-    inline_text(value).replace('|', "\\|")
+    inline_text(value)
 }
 
 fn inline_text(value: &str) -> String {
     value
         .lines()
-        .map(str::trim)
+        .map(|line| escape_markdown_html(line.trim()))
         .collect::<Vec<_>>()
         .join("<br>")
+}
+
+fn code_span(value: impl AsRef<str>) -> String {
+    let text = inline_html_text(value.as_ref());
+    let longest_backtick_run = text.split(|ch| ch != '`').map(str::len).max().unwrap_or(0);
+    let delimiter = "`".repeat(longest_backtick_run + 1);
+    if text.starts_with('`') || text.ends_with('`') {
+        format!("{delimiter} {text} {delimiter}")
+    } else {
+        format!("{delimiter}{text}{delimiter}")
+    }
+}
+
+fn inline_html_text(value: &str) -> String {
+    value
+        .lines()
+        .map(|line| escape_html(line.trim()))
+        .collect::<Vec<_>>()
+        .join("<br>")
+}
+
+fn escape_markdown_html(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '\\' | '`' | '*' | '_' | '{' | '}' | '[' | ']' | '(' | ')' | '#' | '!' | '|' => {
+                escaped.push('\\');
+                escaped.push(character);
+            }
+            _ => escaped.push(character),
+        }
+    }
+    escaped
+}
+
+fn escape_html(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            _ => escaped.push(character),
+        }
+    }
+    escaped
 }
 
 #[cfg(test)]
@@ -512,7 +559,7 @@ mod tests {
         assert!(rendered.contains("#### `session`"));
         assert!(rendered.contains("| `store` | `evidence_cookie_store` | app.ts:3:5 | `high` | cookie.set | `no` | `no` | response.cookie"));
         assert!(rendered.contains(
-            "| Secure | `dynamic` | process.env.NODE_ENV === \"production\" | `medium` | 0 |"
+            "| Secure | `dynamic` | process.env.NODE\\_ENV === \"production\" | `medium` | 0 |"
         ));
         assert!(rendered.contains("| ignored.ts | `excluded` |"));
     }
@@ -572,7 +619,7 @@ mod tests {
         assert!(rendered.contains("#### `access_jwt`"));
         assert!(rendered.contains("Category: `missing_validation_evidence`"));
         assert!(rendered.contains("- Source locations: `src/auth.ts:23:10`"));
-        assert!(rendered.contains("| `validate` | `evidence_jwt_verify` | src/auth.ts:23:10 | `medium` | jwt.validation | `no` | `no` | jwt.verify(token, secret) |"));
+        assert!(rendered.contains("| `validate` | `evidence_jwt_verify` | src/auth.ts:23:10 | `medium` | jwt.validation | `no` | `no` | jwt.verify\\(token, secret\\) |"));
     }
 
     #[test]
@@ -611,6 +658,72 @@ mod tests {
 
         assert!(rendered.contains("first\\|second<br>third"));
         assert!(rendered.contains("one\\|two<br>three"));
+    }
+
+    #[test]
+    fn escapes_markdown_sensitive_content() {
+        let evidence_id = EvidenceId("evidence`cookie|store".to_string());
+        let artifact_id = ArtifactId("artifact`cookie".to_string());
+        let mut artifact = cookie_artifact(evidence_id.clone());
+        artifact.id = artifact_id.clone();
+        artifact.display_name = Some("session`|<script>alert(1)</script>".to_string());
+        artifact.locations = vec![location("src/<script>|app.ts", 4, 2)];
+        artifact.framework_hints = vec!["[fake](https://example.test)".to_string()];
+        artifact.lifecycle_evidence = LifecycleEvidence {
+            store: vec![evidence_id.clone()],
+            ..LifecycleEvidence::default()
+        };
+        artifact
+            .cookie_attributes
+            .as_mut()
+            .expect("cookie attributes")
+            .domain = CookieAttributeObservation {
+            state: CookieAttributeState::Present,
+            value: Some("evil|<script>\n`tick`".to_string()),
+            evidence_ids: vec![evidence_id.clone()],
+            confidence: Confidence::High,
+        };
+        let report = ScanReport {
+            schema_version: SCHEMA_VERSION.to_string(),
+            summary: ScanSummary::default(),
+            files: Vec::new(),
+            artifacts: vec![artifact],
+            evidence: vec![Evidence {
+                id: evidence_id.clone(),
+                lifecycle_stage: LifecycleStage::Store,
+                location: location("src/<script>|app.ts", 4, 2),
+                detector_id: "cookie|detector<script>".to_string(),
+                confidence: Confidence::High,
+                excerpt: Some(SanitizedExcerpt(
+                    "response.cookie(\"x|y\", \"[REDACTED]\") <script>".to_string(),
+                )),
+                dynamic: false,
+                framework_default: false,
+            }],
+            findings: vec![Finding {
+                id: FindingId("finding`cookie".to_string()),
+                category: FindingCategory::HighConfidenceMisconfiguration,
+                severity: Severity::High,
+                artifact_ids: vec![artifact_id],
+                evidence_ids: vec![evidence_id],
+                title: "[click](https://evil.test) <script>".to_string(),
+                description: "Description with <b>HTML</b> and [link](x).".to_string(),
+                suggested_fix: Some("Use `Secure` | now".to_string()),
+                reviewer_question: Some("Can <admin> confirm?".to_string()),
+            }],
+        };
+
+        let rendered = render(&report);
+
+        assert!(!rendered.contains("<script>"));
+        assert!(!rendered.contains("<b>HTML</b>"));
+        assert!(!rendered.contains("[click](https://evil.test)"));
+        assert!(rendered.contains("&lt;script&gt;"));
+        assert!(rendered.contains("session`|&lt;script&gt;alert(1)&lt;/script&gt;"));
+        assert!(rendered.contains("src/&lt;script&gt;\\|app.ts"));
+        assert!(rendered.contains("x\\|y"));
+        assert!(rendered.contains("Use \\`Secure\\` \\| now"));
+        assert!(rendered.contains("Can &lt;admin&gt; confirm?"));
     }
 
     fn cookie_artifact(evidence_id: EvidenceId) -> Artifact {

@@ -68,6 +68,23 @@ fn classify_http_only(
                 "Is this cookie intended to be inaccessible to browser JavaScript?".to_string(),
             ))
         }
+        CookieAttributeState::FrameworkDefault
+            if observation_value_is_false(http_only) && http_only.confidence == Confidence::Low =>
+        {
+            Some(finding(
+                "cookie_default_false_httponly",
+                FindingCategory::HighConfidenceMisconfiguration,
+                Severity::High,
+                artifact,
+                http_only.evidence_ids.clone(),
+                format!("Session-like cookie `{cookie_name}` defaults HttpOnly to false"),
+                "Framework default evidence indicates HttpOnly is false for this cookie-setting call."
+                    .to_string(),
+                "Set HttpOnly explicitly on session cookies so client-side scripts cannot read them."
+                    .to_string(),
+                "Is this cookie intended to be inaccessible to browser JavaScript?".to_string(),
+            ))
+        }
         CookieAttributeState::Dynamic => Some(finding(
             "cookie_dynamic_httponly",
             FindingCategory::DynamicReviewRequired,
@@ -116,6 +133,23 @@ fn classify_secure(
             "Is this cookie ever used in an externally reachable production environment?"
                 .to_string(),
         )),
+        CookieAttributeState::FrameworkDefault
+            if observation_value_is_false(secure) && secure.confidence == Confidence::Low =>
+        {
+            Some(finding(
+                "cookie_default_false_secure",
+                FindingCategory::HighConfidenceMisconfiguration,
+                Severity::High,
+                artifact,
+                secure.evidence_ids.clone(),
+                format!("Cookie `{cookie_name}` defaults Secure to false"),
+                "Framework default evidence indicates Secure is false for this cookie-setting call."
+                    .to_string(),
+                "Set Secure for cookies that should only be sent over HTTPS.".to_string(),
+                "Is this cookie ever used in an externally reachable production environment?"
+                    .to_string(),
+            ))
+        }
         CookieAttributeState::Dynamic => Some(finding(
             "cookie_dynamic_secure",
             FindingCategory::DynamicReviewRequired,
@@ -298,6 +332,13 @@ fn same_site_is_none(observation: &CookieAttributeObservation) -> bool {
                 .eq_ignore_ascii_case("none")
         })
         .unwrap_or(false)
+}
+
+fn observation_value_is_false(observation: &CookieAttributeObservation) -> bool {
+    observation
+        .value
+        .as_deref()
+        .is_some_and(|value| value.eq_ignore_ascii_case("false"))
 }
 
 fn is_expiry_absent(observation: &CookieAttributeObservation) -> bool {
@@ -522,7 +563,7 @@ mod tests {
     }
 
     #[test]
-    fn framework_default_secure_is_default_assumed() {
+    fn framework_default_false_secure_is_high_confidence() {
         let findings = classify_artifact(artifact(
             "session",
             attributes(
@@ -535,8 +576,31 @@ mod tests {
         ));
 
         assert!(findings.iter().any(|finding| {
-            finding.category == FindingCategory::FrameworkDefaultAssumed
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.severity == Severity::High
                 && finding.title.contains("Secure")
+                && finding.title.contains("defaults")
+        }));
+    }
+
+    #[test]
+    fn framework_default_false_httponly_is_high_confidence() {
+        let findings = classify_artifact(artifact(
+            "session",
+            attributes(
+                default("http_only", "false"),
+                present("secure", "true"),
+                present("same_site", "lax"),
+                present("max_age", "900"),
+                missing("expires"),
+            ),
+        ));
+
+        assert!(findings.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.severity == Severity::High
+                && finding.title.contains("HttpOnly")
+                && finding.title.contains("defaults")
         }));
     }
 

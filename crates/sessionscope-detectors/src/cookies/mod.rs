@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
+use std::sync::LazyLock;
 
+use regex::Regex;
 use sessionscope_model::{
     Artifact, ArtifactType, Confidence, CookieAttributeObservation, CookieAttributeState,
     CookieAttributes, Evidence, Language, LifecycleEvidence, LifecycleStage, SanitizedExcerpt,
@@ -10,6 +12,26 @@ use tree_sitter::{Node, Parser, Tree};
 use crate::{DetectionOutput, Detector, DetectorInput};
 
 const DETECTOR_ID: &str = "cookie.set";
+const REDACTION: &str = "[REDACTED]";
+
+static COOKIE_VALUE_POSITIONAL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?ix)(\b(?:[A-Za-z_][A-Za-z0-9_]*|cookies\(\))\s*\.\s*(?:cookie|set_cookie|set)\s*\(\s*["'][^"']+["']\s*,\s*)(["'])([^"']*)(["'])"#,
+    )
+    .expect("cookie positional redaction regex should compile")
+});
+static COOKIE_VALUE_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?ix)(\bvalue\s*[:=]\s*)(["'])([^"']*)(["'])"#)
+        .expect("cookie value key redaction regex should compile")
+});
+static PLACEHOLDER_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bPLACEHOLDER[A-Z0-9_]*(?:TOKEN|SECRET|JWT)[A-Z0-9_]*\b")
+        .expect("placeholder secret regex should compile")
+});
+static JWT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{6,}\b")
+        .expect("JWT regex should compile")
+});
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CookieSetDetector;
@@ -38,18 +60,26 @@ struct CookieCall {
     cookie_name: Option<String>,
     signed: bool,
     attributes: BTreeMap<CookieAttributeKind, AttributeEvidence>,
+    dynamic_options: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Wrapper {
     name: String,
     cookie_name_parameter_index: usize,
+    cookie_value_parameter_index: Option<usize>,
+    api_name: &'static str,
+    framework_hint: &'static str,
+    signed: bool,
+    attributes: BTreeMap<CookieAttributeKind, AttributeEvidence>,
+    dynamic_options: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OptionAlias {
     attributes: BTreeMap<CookieAttributeKind, AttributeEvidence>,
     signed: bool,
+    dynamic: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,8 +154,8 @@ fn detect_javascript_like(input: &DetectorInput<'_>, detector_id: &str) -> Detec
     };
 
     let root = tree.root_node();
-    let wrappers = collect_js_wrappers(root, input.source);
     let option_aliases = collect_js_option_aliases(root, input.source);
+    let wrappers = collect_js_wrappers(root, input.source, &option_aliases);
     let mut calls = Vec::new();
     collect_js_cookie_calls(root, input.source, &[], &option_aliases, &mut calls);
     collect_js_wrapper_calls(root, input.source, &wrappers, &mut calls);
@@ -139,13 +169,39 @@ fn detect_python(input: &DetectorInput<'_>, detector_id: &str) -> DetectionOutpu
     };
 
     let root = tree.root_node();
-    let wrappers = collect_python_wrappers(root, input.source);
     let option_aliases = collect_python_option_aliases(root, input.source);
+    let wrappers = collect_python_wrappers(root, input.source, &option_aliases);
     let mut calls = Vec::new();
     collect_python_cookie_calls(root, input.source, &[], &option_aliases, &mut calls);
     collect_python_wrapper_calls(root, input.source, &wrappers, &mut calls);
 
     calls_to_output(input, detector_id, calls)
+}
+
+fn scoped_key(scope: usize, name: &str) -> String {
+    format!("{scope}:{name}")
+}
+
+fn scope_id(node: Node<'_>) -> usize {
+    let mut current = Some(node);
+    while let Some(node) = current {
+        if is_function_node(node) || node.kind() == "function_definition" {
+            return node.start_byte();
+        }
+        current = node.parent();
+    }
+    0
+}
+
+fn alias_lookup(
+    aliases: &BTreeMap<String, OptionAlias>,
+    scope: usize,
+    name: &str,
+) -> Option<OptionAlias> {
+    aliases
+        .get(&scoped_key(scope, name))
+        .or_else(|| aliases.get(&scoped_key(0, name)))
+        .cloned()
 }
 
 fn parse_javascript_like(input: &DetectorInput<'_>, source: &str) -> Option<Tree> {
@@ -358,6 +414,22 @@ fn default_attribute_for_call(
     line: usize,
     column: usize,
 ) -> AttributeEvidence {
+    if call.dynamic_options {
+        return AttributeEvidence {
+            state: CookieAttributeState::Dynamic,
+            value: None,
+            confidence: Confidence::Medium,
+            excerpt: format!(
+                "{} depends on unresolved cookie options",
+                kind.display_name()
+            )
+            .into(),
+            line,
+            column,
+            framework_default: false,
+        };
+    }
+
     let framework_default = match call.api_name {
         "javascript.cookie" | "next.cookies.set" if kind == CookieAttributeKind::Path => Some("/"),
         "python.set_cookie" => match kind {
@@ -439,7 +511,11 @@ fn node_line_column(node: Node<'_>) -> (usize, usize) {
     (position.row + 1, position.column + 1)
 }
 
-fn excerpt_around_node(source: &str, node: Node<'_>) -> SanitizedExcerpt {
+fn excerpt_around_node_with_redactions(
+    source: &str,
+    node: Node<'_>,
+    sensitive_nodes: &[Node<'_>],
+) -> SanitizedExcerpt {
     let target_line = node.start_position().row;
     let lines = source.lines().collect::<Vec<_>>();
     if lines.is_empty() {
@@ -448,7 +524,27 @@ fn excerpt_around_node(source: &str, node: Node<'_>) -> SanitizedExcerpt {
 
     let start = target_line.saturating_sub(1);
     let end = (target_line + 2).min(lines.len());
-    SanitizedExcerpt(lines[start..end].join("\n"))
+    let mut excerpt = lines[start..end].join("\n");
+    for sensitive_node in sensitive_nodes {
+        let sensitive_text = node_text(*sensitive_node, source);
+        if !sensitive_text.trim().is_empty() {
+            excerpt = excerpt.replace(&sensitive_text, REDACTION);
+        }
+    }
+    SanitizedExcerpt(redact_detector_excerpt(&excerpt))
+}
+
+fn redact_detector_excerpt(input: &str) -> String {
+    let mut output = COOKIE_VALUE_POSITIONAL_RE
+        .replace_all(input, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
+    output = COOKIE_VALUE_KEY_RE
+        .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
+    output = JWT_RE.replace_all(&output, REDACTION).to_string();
+    PLACEHOLDER_SECRET_RE
+        .replace_all(&output, REDACTION)
+        .to_string()
 }
 
 fn collect_js_cookie_calls<'tree>(
@@ -530,23 +626,38 @@ fn js_cookie_call<'tree>(
         return None;
     }
 
-    let options = argument_nodes
-        .get(2)
-        .and_then(|options| js_options_from_node(*options, source, option_aliases))
-        .unwrap_or_else(|| OptionAlias {
-            attributes: BTreeMap::new(),
-            signed: false,
-        });
+    let object_form_name = (api_name == "next.cookies.set")
+        .then(|| object_property_value(name_argument, source, "name"))
+        .flatten();
+    let options = if api_name == "next.cookies.set" && is_object_literal(name_argument) {
+        js_options_from_object(name_argument, source).unwrap_or_else(dynamic_option_alias)
+    } else {
+        argument_nodes
+            .get(2)
+            .map(|options| js_options_from_node(*options, source, option_aliases))
+            .unwrap_or_else(|| OptionAlias {
+                attributes: BTreeMap::new(),
+                signed: false,
+                dynamic: false,
+            })
+    };
 
     Some(CookieCall {
         api_name,
         framework_hint,
         line: node_line_column(node).0,
         column: node_line_column(node).1,
-        excerpt: excerpt_around_node(source, node),
-        cookie_name: string_literal_value(name_argument, source),
+        excerpt: excerpt_around_node_with_redactions(
+            source,
+            node,
+            &js_cookie_value_nodes(&argument_nodes, source),
+        ),
+        cookie_name: object_form_name
+            .and_then(|node| string_literal_value(node, source))
+            .or_else(|| string_literal_value(name_argument, source)),
         signed: options.signed,
         attributes: options.attributes,
+        dynamic_options: options.dynamic,
     })
 }
 
@@ -569,17 +680,22 @@ fn python_cookie_call<'tree>(
         return None;
     }
 
-    let attributes = python_attributes_from_arguments(&argument_nodes, source, option_aliases);
+    let options = python_options_from_arguments(&argument_nodes, source, option_aliases);
 
     Some(CookieCall {
         api_name: "python.set_cookie",
         framework_hint: "python",
         line: node_line_column(node).0,
         column: node_line_column(node).1,
-        excerpt: excerpt_around_node(source, node),
+        excerpt: excerpt_around_node_with_redactions(
+            source,
+            node,
+            &python_cookie_value_nodes(&argument_nodes, source),
+        ),
         cookie_name: string_literal_value(name_argument, source),
         signed: false,
-        attributes,
+        attributes: options.attributes,
+        dynamic_options: options.dynamic,
     })
 }
 
@@ -649,6 +765,61 @@ fn first_python_cookie_name_argument<'tree>(
     None
 }
 
+fn js_cookie_value_nodes<'tree>(argument_nodes: &[Node<'tree>], source: &str) -> Vec<Node<'tree>> {
+    if let Some(value_argument) = argument_nodes.get(1).copied() {
+        return vec![value_argument];
+    }
+
+    argument_nodes
+        .first()
+        .and_then(|argument| object_property_value(*argument, source, "value"))
+        .into_iter()
+        .collect()
+}
+
+fn python_cookie_value_nodes<'tree>(
+    argument_nodes: &[Node<'tree>],
+    source: &str,
+) -> Vec<Node<'tree>> {
+    let mut values = Vec::new();
+    if let Some(value_argument) = argument_nodes.get(1).copied()
+        && value_argument.kind() != "keyword_argument"
+    {
+        values.push(value_argument);
+    }
+
+    for argument in argument_nodes {
+        if argument.kind() == "keyword_argument"
+            && let Some(name) = argument.child_by_field_name("name")
+            && node_text(name, source) == "value"
+            && let Some(value) = argument.child_by_field_name("value")
+        {
+            values.push(value);
+        }
+    }
+    values
+}
+
+fn object_property_value<'tree>(
+    node: Node<'tree>,
+    source: &str,
+    property_name: &str,
+) -> Option<Node<'tree>> {
+    if !is_object_literal(node) {
+        return None;
+    }
+
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        if let Some((key, value)) = object_pair(child)
+            && strip_quotes(&node_text(key, source)) == property_name
+        {
+            return Some(value);
+        }
+    }
+    None
+}
+
 fn is_cookies_call(node: Node<'_>, source: &str) -> bool {
     node.kind() == "call_expression"
         && node
@@ -697,7 +868,7 @@ fn collect_js_option_aliases_from_node(
         )
         && let Some(alias) = js_options_from_object(value, source)
     {
-        aliases.insert(node_text(name, source), alias);
+        aliases.insert(scoped_key(scope_id(node), &node_text(name, source)), alias);
     }
 
     let mut cursor = node.walk();
@@ -723,7 +894,7 @@ fn collect_python_option_aliases_from_node(
             && name.kind() == "identifier"
             && let Some(alias) = python_options_from_dictionary(*value, source)
         {
-            aliases.insert(node_text(*name, source), alias);
+            aliases.insert(scoped_key(scope_id(node), &node_text(*name, source)), alias);
         }
     }
 
@@ -737,16 +908,17 @@ fn js_options_from_node(
     node: Node<'_>,
     source: &str,
     aliases: &BTreeMap<String, OptionAlias>,
-) -> Option<OptionAlias> {
+) -> OptionAlias {
     if is_object_literal(node) {
-        return js_options_from_object(node, source);
+        return js_options_from_object(node, source).unwrap_or_else(dynamic_option_alias);
     }
 
     if node.kind() == "identifier" {
-        return aliases.get(&node_text(node, source)).cloned();
+        return alias_lookup(aliases, scope_id(node), &node_text(node, source))
+            .unwrap_or_else(dynamic_option_alias);
     }
 
-    None
+    dynamic_option_alias()
 }
 
 fn js_options_from_object(node: Node<'_>, source: &str) -> Option<OptionAlias> {
@@ -757,6 +929,7 @@ fn js_options_from_object(node: Node<'_>, source: &str) -> Option<OptionAlias> {
     let mut alias = OptionAlias {
         attributes: BTreeMap::new(),
         signed: object_has_signed_true(node, source),
+        dynamic: false,
     };
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
@@ -767,18 +940,24 @@ fn js_options_from_object(node: Node<'_>, source: &str) -> Option<OptionAlias> {
                     .attributes
                     .insert(kind, attribute_from_value(kind, value, source));
             }
+        } else if is_js_spread_or_computed_property(child) {
+            alias.dynamic = true;
         }
     }
 
     Some(alias)
 }
 
-fn python_attributes_from_arguments(
+fn python_options_from_arguments(
     argument_nodes: &[Node<'_>],
     source: &str,
     aliases: &BTreeMap<String, OptionAlias>,
-) -> BTreeMap<CookieAttributeKind, AttributeEvidence> {
-    let mut attributes = BTreeMap::new();
+) -> OptionAlias {
+    let mut options = OptionAlias {
+        attributes: BTreeMap::new(),
+        signed: false,
+        dynamic: false,
+    };
 
     for argument in argument_nodes {
         if argument.kind() == "keyword_argument" {
@@ -787,16 +966,21 @@ fn python_attributes_from_arguments(
                 argument.child_by_field_name("value"),
             ) && let Some(kind) = python_attribute_kind(&node_text(name, source))
             {
-                attributes.insert(kind, attribute_from_value(kind, value, source));
+                options
+                    .attributes
+                    .insert(kind, attribute_from_value(kind, value, source));
             }
-        } else if is_dictionary_splat(*argument, source)
-            && let Some(alias) = python_splat_alias(*argument, source, aliases)
-        {
-            attributes.extend(alias.attributes);
+        } else if is_dictionary_splat(*argument, source) {
+            if let Some(alias) = python_splat_alias(*argument, source, aliases) {
+                options.attributes.extend(alias.attributes);
+                options.dynamic |= alias.dynamic;
+            } else {
+                options.dynamic = true;
+            }
         }
     }
 
-    attributes
+    options
 }
 
 fn python_splat_alias(
@@ -807,7 +991,9 @@ fn python_splat_alias(
     named_children(node)
         .into_iter()
         .find(|child| child.kind() == "identifier")
-        .and_then(|identifier| aliases.get(&node_text(identifier, source)).cloned())
+        .and_then(|identifier| {
+            alias_lookup(aliases, scope_id(node), &node_text(identifier, source))
+        })
 }
 
 fn python_options_from_dictionary(node: Node<'_>, source: &str) -> Option<OptionAlias> {
@@ -818,6 +1004,7 @@ fn python_options_from_dictionary(node: Node<'_>, source: &str) -> Option<Option
     let mut alias = OptionAlias {
         attributes: BTreeMap::new(),
         signed: false,
+        dynamic: false,
     };
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
@@ -832,6 +1019,21 @@ fn python_options_from_dictionary(node: Node<'_>, source: &str) -> Option<Option
     }
 
     Some(alias)
+}
+
+fn dynamic_option_alias() -> OptionAlias {
+    OptionAlias {
+        attributes: BTreeMap::new(),
+        signed: false,
+        dynamic: true,
+    }
+}
+
+fn is_js_spread_or_computed_property(node: Node<'_>) -> bool {
+    matches!(
+        node.kind(),
+        "spread_element" | "computed_property_name" | "method_definition"
+    )
 }
 
 fn object_pair(node: Node<'_>) -> Option<(Node<'_>, Node<'_>)> {
@@ -900,9 +1102,11 @@ fn attribute_from_value(
 
     AttributeEvidence {
         state,
-        value: Some(normalize_attribute_value(kind, &value)),
+        value: Some(redact_detector_excerpt(&normalize_attribute_value(
+            kind, &value,
+        ))),
         confidence,
-        excerpt: format!("{}: {}", kind.display_name(), value).into(),
+        excerpt: redact_detector_excerpt(&format!("{}: {}", kind.display_name(), value)).into(),
         line,
         column,
         framework_default: false,
@@ -930,30 +1134,39 @@ fn normalize_attribute_value(_kind: CookieAttributeKind, value: &str) -> String 
     strip_quotes(value.trim())
 }
 
-fn collect_js_wrappers(root: Node<'_>, source: &str) -> BTreeMap<String, Wrapper> {
+fn collect_js_wrappers(
+    root: Node<'_>,
+    source: &str,
+    option_aliases: &BTreeMap<String, OptionAlias>,
+) -> BTreeMap<String, Wrapper> {
     let mut wrappers = BTreeMap::new();
-    collect_js_wrappers_from_node(root, source, &mut wrappers);
+    collect_js_wrappers_from_node(root, source, option_aliases, &mut wrappers);
     wrappers
 }
 
 fn collect_js_wrappers_from_node(
     node: Node<'_>,
     source: &str,
+    option_aliases: &BTreeMap<String, OptionAlias>,
     wrappers: &mut BTreeMap<String, Wrapper>,
 ) {
     if is_function_node(node)
-        && let Some(wrapper) = js_wrapper(node, source)
+        && let Some(wrapper) = js_wrapper(node, source, option_aliases)
     {
         wrappers.insert(wrapper.name.clone(), wrapper);
     }
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_js_wrappers_from_node(child, source, wrappers);
+        collect_js_wrappers_from_node(child, source, option_aliases, wrappers);
     }
 }
 
-fn js_wrapper(node: Node<'_>, source: &str) -> Option<Wrapper> {
+fn js_wrapper(
+    node: Node<'_>,
+    source: &str,
+    option_aliases: &BTreeMap<String, OptionAlias>,
+) -> Option<Wrapper> {
     let name = node
         .child_by_field_name("name")
         .map(|name| node_text(name, source))
@@ -963,33 +1176,53 @@ fn js_wrapper(node: Node<'_>, source: &str) -> Option<Wrapper> {
         return None;
     }
 
-    let cookie_name_parameter_index =
-        find_js_cookie_name_parameter_index(node, source, &parameters)?;
+    let (cookie_name_parameter_index, cookie_value_parameter_index, template) =
+        find_js_wrapper_template(node, source, &parameters, option_aliases)?;
     Some(Wrapper {
         name,
         cookie_name_parameter_index,
+        cookie_value_parameter_index,
+        api_name: template.api_name,
+        framework_hint: template.framework_hint,
+        signed: template.signed,
+        attributes: template.attributes,
+        dynamic_options: template.dynamic_options,
     })
 }
 
-fn find_js_cookie_name_parameter_index(
+fn find_js_wrapper_template(
     node: Node<'_>,
     source: &str,
     parameters: &[String],
-) -> Option<usize> {
+    option_aliases: &BTreeMap<String, OptionAlias>,
+) -> Option<(usize, Option<usize>, CookieCall)> {
     if node.kind() == "call_expression" {
         let function = node.child_by_field_name("function")?;
         js_supported_cookie_api(function, source)?;
         let arguments = node.child_by_field_name("arguments")?;
-        let name_argument = named_children(arguments).first().copied()?;
-        return parameters
+        let argument_nodes = named_children(arguments);
+        let name_argument = argument_nodes.first().copied()?;
+        let cookie_name_parameter_index = parameters
             .iter()
-            .position(|parameter| node_text(name_argument, source) == *parameter);
+            .position(|parameter| node_text(name_argument, source) == *parameter)?;
+        let cookie_value_parameter_index = argument_nodes.get(1).and_then(|value_argument| {
+            parameters
+                .iter()
+                .position(|parameter| node_text(*value_argument, source) == *parameter)
+        });
+        let template = js_cookie_call(node, source, &[], option_aliases)?;
+        return Some((
+            cookie_name_parameter_index,
+            cookie_value_parameter_index,
+            template,
+        ));
     }
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        if let Some(index) = find_js_cookie_name_parameter_index(child, source, parameters) {
-            return Some(index);
+        if let Some(template) = find_js_wrapper_template(child, source, parameters, option_aliases)
+        {
+            return Some(template);
         }
     }
 
@@ -1027,41 +1260,55 @@ fn js_wrapper_call(
     let cookie_name = string_literal_value(*name_argument, source)?;
 
     Some(CookieCall {
-        api_name: "javascript.wrapper.cookie",
+        api_name: wrapper.api_name,
         framework_hint: "wrapper",
         line: node_line_column(node).0,
         column: node_line_column(node).1,
-        excerpt: excerpt_around_node(source, node),
+        excerpt: excerpt_around_node_with_redactions(
+            source,
+            node,
+            &wrapper_value_nodes(&argument_nodes, wrapper.cookie_value_parameter_index),
+        ),
         cookie_name: Some(cookie_name),
-        signed: false,
-        attributes: BTreeMap::new(),
+        signed: wrapper.signed,
+        attributes: wrapper.attributes.clone(),
+        dynamic_options: wrapper.dynamic_options,
     })
 }
 
-fn collect_python_wrappers(root: Node<'_>, source: &str) -> BTreeMap<String, Wrapper> {
+fn collect_python_wrappers(
+    root: Node<'_>,
+    source: &str,
+    option_aliases: &BTreeMap<String, OptionAlias>,
+) -> BTreeMap<String, Wrapper> {
     let mut wrappers = BTreeMap::new();
-    collect_python_wrappers_from_node(root, source, &mut wrappers);
+    collect_python_wrappers_from_node(root, source, option_aliases, &mut wrappers);
     wrappers
 }
 
 fn collect_python_wrappers_from_node(
     node: Node<'_>,
     source: &str,
+    option_aliases: &BTreeMap<String, OptionAlias>,
     wrappers: &mut BTreeMap<String, Wrapper>,
 ) {
     if node.kind() == "function_definition"
-        && let Some(wrapper) = python_wrapper(node, source)
+        && let Some(wrapper) = python_wrapper(node, source, option_aliases)
     {
         wrappers.insert(wrapper.name.clone(), wrapper);
     }
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_python_wrappers_from_node(child, source, wrappers);
+        collect_python_wrappers_from_node(child, source, option_aliases, wrappers);
     }
 }
 
-fn python_wrapper(node: Node<'_>, source: &str) -> Option<Wrapper> {
+fn python_wrapper(
+    node: Node<'_>,
+    source: &str,
+    option_aliases: &BTreeMap<String, OptionAlias>,
+) -> Option<Wrapper> {
     let name = node
         .child_by_field_name("name")
         .map(|name| node_text(name, source))?;
@@ -1070,35 +1317,58 @@ fn python_wrapper(node: Node<'_>, source: &str) -> Option<Wrapper> {
         return None;
     }
 
-    let cookie_name_parameter_index =
-        find_python_cookie_name_parameter_index(node, source, &parameters)?;
+    let (cookie_name_parameter_index, cookie_value_parameter_index, template) =
+        find_python_wrapper_template(node, source, &parameters, option_aliases)?;
     Some(Wrapper {
         name,
         cookie_name_parameter_index,
+        cookie_value_parameter_index,
+        api_name: template.api_name,
+        framework_hint: template.framework_hint,
+        signed: template.signed,
+        attributes: template.attributes,
+        dynamic_options: template.dynamic_options,
     })
 }
 
-fn find_python_cookie_name_parameter_index(
+fn find_python_wrapper_template(
     node: Node<'_>,
     source: &str,
     parameters: &[String],
-) -> Option<usize> {
+    option_aliases: &BTreeMap<String, OptionAlias>,
+) -> Option<(usize, Option<usize>, CookieCall)> {
     if node.kind() == "call" {
         let function = node.child_by_field_name("function")?;
         if !python_supported_cookie_api(function, source) {
             return None;
         }
         let arguments = node.child_by_field_name("arguments")?;
-        let name_argument = first_python_cookie_name_argument(&named_children(arguments), source)?;
-        return parameters
+        let argument_nodes = named_children(arguments);
+        let name_argument = first_python_cookie_name_argument(&argument_nodes, source)?;
+        let cookie_name_parameter_index = parameters
             .iter()
-            .position(|parameter| node_text(name_argument, source) == *parameter);
+            .position(|parameter| node_text(name_argument, source) == *parameter)?;
+        let cookie_value_parameter_index = python_cookie_value_nodes(&argument_nodes, source)
+            .first()
+            .and_then(|value_argument| {
+                parameters
+                    .iter()
+                    .position(|parameter| node_text(*value_argument, source) == *parameter)
+            });
+        let template = python_cookie_call(node, source, &[], option_aliases)?;
+        return Some((
+            cookie_name_parameter_index,
+            cookie_value_parameter_index,
+            template,
+        ));
     }
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        if let Some(index) = find_python_cookie_name_parameter_index(child, source, parameters) {
-            return Some(index);
+        if let Some(template) =
+            find_python_wrapper_template(child, source, parameters, option_aliases)
+        {
+            return Some(template);
         }
     }
 
@@ -1136,15 +1406,30 @@ fn python_wrapper_call(
     let cookie_name = string_literal_value(*name_argument, source)?;
 
     Some(CookieCall {
-        api_name: "python.wrapper.set_cookie",
+        api_name: wrapper.api_name,
         framework_hint: "wrapper",
         line: node_line_column(node).0,
         column: node_line_column(node).1,
-        excerpt: excerpt_around_node(source, node),
+        excerpt: excerpt_around_node_with_redactions(
+            source,
+            node,
+            &wrapper_value_nodes(&argument_nodes, wrapper.cookie_value_parameter_index),
+        ),
         cookie_name: Some(cookie_name),
-        signed: false,
-        attributes: BTreeMap::new(),
+        signed: wrapper.signed,
+        attributes: wrapper.attributes.clone(),
+        dynamic_options: wrapper.dynamic_options,
     })
+}
+
+fn wrapper_value_nodes<'tree>(
+    argument_nodes: &[Node<'tree>],
+    value_parameter_index: Option<usize>,
+) -> Vec<Node<'tree>> {
+    value_parameter_index
+        .and_then(|index| argument_nodes.get(index).copied())
+        .into_iter()
+        .collect()
 }
 
 fn is_function_node(node: Node<'_>) -> bool {
@@ -1350,7 +1635,13 @@ const text = "response.cookie(\"string\", token)";
             Language::TypeScript,
             r#"
 function setAuthCookie(response, name, value) {
-  response.cookie(name, value, { httpOnly: true });
+  response.cookie(name, value, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    maxAge: 900,
+    signed: true
+  });
 }
 
 setAuthCookie(response, "session", token);
@@ -1358,8 +1649,28 @@ setAuthCookie(response, "session", token);
         );
 
         assert_eq!(output.artifacts.len(), 1);
+        assert_eq!(
+            output.artifacts[0].artifact_type,
+            ArtifactType::SignedCookie
+        );
         assert_eq!(output.artifacts[0].display_name.as_deref(), Some("session"));
         assert_eq!(output.artifacts[0].framework_hints, vec!["wrapper"]);
+        assert_eq!(output.artifacts[0].locations[0].line, Some(12));
+
+        let attributes = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(attributes.http_only.state, CookieAttributeState::Present);
+        assert_eq!(attributes.secure.state, CookieAttributeState::Present);
+        assert_eq!(attributes.same_site.value.as_deref(), Some("lax"));
+        assert_eq!(attributes.max_age.value.as_deref(), Some("900"));
+        let http_only_evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.id == attributes.http_only.evidence_ids[0])
+            .expect("httpOnly evidence should exist");
+        assert_eq!(http_only_evidence.location.line, Some(4));
     }
 
     #[test]
@@ -1368,7 +1679,14 @@ setAuthCookie(response, "session", token);
             Language::Python,
             r#"
 def set_auth_cookie(response, name, value):
-    response.set_cookie(name, value, httponly=True)
+    response.set_cookie(
+        name,
+        value,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=900,
+    )
 
 set_auth_cookie(response, "session", token)
 "#,
@@ -1377,6 +1695,22 @@ set_auth_cookie(response, "session", token)
         assert_eq!(output.artifacts.len(), 1);
         assert_eq!(output.artifacts[0].display_name.as_deref(), Some("session"));
         assert_eq!(output.artifacts[0].framework_hints, vec!["wrapper"]);
+        assert_eq!(output.artifacts[0].locations[0].line, Some(12));
+
+        let attributes = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(attributes.http_only.state, CookieAttributeState::Present);
+        assert_eq!(attributes.secure.state, CookieAttributeState::Present);
+        assert_eq!(attributes.same_site.value.as_deref(), Some("strict"));
+        assert_eq!(attributes.max_age.value.as_deref(), Some("900"));
+        let secure_evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.id == attributes.secure.evidence_ids[0])
+            .expect("secure evidence should exist");
+        assert_eq!(secure_evidence.location.line, Some(7));
     }
 
     #[test]
@@ -1511,5 +1845,197 @@ response.set_cookie("session", token, **cookie_options)
         assert_eq!(attributes.http_only.state, CookieAttributeState::Present);
         assert_eq!(attributes.secure.state, CookieAttributeState::Present);
         assert_eq!(attributes.same_site.value.as_deref(), Some("strict"));
+    }
+
+    #[test]
+    fn direct_detector_redacts_nextjs_object_cookie_values() {
+        let output = detect(
+            Language::TypeScript,
+            r#"cookies().set({ name: "session", value: "short-secret", httpOnly: true });"#,
+        );
+
+        assert_eq!(output.artifacts.len(), 1);
+        assert_eq!(output.artifacts[0].display_name.as_deref(), Some("session"));
+        assert!(!detected_text(&output).contains("short-secret"));
+        assert!(detected_text(&output).contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn direct_detector_redacts_python_keyword_cookie_values() {
+        let output = detect(
+            Language::Python,
+            r#"response.set_cookie(key="session", value="short-secret", httponly=True)"#,
+        );
+
+        assert_eq!(output.artifacts.len(), 1);
+        assert_eq!(output.artifacts[0].display_name.as_deref(), Some("session"));
+        assert!(!detected_text(&output).contains("short-secret"));
+        assert!(detected_text(&output).contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn javascript_aliases_resolve_in_lexical_scope_only() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+function first(response, token) {
+  const opts = { secure: true, httpOnly: true };
+  response.cookie("first_session", token, opts);
+}
+function second(response, token) {
+  const opts = { secure: false, httpOnly: false };
+  response.cookie("second_session", token, opts);
+}
+"#,
+        );
+
+        let first = artifact_named(&output, "first_session");
+        let second = artifact_named(&output, "second_session");
+        let first_attributes = first.cookie_attributes.as_ref().expect("first attributes");
+        let second_attributes = second
+            .cookie_attributes
+            .as_ref()
+            .expect("second attributes");
+        assert_eq!(first_attributes.secure.state, CookieAttributeState::Present);
+        assert_eq!(
+            first_attributes.http_only.state,
+            CookieAttributeState::Present
+        );
+        assert_eq!(
+            second_attributes.secure.state,
+            CookieAttributeState::Missing
+        );
+        assert_eq!(
+            second_attributes.http_only.state,
+            CookieAttributeState::Missing
+        );
+    }
+
+    #[test]
+    fn python_aliases_resolve_in_lexical_scope_only() {
+        let output = detect(
+            Language::Python,
+            r#"
+def first(response, token):
+    opts = {"secure": True, "httponly": True}
+    response.set_cookie("first_session", token, **opts)
+
+def second(response, token):
+    opts = {"secure": False, "httponly": False}
+    response.set_cookie("second_session", token, **opts)
+"#,
+        );
+
+        let first = artifact_named(&output, "first_session");
+        let second = artifact_named(&output, "second_session");
+        let first_attributes = first.cookie_attributes.as_ref().expect("first attributes");
+        let second_attributes = second
+            .cookie_attributes
+            .as_ref()
+            .expect("second attributes");
+        assert_eq!(first_attributes.secure.state, CookieAttributeState::Present);
+        assert_eq!(
+            first_attributes.http_only.state,
+            CookieAttributeState::Present
+        );
+        assert_eq!(
+            second_attributes.secure.state,
+            CookieAttributeState::Missing
+        );
+        assert_eq!(
+            second_attributes.http_only.state,
+            CookieAttributeState::Missing
+        );
+    }
+
+    #[test]
+    fn unresolved_javascript_option_identifier_marks_unobserved_attributes_dynamic() {
+        let output = detect(
+            Language::TypeScript,
+            r#"response.cookie("session", token, cookieOptions);"#,
+        );
+
+        let attributes = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(attributes.http_only.state, CookieAttributeState::Dynamic);
+        assert_eq!(attributes.http_only.confidence, Confidence::Medium);
+        assert_eq!(attributes.secure.state, CookieAttributeState::Dynamic);
+        assert_eq!(attributes.secure.confidence, Confidence::Medium);
+    }
+
+    #[test]
+    fn javascript_object_spread_marks_unobserved_attributes_dynamic() {
+        let output = detect(
+            Language::TypeScript,
+            r#"response.cookie("session", token, { ...cookieOptions, httpOnly: true });"#,
+        );
+
+        let attributes = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(attributes.http_only.state, CookieAttributeState::Present);
+        assert_eq!(attributes.secure.state, CookieAttributeState::Dynamic);
+        assert_eq!(attributes.secure.confidence, Confidence::Medium);
+    }
+
+    #[test]
+    fn unknown_python_kwargs_marks_unobserved_attributes_dynamic() {
+        let output = detect(
+            Language::Python,
+            r#"response.set_cookie("session", token, **cookie_options)"#,
+        );
+
+        let attributes = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(attributes.http_only.state, CookieAttributeState::Dynamic);
+        assert_eq!(attributes.http_only.confidence, Confidence::Medium);
+        assert_eq!(attributes.secure.state, CookieAttributeState::Dynamic);
+        assert_eq!(attributes.secure.confidence, Confidence::Medium);
+    }
+
+    fn detected_text(output: &crate::DetectionOutput) -> String {
+        let excerpts = output
+            .evidence
+            .iter()
+            .filter_map(|evidence| evidence.excerpt.as_ref())
+            .map(|excerpt| excerpt.0.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let attribute_values = output
+            .artifacts
+            .iter()
+            .filter_map(|artifact| artifact.cookie_attributes.as_ref())
+            .flat_map(|attributes| {
+                [
+                    &attributes.http_only,
+                    &attributes.secure,
+                    &attributes.same_site,
+                    &attributes.max_age,
+                    &attributes.expires,
+                    &attributes.path,
+                    &attributes.domain,
+                ]
+                .into_iter()
+                .filter_map(|observation| observation.value.as_deref())
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!("{excerpts}\n{attribute_values}")
+    }
+
+    fn artifact_named<'a>(
+        output: &'a crate::DetectionOutput,
+        display_name: &str,
+    ) -> &'a sessionscope_model::Artifact {
+        output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some(display_name))
+            .expect("named artifact should exist")
     }
 }
