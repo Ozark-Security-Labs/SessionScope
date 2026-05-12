@@ -1,3 +1,4 @@
+use crate::cookies::CookieSetDetector;
 use crate::{DetectionOutput, Detector, DetectorInput};
 
 #[derive(Default)]
@@ -8,6 +9,10 @@ pub struct DetectorRegistry {
 impl DetectorRegistry {
     pub fn empty() -> Self {
         Self::default()
+    }
+
+    pub fn builtin() -> Self {
+        Self::empty().with_detector(Box::new(CookieSetDetector))
     }
 
     pub fn with_detector(mut self, detector: Box<dyn Detector>) -> Self {

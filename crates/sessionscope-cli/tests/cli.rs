@@ -17,6 +17,19 @@ fn run_sessionscope_in(cwd: &Path, args: &[&str]) -> Output {
         .expect("failed to run sessionscope")
 }
 
+fn fixture_path(segments: &[&str]) -> std::path::PathBuf {
+    segments.iter().fold(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("fixtures"),
+        |mut path, segment| {
+            path.push(segment);
+            path
+        },
+    )
+}
+
 #[test]
 fn help_succeeds() {
     let output = run_sessionscope(&["--help"]);
@@ -101,6 +114,210 @@ fn scan_accepts_include_exclude_and_max_file_size() {
         serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
     assert_eq!(parsed["summary"]["files_scanned"], 1);
     assert_eq!(parsed["summary"]["files_skipped"], 2);
+}
+
+#[test]
+fn scan_json_runs_builtin_cookie_detector() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
+    )
+    .expect("app source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json",
+    ]);
+
+    assert!(output.status.success());
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
+
+    assert_eq!(parsed["schema_version"], "0.2.0");
+    let findings = parsed["findings"].as_array().expect("findings array");
+    assert!(
+        findings.iter().any(|finding| {
+            finding["category"] == "high_confidence_misconfiguration"
+                && finding["severity"] == "high"
+                && finding["title"]
+                    .as_str()
+                    .expect("finding title")
+                    .contains("HttpOnly")
+        }),
+        "scan JSON should include a high-confidence missing HttpOnly finding"
+    );
+    let artifacts = parsed["artifacts"].as_array().expect("artifacts array");
+    assert!(
+        artifacts.iter().any(|artifact| {
+            artifact["artifact_type"] == "signed_cookie"
+                && artifact["display_name"] == "session"
+                && !artifact["lifecycle_evidence"]["store"]
+                    .as_array()
+                    .expect("store array")
+                    .is_empty()
+                && artifact["cookie_attributes"]["http_only"]["state"] == "missing"
+                && artifact["cookie_attributes"]["path"]["state"] == "framework_default"
+        }),
+        "scan JSON should include the detected signed session cookie"
+    );
+    let serialized = String::from_utf8_lossy(&output.stdout);
+    assert!(!serialized.contains("PLACEHOLDER_RESET_TOKEN"));
+}
+
+#[test]
+fn scan_json_output_writes_file_without_stdout_inventory() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
+    )
+    .expect("app source should be written");
+    let output_path = temp.path().join("sessions.json");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json",
+        "--output",
+        output_path.to_str().expect("output path should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "--output should not echo inventory JSON to stdout"
+    );
+    let written = fs::read_to_string(output_path).expect("JSON output should be written");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&written).expect("written scan JSON should parse");
+    assert_eq!(parsed["schema_version"], "0.2.0");
+    assert!(
+        parsed["artifacts"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty())
+    );
+    assert!(!written.contains("PLACEHOLDER_RESET_TOKEN"));
+}
+
+#[test]
+fn scan_json_output_write_failure_includes_path_context() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(temp.path().join("app.ts"), "const app = true;")
+        .expect("app source should be written");
+    let output_path = temp.path().join("missing").join("sessions.json");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json",
+        "--output",
+        output_path.to_str().expect("output path should be UTF-8"),
+    ]);
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("failed to write scan output"));
+    assert!(stderr.contains("sessions.json"));
+}
+
+#[test]
+fn scan_markdown_stdout_renders_lifecycle_report_for_cookie_fixture() {
+    let fixture = fixture_path(&["express", "cookie-session-lifecycle"]);
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        fixture.to_str().expect("fixture path should be UTF-8"),
+        "--format",
+        "markdown",
+    ]);
+
+    assert!(output.status.success());
+    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("# SessionScope Report"));
+    assert!(stdout.contains("## Findings"));
+    assert!(stdout.contains("## Artifacts"));
+    assert!(stdout.contains("### `session_cookie`"));
+    assert!(stdout.contains("Category: `high_confidence_misconfiguration`"));
+    assert!(stdout.contains("| Stage | Evidence ID | Location | Confidence | Detector | Dynamic | Framework default | Excerpt |"));
+    assert!(stdout.contains("**Suggested fix:**"));
+    assert!(stdout.contains("**Reviewer question:**"));
+    assert!(!stdout.contains("PLACEHOLDER_RESET_TOKEN"));
+    assert!(!stdout.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+}
+
+#[test]
+fn scan_markdown_output_writes_file_without_stdout_report() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let fixture = fixture_path(&["express", "cookie-session-lifecycle"]);
+    let output_path = temp.path().join("sessions.md");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        fixture.to_str().expect("fixture path should be UTF-8"),
+        "--format",
+        "markdown",
+        "--output",
+        output_path.to_str().expect("output path should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "--output should not echo Markdown report to stdout"
+    );
+    let written = fs::read_to_string(output_path).expect("Markdown output should be written");
+    assert!(written.contains("# SessionScope Report"));
+    assert!(written.contains("## Findings"));
+    assert!(written.contains("## Artifacts"));
+    assert!(written.contains("legacy_session"));
+    assert!(!written.contains("PLACEHOLDER_RESET_TOKEN"));
+}
+
+#[test]
+fn scan_sarif_renders_findings_and_locations() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { sameSite: "none" });"#,
+    )
+    .expect("app source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "sarif",
+    ]);
+
+    assert!(output.status.success());
+    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
+    let parsed: serde_json::Value =
+        serde_json::from_str(stdout).expect("SARIF output should parse");
+    let rules = parsed["runs"][0]["tool"]["driver"]["rules"]
+        .as_array()
+        .expect("rules array");
+    let results = parsed["runs"][0]["results"]
+        .as_array()
+        .expect("results array");
+    assert!(!rules.is_empty(), "SARIF should include finding rules");
+    assert!(!results.is_empty(), "SARIF should include finding results");
+    assert_eq!(parsed["version"], "2.1.0");
+    assert_eq!(
+        results[0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"],
+        "app.ts"
+    );
+    assert!(!stdout.contains("PLACEHOLDER_RESET_TOKEN"));
 }
 
 #[test]

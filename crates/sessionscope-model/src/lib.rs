@@ -5,7 +5,10 @@ pub mod lifecycle;
 pub mod report;
 pub mod schema;
 
-pub use artifact::{Artifact, ArtifactId, ArtifactType, LifecycleEvidence};
+pub use artifact::{
+    Artifact, ArtifactId, ArtifactType, CookieAttributeObservation, CookieAttributeState,
+    CookieAttributes, LifecycleEvidence,
+};
 pub use evidence::{Confidence, Evidence, EvidenceId, SanitizedExcerpt, SourceLocation};
 pub use finding::{Finding, FindingCategory, FindingId, Severity};
 pub use lifecycle::LifecycleStage;
@@ -17,8 +20,9 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        Artifact, ArtifactId, ArtifactType, Confidence, Evidence, EvidenceId, Finding,
-        FindingCategory, FindingId, LifecycleEvidence, LifecycleStage, SanitizedExcerpt, Severity,
+        Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
+        CookieAttributeState, CookieAttributes, Evidence, EvidenceId, Finding, FindingCategory,
+        FindingId, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION, SanitizedExcerpt, Severity,
         SourceLocation, stable_artifact_id, stable_evidence_id, stable_finding_id,
     };
 
@@ -57,6 +61,7 @@ mod tests {
             },
             confidence: Confidence::High,
             framework_hints: vec!["express".to_string()],
+            cookie_attributes: None,
         };
 
         let serialized =
@@ -97,6 +102,7 @@ mod tests {
 
     #[test]
     fn enum_wire_values_are_snake_case() {
+        assert_eq!(SCHEMA_VERSION, "0.2.0");
         assert_eq!(
             serde_json::to_value(FindingCategory::HighConfidenceMisconfiguration)
                 .expect("category should serialize"),
@@ -116,6 +122,51 @@ mod tests {
                 .expect("artifact type should serialize"),
             json!("password_reset_token")
         );
+        assert_eq!(
+            serde_json::to_value(CookieAttributeState::FrameworkDefault)
+                .expect("cookie attribute state should serialize"),
+            json!("framework_default")
+        );
+    }
+
+    #[test]
+    fn round_trips_cookie_attribute_inventory() {
+        let evidence_id = EvidenceId("evidence_cookie_secure".to_string());
+        let observed = CookieAttributeObservation {
+            state: CookieAttributeState::Present,
+            value: Some("true".to_string()),
+            evidence_ids: vec![evidence_id.clone()],
+            confidence: Confidence::High,
+        };
+        let missing = CookieAttributeObservation {
+            state: CookieAttributeState::Missing,
+            value: None,
+            evidence_ids: Vec::new(),
+            confidence: Confidence::High,
+        };
+        let attributes = CookieAttributes {
+            http_only: observed.clone(),
+            secure: observed,
+            same_site: CookieAttributeObservation {
+                state: CookieAttributeState::FrameworkDefault,
+                value: Some("lax".to_string()),
+                evidence_ids: vec![evidence_id],
+                confidence: Confidence::Low,
+            },
+            max_age: missing.clone(),
+            expires: missing.clone(),
+            path: missing.clone(),
+            domain: missing,
+        };
+
+        let serialized =
+            serde_json::to_string(&attributes).expect("cookie attributes should serialize");
+        let deserialized: CookieAttributes =
+            serde_json::from_str(&serialized).expect("cookie attributes should deserialize");
+
+        assert_eq!(deserialized, attributes);
+        assert!(serialized.contains("\"http_only\""));
+        assert!(serialized.contains("\"same_site\""));
     }
 
     #[test]

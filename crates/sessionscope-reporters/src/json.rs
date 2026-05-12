@@ -29,11 +29,20 @@ mod tests {
         let rendered = render(&report);
         let parsed: serde_json::Value =
             serde_json::from_str(&rendered).expect("rendered JSON should parse");
+        let deserialized: ScanReport =
+            serde_json::from_str(&rendered).expect("rendered JSON should match ScanReport schema");
 
         assert_eq!(parsed["schema_version"], SCHEMA_VERSION);
         assert_eq!(parsed["summary"]["files_discovered"], 1);
+        assert!(parsed.get("schema_version").is_some());
+        assert!(parsed.get("summary").is_some());
+        assert!(parsed.get("files").is_some());
+        assert!(parsed.get("artifacts").is_some());
+        assert!(parsed.get("evidence").is_some());
+        assert!(parsed.get("findings").is_some());
         assert!(parsed["artifacts"].is_array());
         assert!(parsed["evidence"].is_array());
         assert!(parsed["findings"].is_array());
+        assert_eq!(deserialized.schema_version, SCHEMA_VERSION);
     }
 }

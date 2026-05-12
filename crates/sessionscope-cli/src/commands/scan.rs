@@ -86,12 +86,17 @@ pub fn run(args: &[String]) -> CommandResult {
         config.set_max_file_size_bytes(max_file_size_bytes);
     }
 
-    let registry = Arc::new(DetectorRegistry::empty());
+    let registry = Arc::new(DetectorRegistry::builtin());
     let report = classify(scan_path(config, registry)?);
     let rendered = render(&report, format);
 
     if let Some(output) = output {
-        fs::write(output, rendered)?;
+        fs::write(&output, rendered).map_err(|error| {
+            format!(
+                "failed to write scan output to {}: {error}",
+                output.display()
+            )
+        })?;
     } else {
         print!("{rendered}");
     }

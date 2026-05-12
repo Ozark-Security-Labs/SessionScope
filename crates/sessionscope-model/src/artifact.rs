@@ -32,6 +32,36 @@ pub struct LifecycleEvidence {
     pub introspect: Vec<EvidenceId>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CookieAttributeState {
+    Present,
+    Missing,
+    Dynamic,
+    FrameworkDefault,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CookieAttributeObservation {
+    pub state: CookieAttributeState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub confidence: Confidence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CookieAttributes {
+    pub http_only: CookieAttributeObservation,
+    pub secure: CookieAttributeObservation,
+    pub same_site: CookieAttributeObservation,
+    pub max_age: CookieAttributeObservation,
+    pub expires: CookieAttributeObservation,
+    pub path: CookieAttributeObservation,
+    pub domain: CookieAttributeObservation,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Artifact {
     pub id: ArtifactId,
@@ -41,4 +71,6 @@ pub struct Artifact {
     pub lifecycle_evidence: LifecycleEvidence,
     pub confidence: Confidence,
     pub framework_hints: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cookie_attributes: Option<CookieAttributes>,
 }

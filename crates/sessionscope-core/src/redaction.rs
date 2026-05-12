@@ -31,6 +31,10 @@ static COOKIE_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
     )
     .expect("cookie call regex should compile")
 });
+static COOKIE_VALUE_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?ix)(\bvalue\s*[:=]\s*)(["'])([^"']*)(["'])"#)
+        .expect("cookie value key regex should compile")
+});
 static SENSITIVE_QUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?ix)(["']?\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b["']?\s*[:=]\s*)(["'])([^"']*)(["'])"#,
@@ -52,6 +56,10 @@ static SENSITIVE_CLAIM_RE: LazyLock<Regex> = LazyLock::new(|| {
 static JWT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{6,}\b")
         .expect("JWT regex should compile")
+});
+static PLACEHOLDER_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bPLACEHOLDER[A-Z0-9_]*(?:TOKEN|SECRET|JWT)[A-Z0-9_]*\b")
+        .expect("placeholder secret regex should compile")
 });
 static LONG_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b[A-Za-z0-9_+/=-]{32,}\b").expect("long token regex should compile")
@@ -106,6 +114,9 @@ pub fn redact_sensitive_values(input: &str) -> String {
     output = COOKIE_CALL_RE
         .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string();
+    output = COOKIE_VALUE_KEY_RE
+        .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
     output = SENSITIVE_QUOTED_ASSIGNMENT_RE
         .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string();
@@ -116,6 +127,9 @@ pub fn redact_sensitive_values(input: &str) -> String {
         .replace_all(&output, format!("${{1}}{REDACTION}${{3}}"))
         .to_string();
     output = JWT_RE.replace_all(&output, REDACTION).to_string();
+    output = PLACEHOLDER_SECRET_RE
+        .replace_all(&output, REDACTION)
+        .to_string();
     LONG_TOKEN_RE
         .replace_all(&output, |captures: &regex::Captures<'_>| {
             let value = captures.get(0).expect("full capture should exist").as_str();
@@ -179,6 +193,21 @@ fn sanitize_artifact(artifact: &mut Artifact) {
         *display_name = redact_sensitive_values(display_name);
     }
     sanitize_strings(&mut artifact.framework_hints);
+    if let Some(attributes) = &mut artifact.cookie_attributes {
+        for observation in [
+            &mut attributes.http_only,
+            &mut attributes.secure,
+            &mut attributes.same_site,
+            &mut attributes.max_age,
+            &mut attributes.expires,
+            &mut attributes.path,
+            &mut attributes.domain,
+        ] {
+            if let Some(value) = &mut observation.value {
+                *value = redact_sensitive_values(value);
+            }
+        }
+    }
 }
 
 fn sanitize_evidence(evidence: &mut Evidence) {
@@ -303,9 +332,16 @@ fn truncate_chars(value: &str, max_chars: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use sessionscope_model::SourceLocation;
+    use sessionscope_detectors::DetectionOutput;
+    use sessionscope_model::{
+        Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
+        CookieAttributeState, CookieAttributes, LifecycleEvidence, SourceLocation,
+    };
 
-    use super::{ExcerptOptions, redact_sensitive_values, safe_excerpt_at_location_with_options};
+    use super::{
+        ExcerptOptions, redact_sensitive_values, safe_excerpt_at_location_with_options,
+        sanitize_detection_output,
+    };
 
     #[test]
     fn redacts_jwt_like_values() {
@@ -372,6 +408,8 @@ mod tests {
             "res.cookie(\"session\", \"short-secret\", { httpOnly: true, secure: true })",
             "response.set_cookie(\"session\", \"short-secret\", httponly=True)",
             "cookies().set(\"access\", \"short-secret\", { sameSite: \"lax\" })",
+            "cookies().set({ name: \"session\", value: \"short-secret\", httpOnly: true })",
+            "response.set_cookie(key=\"session\", value=\"short-secret\", httponly=True)",
         ] {
             let output = redact_sensitive_values(source);
 
@@ -392,6 +430,17 @@ mod tests {
 
         assert!(output.contains("[REDACTED]"));
         assert!(!output.contains("abcdefghijklmnopqrstuvwxyzABCDEF0123456789"));
+    }
+
+    #[test]
+    fn redacts_placeholder_secret_values() {
+        let output = redact_sensitive_values(
+            "const rotatedRefreshToken = \"PLACEHOLDER_RESET_TOKEN_ROTATED\"; const signingSecret = \"PLACEHOLDER_SECRET_DO_NOT_USE\";",
+        );
+
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains("PLACEHOLDER_RESET_TOKEN_ROTATED"));
+        assert!(!output.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
     }
 
     #[test]
@@ -425,5 +474,57 @@ mod tests {
                 .0
                 .contains("abcdefghijklmnopqrstuvwxyzABCDEF0123456789")
         );
+    }
+
+    #[test]
+    fn sanitizes_cookie_attribute_values() {
+        let secret = "abcdefghijklmnopqrstuvwxyzABCDEF0123456789";
+        let output = sanitize_detection_output(DetectionOutput {
+            artifacts: vec![Artifact {
+                id: ArtifactId("artifact_cookie".to_string()),
+                artifact_type: ArtifactType::SessionCookie,
+                display_name: Some("session".to_string()),
+                locations: Vec::new(),
+                lifecycle_evidence: LifecycleEvidence::default(),
+                confidence: Confidence::High,
+                framework_hints: Vec::new(),
+                cookie_attributes: Some(cookie_attributes_with_value(secret)),
+            }],
+            evidence: Vec::new(),
+            diagnostics: Vec::new(),
+        });
+
+        let value = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("attributes should remain")
+            .domain
+            .value
+            .as_deref()
+            .expect("value should remain");
+        assert_eq!(value, "[REDACTED]");
+    }
+
+    fn cookie_attributes_with_value(value: &str) -> CookieAttributes {
+        let missing = CookieAttributeObservation {
+            state: CookieAttributeState::Missing,
+            value: None,
+            evidence_ids: Vec::new(),
+            confidence: Confidence::High,
+        };
+        CookieAttributes {
+            http_only: missing.clone(),
+            secure: missing.clone(),
+            same_site: missing.clone(),
+            max_age: missing.clone(),
+            expires: missing.clone(),
+            path: missing.clone(),
+            domain: CookieAttributeObservation {
+                state: CookieAttributeState::Present,
+                value: Some(value.to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::High,
+            },
+        }
     }
 }
