@@ -149,8 +149,10 @@ fn sort_evidence_ids(evidence_ids: &mut [EvidenceId]) {
 #[cfg(test)]
 mod tests {
     use sessionscope_model::{
-        Confidence, Evidence, EvidenceId, Finding, FindingCategory, FindingId, LifecycleStage,
-        SCHEMA_VERSION, SanitizedExcerpt, ScanReport, ScanSummary, Severity, SourceLocation,
+        Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
+        CookieAttributeState, CookieAttributes, Evidence, EvidenceId, Finding, FindingCategory,
+        FindingId, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION, SanitizedExcerpt, ScanReport,
+        ScanSummary, Severity, SourceLocation,
     };
 
     use super::{ReportFormat, render};
@@ -168,7 +170,16 @@ mod tests {
                 diagnostics: vec![format!("diagnostic saw token {SECRET}")],
             },
             files: Vec::new(),
-            artifacts: Vec::new(),
+            artifacts: vec![Artifact {
+                id: ArtifactId("artifact_report_secret".to_string()),
+                artifact_type: ArtifactType::SessionCookie,
+                display_name: Some("session".to_string()),
+                locations: Vec::new(),
+                lifecycle_evidence: LifecycleEvidence::default(),
+                confidence: Confidence::High,
+                framework_hints: Vec::new(),
+                cookie_attributes: Some(cookie_attributes_with_value(SECRET)),
+            }],
             evidence: vec![Evidence {
                 id: evidence_id.clone(),
                 lifecycle_stage: LifecycleStage::Validate,
@@ -194,6 +205,29 @@ mod tests {
                 suggested_fix: Some(format!("Remove {SECRET}")),
                 reviewer_question: Some(format!("Is {SECRET} expected?")),
             }],
+        }
+    }
+
+    fn cookie_attributes_with_value(value: &str) -> CookieAttributes {
+        let missing = CookieAttributeObservation {
+            state: CookieAttributeState::Missing,
+            value: None,
+            evidence_ids: Vec::new(),
+            confidence: Confidence::High,
+        };
+        CookieAttributes {
+            http_only: missing.clone(),
+            secure: missing.clone(),
+            same_site: missing.clone(),
+            max_age: missing.clone(),
+            expires: missing.clone(),
+            path: missing.clone(),
+            domain: CookieAttributeObservation {
+                state: CookieAttributeState::Present,
+                value: Some(value.to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::High,
+            },
         }
     }
 

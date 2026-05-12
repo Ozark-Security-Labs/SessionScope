@@ -17,6 +17,19 @@ fn run_sessionscope_in(cwd: &Path, args: &[&str]) -> Output {
         .expect("failed to run sessionscope")
 }
 
+fn fixture_path(segments: &[&str]) -> std::path::PathBuf {
+    segments.iter().fold(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("fixtures"),
+        |mut path, segment| {
+            path.push(segment);
+            path
+        },
+    )
+}
+
 #[test]
 fn help_succeeds() {
     let output = run_sessionscope(&["--help"]);
@@ -213,6 +226,61 @@ fn scan_json_output_write_failure_includes_path_context() {
     let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
     assert!(stderr.contains("failed to write scan output"));
     assert!(stderr.contains("sessions.json"));
+}
+
+#[test]
+fn scan_markdown_stdout_renders_lifecycle_report_for_cookie_fixture() {
+    let fixture = fixture_path(&["express", "cookie-session-lifecycle"]);
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        fixture.to_str().expect("fixture path should be UTF-8"),
+        "--format",
+        "markdown",
+    ]);
+
+    assert!(output.status.success());
+    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("# SessionScope Report"));
+    assert!(stdout.contains("## Findings"));
+    assert!(stdout.contains("## Artifacts"));
+    assert!(stdout.contains("### `session_cookie`"));
+    assert!(stdout.contains("Category: `high_confidence_misconfiguration`"));
+    assert!(stdout.contains("| Stage | Evidence ID | Location | Confidence | Detector | Dynamic | Framework default | Excerpt |"));
+    assert!(stdout.contains("**Suggested fix:**"));
+    assert!(stdout.contains("**Reviewer question:**"));
+    assert!(!stdout.contains("PLACEHOLDER_RESET_TOKEN"));
+    assert!(!stdout.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+}
+
+#[test]
+fn scan_markdown_output_writes_file_without_stdout_report() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let fixture = fixture_path(&["express", "cookie-session-lifecycle"]);
+    let output_path = temp.path().join("sessions.md");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        fixture.to_str().expect("fixture path should be UTF-8"),
+        "--format",
+        "markdown",
+        "--output",
+        output_path.to_str().expect("output path should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "--output should not echo Markdown report to stdout"
+    );
+    let written = fs::read_to_string(output_path).expect("Markdown output should be written");
+    assert!(written.contains("# SessionScope Report"));
+    assert!(written.contains("## Findings"));
+    assert!(written.contains("## Artifacts"));
+    assert!(written.contains("legacy_session"));
+    assert!(!written.contains("PLACEHOLDER_RESET_TOKEN"));
 }
 
 #[test]
