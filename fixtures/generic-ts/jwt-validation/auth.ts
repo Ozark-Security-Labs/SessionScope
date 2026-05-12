@@ -27,7 +27,7 @@ export function verifyAccessJwt(token: string) {
 }
 
 export function verifyLegacyJwt(token: string) {
-  return jwt.verify(token, JWT_SECRET);
+  return jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
 }
 
 export function inspectAccessJwt(token: string) {

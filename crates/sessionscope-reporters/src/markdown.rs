@@ -261,6 +261,8 @@ fn render_jwt_attributes(output: &mut String, attributes: &sessionscope_model::J
         ("Issuer", &attributes.issuer),
         ("Audience", &attributes.audience),
         ("Expiration", &attributes.expiration),
+        ("Signature verification", &attributes.signature_verification),
+        ("Expiry enforcement", &attributes.expiry_enforcement),
     ] {
         output.push_str(&format!(
             "| {label} | {} | {} | {} | {} |\n",
@@ -388,6 +390,7 @@ fn format_jwt_state(state: JwtAttributeState) -> &'static str {
         JwtAttributeState::Present => "present",
         JwtAttributeState::Missing => "missing",
         JwtAttributeState::Dynamic => "dynamic",
+        JwtAttributeState::FrameworkDefault => "framework_default",
         JwtAttributeState::Unknown => "unknown",
     }
 }
@@ -655,6 +658,12 @@ mod tests {
         assert!(rendered.contains("#### `access_jwt`"));
         assert!(rendered.contains("| JWT field | State | Value | Confidence | Evidence |"));
         assert!(rendered.contains("| Issuer | `present` | ISSUER | `high` | 1 |"));
+        assert!(
+            rendered.contains("| Signature verification | `present` | verified | `high` | 0 |")
+        );
+        assert!(rendered.contains(
+            "| Expiry enforcement | `framework_default` | library\\_default | `low` | 0 |"
+        ));
         assert!(rendered.contains("Category: `missing_validation_evidence`"));
         assert!(rendered.contains("- Source locations: `src/auth.ts:23:10`"));
         assert!(rendered.contains("| `validate` | `evidence_jwt_verify` | src/auth.ts:23:10 | `medium` | jwt.validation | `no` | `no` | jwt.verify\\(token, secret\\) |"));
@@ -835,6 +844,18 @@ mod tests {
             issuer: present,
             audience: missing.clone(),
             expiration: missing,
+            signature_verification: JwtAttributeObservation {
+                state: JwtAttributeState::Present,
+                value: Some("verified".to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::High,
+            },
+            expiry_enforcement: JwtAttributeObservation {
+                state: JwtAttributeState::FrameworkDefault,
+                value: Some("library_default".to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::Low,
+            },
         }
     }
 

@@ -34,7 +34,12 @@ def verify_access_jwt(token: str):
 
 
 def verify_legacy_jwt(token: str):
-    return jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+    return jwt.decode(
+        token,
+        JWT_SECRET,
+        algorithms=["HS256"],
+        options={"verify_exp": False},
+    )
 
 
 def create_reset_token(user_id: str):

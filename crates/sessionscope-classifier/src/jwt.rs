@@ -13,20 +13,21 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
 
         let name = artifact.display_name.as_deref().unwrap_or("unknown_jwt");
 
-        if !artifact.lifecycle_evidence.introspect.is_empty()
-            && operation_contains(&attributes.operation, "decode_without_verify")
+        if operation_contains(&attributes.operation, "decode_without_verify")
+            || attributes.signature_verification.state == JwtAttributeState::Missing
         {
             findings.push(finding(
                 "jwt_decode_without_verify",
-                FindingCategory::MissingValidationEvidence,
-                Severity::Medium,
+                FindingCategory::HighConfidenceMisconfiguration,
+                Severity::High,
                 artifact,
                 fallback_ids(
-                    &attributes.operation.evidence_ids,
+                    &attributes.signature_verification.evidence_ids,
                     &artifact.lifecycle_evidence.introspect,
                 ),
-                format!("JWT `{name}` is decoded without verification"),
-                "Decode-without-verify evidence was detected for this JWT artifact.".to_string(),
+                format!("JWT `{name}` is decoded or parsed without signature verification"),
+                "Evidence shows this JWT path does not verify signatures before reading claims."
+                    .to_string(),
                 "Use a verification API with the expected issuer, audience, and signing key before trusting claims."
                     .to_string(),
                 "Is this decoded JWT used only for non-security-sensitive introspection?".to_string(),
@@ -80,6 +81,61 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
                     "Confirm the effective production lifetime and make the expiration explicit when possible."
                         .to_string(),
                     "What effective JWT lifetime is configured in production?".to_string(),
+                )),
+                _ => {}
+            }
+        }
+
+        if !artifact.lifecycle_evidence.validate.is_empty()
+            || !artifact.lifecycle_evidence.introspect.is_empty()
+        {
+            match attributes.expiry_enforcement.state {
+                JwtAttributeState::Missing => findings.push(finding(
+                    "jwt_expiry_enforcement_disabled",
+                    FindingCategory::HighConfidenceMisconfiguration,
+                    Severity::High,
+                    artifact,
+                    fallback_ids(
+                        &attributes.expiry_enforcement.evidence_ids,
+                        &artifact.lifecycle_evidence.validate,
+                    ),
+                    format!("JWT `{name}` expiry enforcement is disabled or absent"),
+                    "Evidence shows this JWT validation path does not enforce expiration."
+                        .to_string(),
+                    "Require expiration enforcement when validating JWTs.".to_string(),
+                    "Can expired tokens be accepted on this path?".to_string(),
+                )),
+                JwtAttributeState::Dynamic => findings.push(finding(
+                    "jwt_dynamic_expiry_enforcement",
+                    FindingCategory::DynamicReviewRequired,
+                    Severity::Medium,
+                    artifact,
+                    fallback_ids(
+                        &attributes.expiry_enforcement.evidence_ids,
+                        &artifact.lifecycle_evidence.validate,
+                    ),
+                    format!("JWT `{name}` expiry enforcement is dynamic"),
+                    "JWT expiry enforcement appears to depend on unresolved runtime options."
+                        .to_string(),
+                    "Confirm production verification rejects expired JWTs.".to_string(),
+                    "What expiry enforcement settings are active in production?".to_string(),
+                )),
+                JwtAttributeState::FrameworkDefault => findings.push(finding(
+                    "jwt_default_expiry_enforcement",
+                    FindingCategory::FrameworkDefaultAssumed,
+                    Severity::Low,
+                    artifact,
+                    fallback_ids(
+                        &attributes.expiry_enforcement.evidence_ids,
+                        &artifact.lifecycle_evidence.validate,
+                    ),
+                    format!("JWT `{name}` expiry enforcement relies on library defaults"),
+                    "JWT validation appears to rely on the library default for expiration enforcement."
+                        .to_string(),
+                    "Make expiration enforcement explicit or document the library version and default."
+                        .to_string(),
+                    "Which JWT library version and settings determine expiration enforcement here?"
+                        .to_string(),
                 )),
                 _ => {}
             }
@@ -261,6 +317,22 @@ mod tests {
                 Some("15m"),
                 EvidenceId("evidence_expiration".to_string()),
             ),
+            signature_verification: observation(
+                "signature_verification",
+                if operation == "decode_without_verify" {
+                    JwtAttributeState::Missing
+                } else {
+                    JwtAttributeState::Present
+                },
+                Some("verified"),
+                EvidenceId("evidence_signature".to_string()),
+            ),
+            expiry_enforcement: observation(
+                "expiry_enforcement",
+                JwtAttributeState::Present,
+                Some("explicit"),
+                EvidenceId("evidence_expiry_enforcement".to_string()),
+            ),
         }
     }
 
@@ -274,10 +346,10 @@ mod tests {
             state,
             value: value.map(str::to_string),
             evidence_ids: vec![evidence_id],
-            confidence: if state == JwtAttributeState::Dynamic {
-                Confidence::Medium
-            } else {
-                Confidence::High
+            confidence: match state {
+                JwtAttributeState::Dynamic => Confidence::Medium,
+                JwtAttributeState::FrameworkDefault => Confidence::Low,
+                _ => Confidence::High,
             },
         }
     }
@@ -349,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn decode_without_verify_is_missing_validation_evidence() {
+    fn decode_without_verify_is_high_confidence_misconfiguration() {
         let findings = classify_artifact(artifact(
             attributes(
                 JwtAttributeState::Unknown,
@@ -364,8 +436,68 @@ mod tests {
         ));
 
         assert!(findings.iter().any(|finding| {
-            finding.category == FindingCategory::MissingValidationEvidence
-                && finding.title.contains("decoded without verification")
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.severity == Severity::High
+                && finding.title.contains("without signature verification")
+        }));
+    }
+
+    #[test]
+    fn framework_default_expiry_enforcement_is_assumed() {
+        let mut attributes = attributes(
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            "validate",
+        );
+        attributes.expiry_enforcement = observation(
+            "expiry_enforcement",
+            JwtAttributeState::FrameworkDefault,
+            Some("library default"),
+            EvidenceId("evidence_expiry_enforcement".to_string()),
+        );
+
+        let findings = classify_artifact(artifact(
+            attributes,
+            LifecycleEvidence {
+                validate: vec![EvidenceId("evidence_verify".to_string())],
+                ..LifecycleEvidence::default()
+            },
+        ));
+
+        assert!(findings.iter().any(|finding| {
+            finding.category == FindingCategory::FrameworkDefaultAssumed
+                && finding.severity == Severity::Low
+        }));
+    }
+
+    #[test]
+    fn disabled_expiry_enforcement_is_high_confidence() {
+        let mut attributes = attributes(
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            "validate",
+        );
+        attributes.expiry_enforcement = observation(
+            "expiry_enforcement",
+            JwtAttributeState::Missing,
+            Some("ignoreExpiration: true"),
+            EvidenceId("evidence_expiry_enforcement".to_string()),
+        );
+
+        let findings = classify_artifact(artifact(
+            attributes,
+            LifecycleEvidence {
+                validate: vec![EvidenceId("evidence_verify".to_string())],
+                ..LifecycleEvidence::default()
+            },
+        ));
+
+        assert!(findings.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.severity == Severity::High
+                && finding.title.contains("expiry enforcement")
         }));
     }
 

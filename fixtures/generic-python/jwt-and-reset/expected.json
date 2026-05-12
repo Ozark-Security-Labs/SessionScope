@@ -9,6 +9,7 @@
     "jwt_audience_evidence_present",
     "jwt_expiry_evidence_present",
     "missing_validation_evidence:verify_legacy_jwt",
+    "disabled_expiry_enforcement:verify_legacy_jwt",
     "reset_token_single_use_evidence_present"
   ],
   "notes": "Covers generic Python/PyJWT issue and verify behavior plus reset-token expiry and single-use metadata."

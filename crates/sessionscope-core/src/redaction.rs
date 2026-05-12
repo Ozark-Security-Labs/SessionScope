@@ -216,6 +216,8 @@ fn sanitize_artifact(artifact: &mut Artifact) {
             &mut attributes.issuer,
             &mut attributes.audience,
             &mut attributes.expiration,
+            &mut attributes.signature_verification,
+            &mut attributes.expiry_enforcement,
         ] {
             if let Some(value) = &mut observation.value {
                 *value = redact_sensitive_values(value);

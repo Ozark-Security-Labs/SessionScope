@@ -198,6 +198,18 @@ mod tests {
             issuer: observed,
             audience: missing.clone(),
             expiration: missing,
+            signature_verification: JwtAttributeObservation {
+                state: JwtAttributeState::Present,
+                value: Some("verified".to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::High,
+            },
+            expiry_enforcement: JwtAttributeObservation {
+                state: JwtAttributeState::FrameworkDefault,
+                value: Some("library_default".to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::Low,
+            },
         };
 
         let serialized = serde_json::to_string(&attributes).expect("jwt attributes serialize");
@@ -207,6 +219,8 @@ mod tests {
         assert_eq!(deserialized, attributes);
         assert!(serialized.contains("\"issuer\""));
         assert!(serialized.contains("\"key_reference\""));
+        assert!(serialized.contains("\"signature_verification\""));
+        assert!(serialized.contains("\"expiry_enforcement\""));
     }
 
     #[test]

@@ -325,8 +325,12 @@ mod tests {
                 && finding.title.contains("issuer")
         }));
         assert!(report.findings.iter().any(|finding| {
-            finding.category == FindingCategory::MissingValidationEvidence
-                && finding.title.contains("decoded without verification")
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.title.contains("without signature verification")
+        }));
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.title.contains("expiry enforcement")
         }));
     }
 

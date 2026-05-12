@@ -101,16 +101,21 @@ observations for:
 - `issuer`
 - `audience`
 - `expiration`
+- `signature_verification`
+- `expiry_enforcement`
 
 Each JWT observation includes:
 
-- `state`: `present`, `missing`, `dynamic`, or `unknown`
+- `state`: `present`, `missing`, `dynamic`, `framework_default`, or
+  `unknown`
 - optional sanitized `value`
 - related `evidence_ids`
 - `confidence`
 
 JWT attribute values must be safe static identifiers or redacted placeholders,
 not token values, private keys, signing secrets, or runtime JWT contents.
+`expiration` describes issued-token expiry evidence; `expiry_enforcement`
+describes verification-time expiry behavior.
 
 ## Evidence
 

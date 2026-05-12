@@ -68,6 +68,7 @@ pub enum JwtAttributeState {
     Present,
     Missing,
     Dynamic,
+    FrameworkDefault,
     Unknown,
 }
 
@@ -88,6 +89,8 @@ pub struct JwtAttributes {
     pub issuer: JwtAttributeObservation,
     pub audience: JwtAttributeObservation,
     pub expiration: JwtAttributeObservation,
+    pub signature_verification: JwtAttributeObservation,
+    pub expiry_enforcement: JwtAttributeObservation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

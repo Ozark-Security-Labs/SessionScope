@@ -77,16 +77,20 @@ enum JwtField {
     Issuer,
     Audience,
     Expiration,
+    SignatureVerification,
+    ExpiryEnforcement,
 }
 
 impl JwtField {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 8] = [
         Self::Operation,
         Self::Algorithm,
         Self::KeyReference,
         Self::Issuer,
         Self::Audience,
         Self::Expiration,
+        Self::SignatureVerification,
+        Self::ExpiryEnforcement,
     ];
 
     fn wire_name(self) -> &'static str {
@@ -97,6 +101,8 @@ impl JwtField {
             Self::Issuer => "issuer",
             Self::Audience => "audience",
             Self::Expiration => "expiration",
+            Self::SignatureVerification => "signature_verification",
+            Self::ExpiryEnforcement => "expiry_enforcement",
         }
     }
 
@@ -108,12 +114,15 @@ impl JwtField {
             Self::Issuer => "issuer",
             Self::Audience => "audience",
             Self::Expiration => "expiration",
+            Self::SignatureVerification => "signature verification",
+            Self::ExpiryEnforcement => "expiry enforcement",
         }
     }
 
     fn lifecycle_stage(self, operation: JwtOperation) -> LifecycleStage {
         match self {
             Self::Expiration => LifecycleStage::Expire,
+            Self::ExpiryEnforcement | Self::SignatureVerification => LifecycleStage::Validate,
             _ => operation.lifecycle_stage(),
         }
     }
@@ -332,7 +341,7 @@ fn calls_to_output(
                     confidence: observation.confidence,
                     excerpt: Some(observation.excerpt.clone()),
                     dynamic: observation.state == JwtAttributeState::Dynamic,
-                    framework_default: false,
+                    framework_default: observation.state == JwtAttributeState::FrameworkDefault,
                 });
                 field_evidence_ids
                     .entry(*field)
@@ -395,6 +404,12 @@ fn apply_field_evidence_ids(
     attributes.expiration.evidence_ids = evidence_ids
         .remove(&JwtField::Expiration)
         .unwrap_or_default();
+    attributes.signature_verification.evidence_ids = evidence_ids
+        .remove(&JwtField::SignatureVerification)
+        .unwrap_or_default();
+    attributes.expiry_enforcement.evidence_ids = evidence_ids
+        .remove(&JwtField::ExpiryEnforcement)
+        .unwrap_or_default();
 }
 
 fn aggregate_jwt_attributes(
@@ -420,6 +435,12 @@ fn aggregate_jwt_attributes(
         expiration: fields
             .remove(&JwtField::Expiration)
             .expect("expiration exists"),
+        signature_verification: fields
+            .remove(&JwtField::SignatureVerification)
+            .expect("signature verification exists"),
+        expiry_enforcement: fields
+            .remove(&JwtField::ExpiryEnforcement)
+            .expect("expiry enforcement exists"),
     }
 }
 
@@ -446,6 +467,11 @@ fn aggregate_field(
         .any(|observation| observation.state == JwtAttributeState::Dynamic)
     {
         JwtAttributeState::Dynamic
+    } else if observations
+        .iter()
+        .any(|observation| observation.state == JwtAttributeState::FrameworkDefault)
+    {
+        JwtAttributeState::FrameworkDefault
     } else if observations
         .iter()
         .any(|observation| observation.state == JwtAttributeState::Present)
@@ -636,7 +662,9 @@ fn js_jwt_call<'tree>(
             column,
             api_name == "jose.jwtVerify",
         ),
-        "jsonwebtoken.decode" | "jose.decodeJwt" => {}
+        "jsonwebtoken.decode" | "jose.decodeJwt" => {
+            add_decode_without_verify_fields(&mut fields, line, column, api_name);
+        }
         _ => {}
     }
 
@@ -788,6 +816,21 @@ fn add_js_verify_fields(
     jose: bool,
 ) {
     add_key_reference(fields, source, argument_nodes.get(1).copied(), line, column);
+    add_present_value(
+        fields,
+        JwtField::SignatureVerification,
+        "verified",
+        line,
+        column,
+        format!(
+            "{api_name} verifies JWT signatures",
+            api_name = if jose {
+                "jose.jwtVerify"
+            } else {
+                "jsonwebtoken.verify"
+            }
+        ),
+    );
     if let Some(options) = argument_nodes.get(2).copied() {
         add_js_options_fields(
             fields,
@@ -798,9 +841,28 @@ fn add_js_verify_fields(
                 (JwtField::Algorithm, &["algorithms", "algorithm"][..]),
                 (JwtField::Issuer, &["issuer"][..]),
                 (JwtField::Audience, &["audience"][..]),
+                (JwtField::ExpiryEnforcement, &["maxAge"][..]),
             ],
             line,
             column,
+        );
+        add_js_expiry_enforcement(fields, source, options, option_aliases, line, column, jose);
+    } else {
+        add_framework_default(
+            fields,
+            JwtField::ExpiryEnforcement,
+            if jose {
+                "jose.jwtVerify default"
+            } else {
+                "jsonwebtoken.verify default"
+            },
+            line,
+            column,
+            if jose {
+                "jose.jwtVerify enforces exp by library default"
+            } else {
+                "jsonwebtoken.verify enforces exp by library default"
+            },
         );
     }
     if jose && argument_nodes.get(2).is_none() {
@@ -809,6 +871,109 @@ fn add_js_verify_fields(
     } else {
         add_missing_for_verify_fields(fields, line, column);
     }
+}
+
+fn add_decode_without_verify_fields(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    line: usize,
+    column: usize,
+    api_name: &str,
+) {
+    add_missing_value(
+        fields,
+        JwtField::SignatureVerification,
+        "decode_without_verify",
+        line,
+        column,
+        format!("{api_name} decodes JWTs without signature verification"),
+    );
+    add_missing_value(
+        fields,
+        JwtField::ExpiryEnforcement,
+        "decode_without_verify",
+        line,
+        column,
+        format!("{api_name} does not enforce JWT expiration"),
+    );
+}
+
+fn add_js_expiry_enforcement(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    source: &str,
+    options: Node<'_>,
+    aliases: &BTreeMap<String, FieldSet>,
+    line: usize,
+    column: usize,
+    jose: bool,
+) {
+    if is_object_literal(options) {
+        if object_property_value(options, source, "ignoreExpiration")
+            .is_some_and(|value| is_true_literal(value, source))
+        {
+            add_missing_value(
+                fields,
+                JwtField::ExpiryEnforcement,
+                "ignoreExpiration: true",
+                line,
+                column,
+                "JWT expiry enforcement is disabled with ignoreExpiration: true",
+            );
+            return;
+        }
+        if let Some(max_age) = object_property_value(options, source, "maxAge") {
+            add_present_node(fields, JwtField::ExpiryEnforcement, max_age, source);
+            return;
+        }
+        if object_has_dynamic_spread(options, source) {
+            fields
+                .entry(JwtField::ExpiryEnforcement)
+                .or_insert_with(|| dynamic_field(JwtField::ExpiryEnforcement, line, column));
+            return;
+        }
+    } else if options.kind() == "identifier" {
+        let alias_name = node_text(options, source);
+        if let Some(alias) = aliases.get(&alias_name) {
+            if let Some(observation) = alias.fields.get(&JwtField::ExpiryEnforcement) {
+                fields
+                    .entry(JwtField::ExpiryEnforcement)
+                    .or_insert_with(|| observation.clone());
+                return;
+            }
+            if alias.dynamic {
+                fields
+                    .entry(JwtField::ExpiryEnforcement)
+                    .or_insert_with(|| dynamic_field(JwtField::ExpiryEnforcement, line, column));
+                return;
+            }
+        } else {
+            fields
+                .entry(JwtField::ExpiryEnforcement)
+                .or_insert_with(|| dynamic_field(JwtField::ExpiryEnforcement, line, column));
+            return;
+        }
+    } else {
+        fields
+            .entry(JwtField::ExpiryEnforcement)
+            .or_insert_with(|| dynamic_field(JwtField::ExpiryEnforcement, line, column));
+        return;
+    }
+
+    add_framework_default(
+        fields,
+        JwtField::ExpiryEnforcement,
+        if jose {
+            "jose.jwtVerify default"
+        } else {
+            "jsonwebtoken.verify default"
+        },
+        line,
+        column,
+        if jose {
+            "jose.jwtVerify enforces exp by library default"
+        } else {
+            "jsonwebtoken.verify enforces exp by library default"
+        },
+    );
 }
 
 fn add_js_options_fields(
@@ -948,6 +1113,14 @@ fn python_jwt_call<'tree>(
         );
         JwtOperation::Issue
     } else if python_decode_disables_verification(source, &argument_nodes, option_aliases) {
+        add_python_decode_without_verify_fields(
+            &mut fields,
+            source,
+            &argument_nodes,
+            option_aliases,
+            line,
+            column,
+        );
         JwtOperation::DecodeWithoutVerify
     } else {
         add_python_decode_fields(
@@ -1043,6 +1216,25 @@ fn add_python_decode_fields(
     column: usize,
 ) {
     add_key_reference(fields, source, argument_nodes.get(1).copied(), line, column);
+    if argument_nodes.get(1).is_some() {
+        add_present_value(
+            fields,
+            JwtField::SignatureVerification,
+            "verified",
+            line,
+            column,
+            "PyJWT decode verifies signatures when a key is supplied",
+        );
+    } else {
+        add_missing_value(
+            fields,
+            JwtField::SignatureVerification,
+            "missing_key",
+            line,
+            column,
+            "PyJWT decode has no static verification key evidence",
+        );
+    }
     if let Some(value) = python_keyword_value(argument_nodes, source, "algorithms") {
         add_present_node(fields, JwtField::Algorithm, value, source);
     }
@@ -1055,7 +1247,51 @@ fn add_python_decode_fields(
     if let Some(options) = python_keyword_value(argument_nodes, source, "options") {
         add_python_options_fields(fields, source, options, option_aliases, line, column);
     }
+    add_python_expiry_enforcement(fields, source, argument_nodes, option_aliases, line, column);
     add_missing_for_verify_fields(fields, line, column);
+}
+
+fn add_python_decode_without_verify_fields(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    source: &str,
+    argument_nodes: &[Node<'_>],
+    option_aliases: &BTreeMap<String, FieldSet>,
+    line: usize,
+    column: usize,
+) {
+    add_missing_value(
+        fields,
+        JwtField::SignatureVerification,
+        "verify_signature: false",
+        line,
+        column,
+        "PyJWT decode disables signature verification",
+    );
+    add_missing_value(
+        fields,
+        JwtField::ExpiryEnforcement,
+        "verify_signature: false",
+        line,
+        column,
+        "PyJWT decode without signature verification should not be treated as expiration enforcement",
+    );
+    add_python_decode_fields(fields, source, argument_nodes, option_aliases, line, column);
+    add_missing_value(
+        fields,
+        JwtField::SignatureVerification,
+        "verify_signature: false",
+        line,
+        column,
+        "PyJWT decode disables signature verification",
+    );
+    add_missing_value(
+        fields,
+        JwtField::ExpiryEnforcement,
+        "verify_signature: false",
+        line,
+        column,
+        "PyJWT decode without signature verification should not be treated as expiration enforcement",
+    );
 }
 
 fn add_python_options_fields(
@@ -1094,6 +1330,95 @@ fn add_python_options_fields(
             }
         }
     }
+}
+
+fn add_python_expiry_enforcement(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    source: &str,
+    argument_nodes: &[Node<'_>],
+    aliases: &BTreeMap<String, FieldSet>,
+    line: usize,
+    column: usize,
+) {
+    let Some(options) = python_keyword_value(argument_nodes, source, "options") else {
+        add_framework_default(
+            fields,
+            JwtField::ExpiryEnforcement,
+            "PyJWT decode default",
+            line,
+            column,
+            "PyJWT decode enforces exp by library default",
+        );
+        return;
+    };
+
+    if is_dictionary(options) {
+        if object_property_value(options, source, "verify_exp")
+            .is_some_and(|value| is_false_literal(value, source))
+        {
+            add_missing_value(
+                fields,
+                JwtField::ExpiryEnforcement,
+                "verify_exp: false",
+                line,
+                column,
+                "PyJWT expiry enforcement is disabled with verify_exp: false",
+            );
+            return;
+        }
+        if python_options_require_exp(options, source) {
+            add_present_value(
+                fields,
+                JwtField::ExpiryEnforcement,
+                "require: exp",
+                line,
+                column,
+                "PyJWT options require exp",
+            );
+            return;
+        }
+        if object_has_dynamic_spread(options, source) {
+            fields
+                .entry(JwtField::ExpiryEnforcement)
+                .or_insert_with(|| dynamic_field(JwtField::ExpiryEnforcement, line, column));
+            return;
+        }
+    } else if options.kind() == "identifier" {
+        let alias_name = node_text(options, source);
+        if let Some(alias) = aliases.get(&alias_name) {
+            if let Some(observation) = alias.fields.get(&JwtField::ExpiryEnforcement) {
+                fields
+                    .entry(JwtField::ExpiryEnforcement)
+                    .or_insert_with(|| observation.clone());
+                return;
+            }
+            if alias.dynamic {
+                fields
+                    .entry(JwtField::ExpiryEnforcement)
+                    .or_insert_with(|| dynamic_field(JwtField::ExpiryEnforcement, line, column));
+                return;
+            }
+        } else {
+            fields
+                .entry(JwtField::ExpiryEnforcement)
+                .or_insert_with(|| dynamic_field(JwtField::ExpiryEnforcement, line, column));
+            return;
+        }
+    } else {
+        fields
+            .entry(JwtField::ExpiryEnforcement)
+            .or_insert_with(|| dynamic_field(JwtField::ExpiryEnforcement, line, column));
+        return;
+    }
+
+    add_framework_default(
+        fields,
+        JwtField::ExpiryEnforcement,
+        "PyJWT decode default",
+        line,
+        column,
+        "PyJWT decode enforces exp by library default",
+    );
 }
 
 fn python_decode_disables_verification(
@@ -1292,8 +1617,51 @@ fn field_set_from_object(node: Node<'_>, source: &str) -> FieldSet {
         (JwtField::Issuer, &["issuer", "iss"][..]),
         (JwtField::Audience, &["audience", "aud"][..]),
         (JwtField::Expiration, &["expiresIn", "expires", "exp"][..]),
+        (JwtField::ExpiryEnforcement, &["maxAge"][..]),
     ] {
         add_object_field(&mut fields, field, node, source, names, 1, 1);
+    }
+    if object_property_value(node, source, "ignoreExpiration")
+        .is_some_and(|value| is_true_literal(value, source))
+    {
+        fields.insert(
+            JwtField::ExpiryEnforcement,
+            JwtFieldEvidence {
+                state: JwtAttributeState::Missing,
+                value: Some("ignoreExpiration: true".to_string()),
+                confidence: Confidence::High,
+                line: node_line_column(node).0,
+                column: node_line_column(node).1,
+                excerpt: "JWT expiry enforcement is disabled with ignoreExpiration: true".into(),
+            },
+        );
+    }
+    if object_property_value(node, source, "verify_exp")
+        .is_some_and(|value| is_false_literal(value, source))
+    {
+        fields.insert(
+            JwtField::ExpiryEnforcement,
+            JwtFieldEvidence {
+                state: JwtAttributeState::Missing,
+                value: Some("verify_exp: false".to_string()),
+                confidence: Confidence::High,
+                line: node_line_column(node).0,
+                column: node_line_column(node).1,
+                excerpt: "PyJWT expiry enforcement is disabled with verify_exp: false".into(),
+            },
+        );
+    } else if python_options_require_exp(node, source) {
+        fields.insert(
+            JwtField::ExpiryEnforcement,
+            JwtFieldEvidence {
+                state: JwtAttributeState::Present,
+                value: Some("require: exp".to_string()),
+                confidence: Confidence::High,
+                line: node_line_column(node).0,
+                column: node_line_column(node).1,
+                excerpt: "PyJWT options require exp".into(),
+            },
+        );
     }
     if object_property_value(node, source, "verify_signature")
         .is_some_and(|value| is_false_literal(value, source))
@@ -1307,6 +1675,17 @@ fn field_set_from_object(node: Node<'_>, source: &str) -> FieldSet {
                 line: node_line_column(node).0,
                 column: node_line_column(node).1,
                 excerpt: "verify_signature is false".into(),
+            },
+        );
+        fields.insert(
+            JwtField::SignatureVerification,
+            JwtFieldEvidence {
+                state: JwtAttributeState::Missing,
+                value: Some("verify_signature: false".to_string()),
+                confidence: Confidence::High,
+                line: node_line_column(node).0,
+                column: node_line_column(node).1,
+                excerpt: "PyJWT decode disables signature verification".into(),
             },
         );
     }
@@ -1415,6 +1794,69 @@ fn add_missing(
             line,
             column,
             excerpt: format!("{} is omitted", field.display_name()).into(),
+        },
+    );
+}
+
+fn add_present_value(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    field: JwtField,
+    value: &str,
+    line: usize,
+    column: usize,
+    excerpt: impl Into<SanitizedExcerpt>,
+) {
+    fields.insert(
+        field,
+        JwtFieldEvidence {
+            state: JwtAttributeState::Present,
+            value: Some(value.to_string()),
+            confidence: Confidence::High,
+            line,
+            column,
+            excerpt: excerpt.into(),
+        },
+    );
+}
+
+fn add_missing_value(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    field: JwtField,
+    value: &str,
+    line: usize,
+    column: usize,
+    excerpt: impl Into<SanitizedExcerpt>,
+) {
+    fields.insert(
+        field,
+        JwtFieldEvidence {
+            state: JwtAttributeState::Missing,
+            value: Some(value.to_string()),
+            confidence: Confidence::High,
+            line,
+            column,
+            excerpt: excerpt.into(),
+        },
+    );
+}
+
+fn add_framework_default(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    field: JwtField,
+    value: &str,
+    line: usize,
+    column: usize,
+    excerpt: impl Into<SanitizedExcerpt>,
+) {
+    fields.insert(
+        field,
+        JwtFieldEvidence {
+            state: JwtAttributeState::FrameworkDefault,
+            value: Some(value.to_string()),
+            confidence: Confidence::Low,
+            line,
+            column,
+            excerpt: excerpt.into(),
         },
     );
 }
@@ -1541,6 +1983,7 @@ fn jwt_state_part(state: JwtAttributeState) -> &'static str {
         JwtAttributeState::Present => "present",
         JwtAttributeState::Missing => "missing",
         JwtAttributeState::Dynamic => "dynamic",
+        JwtAttributeState::FrameworkDefault => "framework_default",
         JwtAttributeState::Unknown => "unknown",
     }
 }
@@ -1632,6 +2075,23 @@ fn is_false_literal(node: Node<'_>, source: &str) -> bool {
         node_text(node, source).to_ascii_lowercase().as_str(),
         "false" | "False"
     )
+}
+
+fn is_true_literal(node: Node<'_>, source: &str) -> bool {
+    matches!(
+        node_text(node, source).to_ascii_lowercase().as_str(),
+        "true" | "True"
+    )
+}
+
+fn python_options_require_exp(node: Node<'_>, source: &str) -> bool {
+    object_property_value(node, source, "require").is_some_and(|value| {
+        node_text(value, source)
+            .split(|character: char| {
+                !(character.is_ascii_alphanumeric() || character == '_' || character == '-')
+            })
+            .any(|part| part == "exp")
+    })
 }
 
 fn safe_node_value(node: Node<'_>, source: &str) -> String {
@@ -1797,6 +2257,14 @@ export function verifyAccessJwt(token: string) {
         assert_eq!(attributes.issuer.state, JwtAttributeState::Present);
         assert_eq!(attributes.audience.state, JwtAttributeState::Present);
         assert_eq!(attributes.expiration.state, JwtAttributeState::Present);
+        assert_eq!(
+            attributes.signature_verification.state,
+            JwtAttributeState::Present
+        );
+        assert_eq!(
+            attributes.expiry_enforcement.state,
+            JwtAttributeState::FrameworkDefault
+        );
         assert!(!detected_text(&output).contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
     }
 
@@ -1823,6 +2291,62 @@ export function inspectAccessJwt(token: string) {
                 .value
                 .as_deref(),
             Some("decode_without_verify")
+        );
+        let attributes = artifact.jwt_attributes.as_ref().expect("jwt attributes");
+        assert_eq!(
+            attributes.signature_verification.state,
+            JwtAttributeState::Missing
+        );
+        assert_eq!(
+            attributes.expiry_enforcement.state,
+            JwtAttributeState::Missing
+        );
+    }
+
+    #[test]
+    fn detects_jsonwebtoken_expiry_enforcement_options() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+import jwt from "jsonwebtoken";
+const JWT_SECRET = "PLACEHOLDER_SECRET_DO_NOT_USE";
+export function verifyAccessJwt(token: string) {
+  return jwt.verify(token, JWT_SECRET, { issuer: ISSUER, audience: AUDIENCE, maxAge: "15m" });
+}
+export function verifyLegacyJwt(token: string) {
+  return jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+}
+"#,
+        );
+
+        let access = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("access_jwt"))
+            .expect("access JWT should exist");
+        assert_eq!(
+            access
+                .jwt_attributes
+                .as_ref()
+                .expect("attributes")
+                .expiry_enforcement
+                .state,
+            JwtAttributeState::Present
+        );
+
+        let legacy = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("legacy_access_jwt"))
+            .expect("legacy JWT should exist");
+        assert_eq!(
+            legacy
+                .jwt_attributes
+                .as_ref()
+                .expect("attributes")
+                .expiry_enforcement
+                .state,
+            JwtAttributeState::Missing
         );
     }
 
@@ -1855,6 +2379,15 @@ export async function verifyAccessJwt(token: string) {
         assert!(artifact.framework_hints.contains(&"jose".to_string()));
         assert!(!artifact.lifecycle_evidence.issue.is_empty());
         assert!(!artifact.lifecycle_evidence.validate.is_empty());
+        assert_eq!(
+            artifact
+                .jwt_attributes
+                .as_ref()
+                .expect("attributes")
+                .expiry_enforcement
+                .state,
+            JwtAttributeState::FrameworkDefault
+        );
     }
 
     #[test]
@@ -1897,6 +2430,53 @@ def inspect_access_jwt(token):
     }
 
     #[test]
+    fn detects_pyjwt_expiry_enforcement_options() {
+        let output = detect(
+            Language::Python,
+            r#"
+import jwt
+JWT_SECRET = "PLACEHOLDER_SECRET_DO_NOT_USE"
+
+def verify_access_jwt(token):
+    return jwt.decode(token, JWT_SECRET, algorithms=["HS256"], issuer=ISSUER, audience=AUDIENCE, options={"require": ["exp"]})
+
+def verify_legacy_jwt(token):
+    return jwt.decode(token, JWT_SECRET, algorithms=["HS256"], options={"verify_exp": False})
+"#,
+        );
+
+        let access = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("access_jwt"))
+            .expect("access JWT should exist");
+        assert_eq!(
+            access
+                .jwt_attributes
+                .as_ref()
+                .expect("attributes")
+                .expiry_enforcement
+                .state,
+            JwtAttributeState::Present
+        );
+
+        let legacy = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("legacy_access_jwt"))
+            .expect("legacy JWT should exist");
+        assert_eq!(
+            legacy
+                .jwt_attributes
+                .as_ref()
+                .expect("attributes")
+                .expiry_enforcement
+                .state,
+            JwtAttributeState::Missing
+        );
+    }
+
+    #[test]
     fn ignores_comments_and_strings() {
         let output = detect(
             Language::TypeScript,
@@ -1930,6 +2510,8 @@ const text = "jwt.sign(payload, secret)";
                     &attributes.issuer,
                     &attributes.audience,
                     &attributes.expiration,
+                    &attributes.signature_verification,
+                    &attributes.expiry_enforcement,
                 ]
             })
             .filter_map(|observation| observation.value.as_deref())

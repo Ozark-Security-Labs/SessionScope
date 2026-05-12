@@ -204,6 +204,9 @@ fn scan_json_runs_builtin_jwt_detector() {
                 artifact["artifact_type"] == "access_jwt"
                     && artifact["jwt_attributes"]["issuer"]["state"] == "missing"
                     && artifact["jwt_attributes"]["audience"]["state"] == "missing"
+                    && artifact["jwt_attributes"]["signature_verification"]["state"] == "present"
+                    && artifact["jwt_attributes"]["expiry_enforcement"]["state"]
+                        == "framework_default"
             })
     );
     assert!(
