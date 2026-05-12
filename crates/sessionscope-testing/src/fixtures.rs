@@ -107,6 +107,8 @@ mod tests {
         "PLACEHOLDER_SECRET_DO_NOT_USE",
         "PLACEHOLDER_RESET_TOKEN",
         "PLACEHOLDER_RESET_TOKEN_ROTATED",
+        "PLACEHOLDER_API_KEY_DO_NOT_USE",
+        "PLACEHOLDER_SERVICE_TOKEN_DO_NOT_USE",
     ];
 
     #[test]
@@ -636,6 +638,67 @@ mod tests {
             assert!(!rendered.contains("urn:mfa"));
             assert!(!rendered.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
             assert!(!rendered.contains(PLACEHOLDER_JWT));
+        }
+    }
+
+    #[test]
+    fn bearer_api_key_fixtures_emit_lifecycle_evidence_and_findings() {
+        let cases = [
+            fixture_root()
+                .join("generic-ts")
+                .join("bearer-api-key-lifecycle"),
+            fixture_root()
+                .join("generic-python")
+                .join("bearer-api-key-lifecycle"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            for (display_name, artifact_type) in [
+                (Some("api_key"), ArtifactType::ApiKey),
+                (Some("service_token"), ArtifactType::ServiceToken),
+                (
+                    Some("authorization_bearer"),
+                    ArtifactType::OpaqueBearerToken,
+                ),
+            ] {
+                assert!(
+                    report.artifacts.iter().any(|artifact| {
+                        artifact.display_name.as_deref() == display_name
+                            && artifact.artifact_type == artifact_type
+                    }),
+                    "{} should include {artifact_type:?} named {display_name:?}",
+                    root.display()
+                );
+            }
+
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "bearer.transmit"
+                    && evidence.lifecycle_stage == LifecycleStage::Transmit
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "bearer.validate"
+                    && evidence.lifecycle_stage == LifecycleStage::Validate
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::HighConfidenceMisconfiguration
+                    && finding.title.contains("URL query")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::DynamicReviewRequired
+                    && finding.title.contains("provider-managed")
+            }));
+
+            let rendered = render(&report, ReportFormat::Json);
+            assert!(!rendered.contains("PLACEHOLDER_API_KEY_DO_NOT_USE"));
+            assert!(!rendered.contains("internal-api"));
         }
     }
 

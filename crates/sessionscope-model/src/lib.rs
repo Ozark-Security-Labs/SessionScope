@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn enum_wire_values_are_snake_case() {
-        assert_eq!(SCHEMA_VERSION, "0.4.0");
+        assert_eq!(SCHEMA_VERSION, "0.5.0");
         assert_eq!(
             serde_json::to_value(FindingCategory::HighConfidenceMisconfiguration)
                 .expect("category should serialize"),

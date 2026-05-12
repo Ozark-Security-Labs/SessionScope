@@ -462,6 +462,8 @@ fn format_artifact_type(artifact_type: ArtifactType) -> &'static str {
         ArtifactType::RefreshJwt => "refresh_jwt",
         ArtifactType::OpaqueBearerToken => "opaque_bearer_token",
         ArtifactType::ApiKey => "api_key",
+        ArtifactType::ServiceToken => "service_token",
+        ArtifactType::UnknownToken => "unknown_token",
         ArtifactType::PasswordResetToken => "password_reset_token",
         ArtifactType::EmailVerificationToken => "email_verification_token",
         ArtifactType::SessionRecord => "session_record",
@@ -633,7 +635,7 @@ mod tests {
 
         let rendered = render(&report);
 
-        assert!(rendered.contains("- Schema version: `0.4.0`"));
+        assert!(rendered.contains("- Schema version: `0.5.0`"));
         assert!(rendered.contains("No skipped files."));
         assert!(rendered.contains("No findings were detected."));
         assert!(rendered.contains("No lifecycle paths were linked."));

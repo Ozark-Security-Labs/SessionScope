@@ -137,7 +137,7 @@ fn scan_json_runs_builtin_cookie_detector() {
     let parsed: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
 
-    assert_eq!(parsed["schema_version"], "0.4.0");
+    assert_eq!(parsed["schema_version"], "0.5.0");
     let findings = parsed["findings"].as_array().expect("findings array");
     assert!(
         parsed["lifecycle_paths"]
@@ -203,7 +203,7 @@ fn scan_json_runs_builtin_jwt_detector() {
     assert!(output.status.success());
     let parsed: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
-    assert_eq!(parsed["schema_version"], "0.4.0");
+    assert_eq!(parsed["schema_version"], "0.5.0");
     assert!(
         parsed["lifecycle_paths"]
             .as_array()
@@ -249,6 +249,58 @@ fn scan_json_runs_builtin_jwt_detector() {
 }
 
 #[test]
+fn scan_json_runs_builtin_bearer_detector() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("tokens.ts"),
+        concat!(
+            "const API_KEY = \"PLACEHOLDER_API_KEY_DO_NOT_USE\";\n",
+            "export async function callApi(accessToken: string) {\n",
+            "  localStorage.setItem(\"api_key\", API_KEY);\n",
+            "  return fetch(`/callback?access_token=${accessToken}`, { headers: { \"X-API-Key\": API_KEY } });\n",
+            "}\n"
+        ),
+    )
+    .expect("token source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json",
+    ]);
+
+    assert!(output.status.success());
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
+    assert_eq!(parsed["schema_version"], "0.5.0");
+    assert!(
+        parsed["artifacts"]
+            .as_array()
+            .expect("artifacts")
+            .iter()
+            .any(|artifact| artifact["artifact_type"] == "api_key"
+                && artifact["display_name"] == "api_key")
+    );
+    assert!(
+        parsed["findings"]
+            .as_array()
+            .expect("findings")
+            .iter()
+            .any(|finding| {
+                finding["category"] == "high_confidence_misconfiguration"
+                    && finding["title"]
+                        .as_str()
+                        .expect("finding title")
+                        .contains("browser storage")
+            })
+    );
+    let serialized = String::from_utf8_lossy(&output.stdout);
+    assert!(!serialized.contains("PLACEHOLDER_API_KEY_DO_NOT_USE"));
+}
+
+#[test]
 fn scan_json_output_writes_file_without_stdout_inventory() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     fs::write(
@@ -276,7 +328,7 @@ fn scan_json_output_writes_file_without_stdout_inventory() {
     let written = fs::read_to_string(output_path).expect("JSON output should be written");
     let parsed: serde_json::Value =
         serde_json::from_str(&written).expect("written scan JSON should parse");
-    assert_eq!(parsed["schema_version"], "0.4.0");
+    assert_eq!(parsed["schema_version"], "0.5.0");
     assert!(
         parsed["artifacts"]
             .as_array()

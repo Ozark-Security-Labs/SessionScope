@@ -19,6 +19,10 @@ static BEARER_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(authorization\s*:\s*bearer\s+)([A-Za-z0-9._~+/=-]{8,})")
         .expect("bearer regex should compile")
 });
+static API_KEY_HEADER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?ix)(["']?(?:x-api-key|x_api_key|api-key|api_key|apikey)["']?\s*[:=]\s*)(["']?)([^"',}\]\s]+)(["']?)"#)
+        .expect("api key header regex should compile")
+});
 static URL_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?i)([?&](?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|api[_-]?key|apikey|secret|session|jwt|code)=)([^&#\s"']+)"#,
@@ -78,7 +82,7 @@ static EMAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("email regex should compile")
 });
 static PLACEHOLDER_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\bPLACEHOLDER[A-Z0-9_]*(?:TOKEN|SECRET|JWT)[A-Z0-9_]*\b")
+    Regex::new(r"\bPLACEHOLDER[A-Z0-9_]*(?:TOKEN|SECRET|JWT|KEY)[A-Z0-9_]*\b")
         .expect("placeholder secret regex should compile")
 });
 static LONG_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -128,6 +132,9 @@ pub fn redact_sensitive_values(input: &str) -> String {
     output = redact_jwt_api_calls(&output);
     output = BEARER_RE
         .replace_all(&output, format!("${{1}}{REDACTION}"))
+        .to_string();
+    output = API_KEY_HEADER_RE
+        .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string();
     output = URL_PARAM_RE
         .replace_all(&output, format!("${{1}}{REDACTION}"))
@@ -548,12 +555,13 @@ mod tests {
     #[test]
     fn redacts_placeholder_secret_values() {
         let output = redact_sensitive_values(
-            "const rotatedRefreshToken = \"PLACEHOLDER_RESET_TOKEN_ROTATED\"; const signingSecret = \"PLACEHOLDER_SECRET_DO_NOT_USE\";",
+            "const rotatedRefreshToken = \"PLACEHOLDER_RESET_TOKEN_ROTATED\"; const signingSecret = \"PLACEHOLDER_SECRET_DO_NOT_USE\"; const apiKey = \"PLACEHOLDER_API_KEY_DO_NOT_USE\";",
         );
 
         assert!(output.contains("[REDACTED]"));
         assert!(!output.contains("PLACEHOLDER_RESET_TOKEN_ROTATED"));
         assert!(!output.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+        assert!(!output.contains("PLACEHOLDER_API_KEY_DO_NOT_USE"));
     }
 
     #[test]

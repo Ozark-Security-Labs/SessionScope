@@ -1,1 +1,1086 @@
-//! Opaque bearer token and API key detector modules will live here.
+use std::collections::BTreeSet;
+use std::sync::LazyLock;
+
+use regex::Regex;
+use sessionscope_model::{
+    Artifact, ArtifactType, Confidence, Evidence, Language, LifecycleEvidence, LifecycleStage,
+    SanitizedExcerpt, SourceLocation, stable_artifact_id, stable_evidence_id,
+};
+use tree_sitter::{Node, Parser, Tree};
+
+use crate::{DetectionOutput, Detector, DetectorInput};
+
+const DETECTOR_ID: &str = "bearer.token";
+const REDACTION: &str = "[REDACTED]";
+
+static QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'"#)
+        .expect("quoted literal regex should compile")
+});
+static TEMPLATE_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"`(?:\\.|[^`\\])*`"#).expect("template literal regex should compile")
+});
+static BEARER_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)(bearer\s+)([A-Za-z0-9._~+/=-]{6,})"#)
+        .expect("bearer value regex should compile")
+});
+static URL_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?i)([?&](?:access[_-]?token|service[_-]?token|api[_-]?key|apikey|token)=)([^&#\s"']+)"#,
+    )
+    .expect("url param regex should compile")
+});
+static SENSITIVE_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?ix)(\b(?:access[_-]?token|bearer[_-]?token|service[_-]?token|api[_-]?key|apikey|client[_-]?token|token|secret)\b\s*[:=]\s*)(["'])([^"']+)(["'])"#,
+    )
+    .expect("sensitive assignment regex should compile")
+});
+static PLACEHOLDER_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bPLACEHOLDER[A-Z0-9_]*(?:TOKEN|SECRET|JWT|KEY)[A-Z0-9_]*\b")
+        .expect("placeholder secret regex should compile")
+});
+static JWT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{6,}\b")
+        .expect("JWT regex should compile")
+});
+static LONG_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b[A-Za-z0-9_+/=-]{32,}\b").expect("long token regex should compile")
+});
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BearerTokenDetector;
+
+impl Detector for BearerTokenDetector {
+    fn id(&self) -> &'static str {
+        DETECTOR_ID
+    }
+
+    fn detect(&self, input: &DetectorInput<'_>) -> DetectionOutput {
+        match input.language {
+            Language::JavaScript | Language::TypeScript => detect_javascript_like(input),
+            Language::Python => detect_python(input),
+            Language::Json | Language::Yaml | Language::Toml => detect_config(input),
+            _ => DetectionOutput::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Signal {
+    detector_id: &'static str,
+    stage: LifecycleStage,
+    artifact_type: ArtifactType,
+    display_name: String,
+    framework_hint: &'static str,
+    line: usize,
+    column: usize,
+    confidence: Confidence,
+    dynamic: bool,
+    excerpt: SanitizedExcerpt,
+}
+
+fn detect_javascript_like(input: &DetectorInput<'_>) -> DetectionOutput {
+    let Some(tree) = parse_javascript_like(input, input.source) else {
+        return DetectionOutput::default();
+    };
+
+    let mut signals = Vec::new();
+    collect_js_signals(tree.root_node(), input.source, &mut signals);
+    signals_to_output(input, signals)
+}
+
+fn detect_python(input: &DetectorInput<'_>) -> DetectionOutput {
+    let Some(tree) = parse_python(input.source) else {
+        return DetectionOutput::default();
+    };
+
+    let mut signals = Vec::new();
+    collect_python_signals(tree.root_node(), input.source, &mut signals);
+    signals_to_output(input, signals)
+}
+
+fn detect_config(input: &DetectorInput<'_>) -> DetectionOutput {
+    let mut signals = Vec::new();
+    for (index, line) in input.source.lines().enumerate() {
+        let normalized = normalize_symbol(line);
+        if !is_token_config_line(&normalized) {
+            continue;
+        }
+
+        let artifact_type = artifact_type_for_context(&normalized);
+        let display_name = display_name_for_context(&normalized, artifact_type);
+        let stage = if normalized.contains("expires") || normalized.contains("ttl") {
+            LifecycleStage::Expire
+        } else {
+            LifecycleStage::Store
+        };
+        signals.push(Signal {
+            detector_id: if has_quoted_sensitive_literal(line, &normalized) {
+                "bearer.literal.static"
+            } else {
+                "bearer.store.config"
+            },
+            stage,
+            artifact_type,
+            display_name,
+            framework_hint: config_framework_hint(input.language),
+            line: index + 1,
+            column: 1,
+            confidence: Confidence::High,
+            dynamic: false,
+            excerpt: SanitizedExcerpt(sanitize_excerpt(line)),
+        });
+    }
+    signals_to_output(input, signals)
+}
+
+fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+    match node.kind() {
+        "call_expression" => collect_js_call_signal(node, source, signals),
+        "variable_declarator" | "assignment_expression" | "pair" => {
+            collect_assignment_signal(node, source, "javascript", signals)
+        }
+        _ => {}
+    }
+
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_js_signals(child, source, signals);
+    }
+}
+
+fn collect_python_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+    match node.kind() {
+        "call" => collect_python_call_signal(node, source, signals),
+        "assignment" | "keyword_argument" | "pair" => {
+            collect_assignment_signal(node, source, "python", signals)
+        }
+        _ => {}
+    }
+
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_python_signals(child, source, signals);
+    }
+}
+
+fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+    let text = node_text(node, source);
+    let normalized = normalize_symbol_without_literals(&text);
+    let raw_normalized = normalize_symbol(&text);
+    let has_token_context = URL_PARAM_RE.is_match(&text)
+        || contains_token_context(&normalized)
+        || (normalized.contains("headers") && contains_token_context(&raw_normalized));
+    if !has_token_context {
+        return;
+    }
+
+    let context = if contains_token_context(&normalized) {
+        normalized.as_str()
+    } else {
+        raw_normalized.as_str()
+    };
+    let artifact_type = artifact_type_for_context(context);
+    let display_name = display_name_for_context(context, artifact_type);
+
+    if is_jwt_library_call(&normalized) {
+        return;
+    }
+
+    if is_issue_call(&normalized) {
+        signals.push(signal(
+            "bearer.issue",
+            LifecycleStage::Issue,
+            artifact_type,
+            display_name.clone(),
+            "javascript",
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_store_call(&normalized) {
+        let detector_id = if is_browser_storage_call(&normalized) {
+            "bearer.store.browser"
+        } else {
+            "bearer.store"
+        };
+        signals.push(signal(
+            detector_id,
+            LifecycleStage::Store,
+            artifact_type,
+            display_name.clone(),
+            js_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_transmit_call(context, &text) {
+        let detector_id = if is_inbound_header_read(context) {
+            "bearer.read.inbound"
+        } else if is_url_query_transmit(context, &text) {
+            "bearer.transmit.url_query"
+        } else {
+            "bearer.transmit"
+        };
+        signals.push(signal(
+            detector_id,
+            LifecycleStage::Transmit,
+            artifact_type,
+            display_name.clone(),
+            js_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_validate_call(&normalized) {
+        signals.push(signal(
+            "bearer.validate",
+            LifecycleStage::Validate,
+            artifact_type,
+            display_name.clone(),
+            js_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_expire_call(&normalized) {
+        signals.push(signal(
+            "bearer.expire",
+            LifecycleStage::Expire,
+            artifact_type,
+            display_name.clone(),
+            js_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_revoke_call(&normalized) {
+        signals.push(signal(
+            "bearer.revoke",
+            LifecycleStage::Revoke,
+            artifact_type,
+            display_name.clone(),
+            js_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_dynamic_provider_call(&normalized) {
+        signals.push(signal(
+            "bearer.dynamic_provider",
+            LifecycleStage::Transmit,
+            artifact_type,
+            display_name,
+            "provider",
+            Confidence::Medium,
+            true,
+            node,
+            source,
+        ));
+    }
+}
+
+fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+    let text = node_text(node, source);
+    let normalized = normalize_symbol_without_literals(&text);
+    let raw_normalized = normalize_symbol(&text);
+    let has_token_context = URL_PARAM_RE.is_match(&text)
+        || contains_token_context(&normalized)
+        || (normalized.contains("headers") && contains_token_context(&raw_normalized));
+    if !has_token_context {
+        return;
+    }
+
+    let context = if contains_token_context(&normalized) {
+        normalized.as_str()
+    } else {
+        raw_normalized.as_str()
+    };
+    let artifact_type = artifact_type_for_context(context);
+    let display_name = display_name_for_context(context, artifact_type);
+
+    if is_issue_call(&normalized) {
+        signals.push(signal(
+            "bearer.issue",
+            LifecycleStage::Issue,
+            artifact_type,
+            display_name.clone(),
+            "python",
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_store_call(&normalized) {
+        signals.push(signal(
+            "bearer.store",
+            LifecycleStage::Store,
+            artifact_type,
+            display_name.clone(),
+            python_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_transmit_call(context, &text) {
+        let detector_id = if is_inbound_header_read(context) {
+            "bearer.read.inbound"
+        } else if is_url_query_transmit(context, &text) {
+            "bearer.transmit.url_query"
+        } else {
+            "bearer.transmit"
+        };
+        signals.push(signal(
+            detector_id,
+            LifecycleStage::Transmit,
+            artifact_type,
+            display_name.clone(),
+            python_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_validate_call(&normalized) {
+        signals.push(signal(
+            "bearer.validate",
+            LifecycleStage::Validate,
+            artifact_type,
+            display_name.clone(),
+            python_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_expire_call(&normalized) {
+        signals.push(signal(
+            "bearer.expire",
+            LifecycleStage::Expire,
+            artifact_type,
+            display_name.clone(),
+            python_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_revoke_call(&normalized) {
+        signals.push(signal(
+            "bearer.revoke",
+            LifecycleStage::Revoke,
+            artifact_type,
+            display_name.clone(),
+            python_framework_hint(&normalized),
+            Confidence::High,
+            false,
+            node,
+            source,
+        ));
+    }
+    if is_dynamic_provider_call(&normalized) {
+        signals.push(signal(
+            "bearer.dynamic_provider",
+            LifecycleStage::Transmit,
+            artifact_type,
+            display_name,
+            "provider",
+            Confidence::Medium,
+            true,
+            node,
+            source,
+        ));
+    }
+}
+
+fn collect_assignment_signal(
+    node: Node<'_>,
+    source: &str,
+    framework_hint: &'static str,
+    signals: &mut Vec<Signal>,
+) {
+    let text = node_text(node, source);
+    let normalized = normalize_symbol_without_literals(&text);
+    let raw_normalized = normalize_symbol(&text);
+    let has_token_context = contains_token_context(&normalized)
+        || (normalized.contains("headers") && contains_token_context(&raw_normalized));
+    if !has_token_context || is_jwt_library_call(&normalized) {
+        return;
+    }
+
+    let context = if contains_token_context(&normalized) {
+        normalized.as_str()
+    } else {
+        raw_normalized.as_str()
+    };
+    let artifact_type = artifact_type_for_context(context);
+    let display_name = display_name_for_context(context, artifact_type);
+    let stage = if normalized.contains("expires")
+        || normalized.contains("expiresat")
+        || normalized.contains("ttl")
+    {
+        LifecycleStage::Expire
+    } else if normalized.contains("header") || normalized.contains("authorization") {
+        LifecycleStage::Transmit
+    } else {
+        LifecycleStage::Store
+    };
+    let detector_id = if has_quoted_sensitive_literal(&text, &normalized) {
+        "bearer.literal.static"
+    } else if is_inbound_header_read(&normalized) {
+        "bearer.read.inbound"
+    } else if stage == LifecycleStage::Transmit {
+        "bearer.transmit"
+    } else {
+        "bearer.store.config"
+    };
+
+    signals.push(signal(
+        detector_id,
+        stage,
+        artifact_type,
+        display_name,
+        framework_hint,
+        Confidence::High,
+        false,
+        node,
+        source,
+    ));
+}
+
+#[allow(clippy::too_many_arguments)]
+fn signal(
+    detector_id: &'static str,
+    stage: LifecycleStage,
+    artifact_type: ArtifactType,
+    display_name: String,
+    framework_hint: &'static str,
+    confidence: Confidence,
+    dynamic: bool,
+    node: Node<'_>,
+    source: &str,
+) -> Signal {
+    let (line, column) = node_line_column(node);
+    Signal {
+        detector_id,
+        stage,
+        artifact_type,
+        display_name,
+        framework_hint,
+        line,
+        column,
+        confidence,
+        dynamic,
+        excerpt: SanitizedExcerpt(sanitize_excerpt(&node_text(node, source))),
+    }
+}
+
+fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> DetectionOutput {
+    let mut output = DetectionOutput::default();
+    let mut seen = BTreeSet::new();
+
+    for signal in signals {
+        let line_part = signal.line.to_string();
+        let column_part = signal.column.to_string();
+        let artifact_part = artifact_type_part(signal.artifact_type);
+        let evidence_id = stable_evidence_id(&[
+            DETECTOR_ID,
+            signal.detector_id,
+            format_stage(signal.stage),
+            input.path,
+            &line_part,
+            &column_part,
+            signal.display_name.as_str(),
+        ]);
+        if !seen.insert(evidence_id.0.clone()) {
+            continue;
+        }
+        let artifact_id = stable_artifact_id(&[
+            DETECTOR_ID,
+            artifact_part,
+            input.path,
+            signal.display_name.as_str(),
+        ]);
+        let mut lifecycle_evidence = LifecycleEvidence::default();
+        push_lifecycle_id(&mut lifecycle_evidence, signal.stage, evidence_id.clone());
+        let location = SourceLocation {
+            path: input.path.to_string(),
+            line: Some(signal.line),
+            column: Some(signal.column),
+        };
+
+        output.artifacts.push(Artifact {
+            id: artifact_id,
+            artifact_type: signal.artifact_type,
+            display_name: Some(signal.display_name),
+            locations: vec![location.clone()],
+            lifecycle_evidence,
+            confidence: signal.confidence,
+            framework_hints: vec![signal.framework_hint.to_string()],
+            cookie_attributes: None,
+            jwt_attributes: None,
+        });
+        output.evidence.push(Evidence {
+            id: evidence_id,
+            lifecycle_stage: signal.stage,
+            location,
+            detector_id: signal.detector_id.to_string(),
+            confidence: signal.confidence,
+            excerpt: Some(signal.excerpt),
+            dynamic: signal.dynamic,
+            framework_default: false,
+        });
+    }
+
+    output
+}
+
+fn parse_javascript_like(input: &DetectorInput<'_>, source: &str) -> Option<Tree> {
+    let mut parser = Parser::new();
+    let language = match input.language {
+        Language::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
+        Language::TypeScript if input.path.ends_with(".tsx") => {
+            tree_sitter_typescript::LANGUAGE_TSX.into()
+        }
+        Language::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        _ => return None,
+    };
+    parser.set_language(&language).ok()?;
+    parser.parse(source, None)
+}
+
+fn parse_python(source: &str) -> Option<Tree> {
+    let mut parser = Parser::new();
+    let language = tree_sitter_python::LANGUAGE.into();
+    parser.set_language(&language).ok()?;
+    parser.parse(source, None)
+}
+
+fn contains_token_context(normalized: &str) -> bool {
+    normalized.contains("authorization")
+        || normalized.contains("bearer")
+        || normalized.contains("apikey")
+        || normalized.contains("api_key")
+        || normalized.contains("xapikey")
+        || normalized.contains("x_api_key")
+        || normalized.contains("accesstoken")
+        || normalized.contains("access_token")
+        || normalized.contains("servicetoken")
+        || normalized.contains("service_token")
+        || normalized.contains("clienttoken")
+        || normalized.contains("client_token")
+        || (normalized.contains("token")
+            && (normalized.contains("header")
+                || normalized.contains("auth")
+                || normalized.contains("store")
+                || normalized.contains("find")
+                || normalized.contains("validate")
+                || normalized.contains("verify")
+                || normalized.contains("create")
+                || normalized.contains("generate")
+                || normalized.contains("revoke")
+                || normalized.contains("expires")
+                || normalized.contains("localstorage")
+                || normalized.contains("sessionstorage")))
+}
+
+fn is_token_config_line(normalized: &str) -> bool {
+    contains_token_context(normalized)
+        && (normalized.contains("env")
+            || normalized.contains("header")
+            || normalized.contains("authorization")
+            || normalized.contains("apikey")
+            || normalized.contains("api_key")
+            || normalized.contains("token"))
+}
+
+fn is_issue_call(normalized: &str) -> bool {
+    (normalized.contains("create")
+        || normalized.contains("generate")
+        || normalized.contains("random")
+        || normalized.contains("secrets.token")
+        || normalized.contains("crypto.random")
+        || normalized.contains("nanoid")
+        || normalized.contains("uuid"))
+        && normalized.contains("token")
+}
+
+fn is_store_call(normalized: &str) -> bool {
+    normalized.contains("localstorage.setitem")
+        || normalized.contains("sessionstorage.setitem")
+        || normalized.contains(".create")
+        || normalized.contains(".insert")
+        || normalized.contains(".save")
+        || normalized.contains(".update")
+        || normalized.contains(".set")
+        || normalized.contains("os.environ")
+        || normalized.contains("process.env")
+        || normalized.contains("settings.")
+}
+
+fn is_browser_storage_call(normalized: &str) -> bool {
+    normalized.contains("localstorage.setitem") || normalized.contains("sessionstorage.setitem")
+}
+
+fn is_transmit_call(normalized: &str, raw: &str) -> bool {
+    normalized.contains("authorization")
+        || normalized.contains("bearer")
+        || normalized.contains("xapikey")
+        || normalized.contains("x_api_key")
+        || normalized.contains("headers")
+        || URL_PARAM_RE.is_match(raw)
+        || normalized.contains("params")
+}
+
+fn is_url_query_transmit(normalized: &str, raw: &str) -> bool {
+    URL_PARAM_RE.is_match(raw)
+        || (normalized.contains("params")
+            && (normalized.contains("token")
+                || normalized.contains("apikey")
+                || normalized.contains("api_key")))
+}
+
+fn is_validate_call(normalized: &str) -> bool {
+    normalized.contains("validate")
+        || normalized.contains("verify")
+        || normalized.contains("check")
+        || normalized.contains("compare_digest")
+        || normalized.contains("timingsafeequal")
+        || normalized.contains("findunique")
+        || normalized.contains("find_unique")
+        || normalized.contains("findfirst")
+        || normalized.contains("find_first")
+        || normalized.contains("findone")
+        || normalized.contains("find_one")
+}
+
+fn is_expire_call(normalized: &str) -> bool {
+    normalized.contains("expires")
+        || normalized.contains("expiresat")
+        || normalized.contains("expires_at")
+        || normalized.contains("ttl")
+        || normalized.contains("maxage")
+}
+
+fn is_revoke_call(normalized: &str) -> bool {
+    normalized.contains("revoke")
+        || normalized.contains("disable")
+        || normalized.contains("delete")
+        || normalized.contains("destroy")
+        || normalized.contains("rotate")
+}
+
+fn is_dynamic_provider_call(normalized: &str) -> bool {
+    (normalized.contains("provider")
+        || normalized.contains("auth0")
+        || normalized.contains("oauth")
+        || normalized.contains("clientcredentials"))
+        && (normalized.contains("token")
+            || normalized.contains("apikey")
+            || normalized.contains("api_key"))
+}
+
+fn is_inbound_header_read(normalized: &str) -> bool {
+    (normalized.contains("req.headers")
+        || normalized.contains("request.headers")
+        || normalized.contains("headers.get"))
+        && (normalized.contains("authorization")
+            || normalized.contains("xapikey")
+            || normalized.contains("x_api_key")
+            || normalized.contains("api_key")
+            || normalized.contains("apikey"))
+}
+
+fn is_jwt_library_call(normalized: &str) -> bool {
+    normalized.contains("jwt.sign")
+        || normalized.contains("jwt.verify")
+        || normalized.contains("jwt.decode")
+        || normalized.contains("jsonwebtoken")
+        || normalized.contains("jwtverify")
+        || normalized.contains("signjwt")
+}
+
+fn has_quoted_sensitive_literal(text: &str, normalized: &str) -> bool {
+    contains_token_context(normalized)
+        && (SENSITIVE_ASSIGNMENT_RE.is_match(text)
+            || BEARER_VALUE_RE.is_match(text)
+            || PLACEHOLDER_SECRET_RE.is_match(text)
+            || LONG_TOKEN_RE.is_match(text))
+}
+
+fn artifact_type_for_context(normalized: &str) -> ArtifactType {
+    if normalized.contains("apikey")
+        || normalized.contains("api_key")
+        || normalized.contains("xapikey")
+        || normalized.contains("x_api_key")
+    {
+        ArtifactType::ApiKey
+    } else if normalized.contains("service")
+        || normalized.contains("machine")
+        || normalized.contains("clientcredentials")
+        || normalized.contains("client_token")
+        || normalized.contains("clienttoken")
+        || normalized.contains("internal")
+    {
+        ArtifactType::ServiceToken
+    } else if normalized.contains("bearer")
+        || normalized.contains("authorization")
+        || normalized.contains("access_token")
+        || normalized.contains("accesstoken")
+    {
+        ArtifactType::OpaqueBearerToken
+    } else {
+        ArtifactType::UnknownToken
+    }
+}
+
+fn display_name_for_context(normalized: &str, artifact_type: ArtifactType) -> String {
+    if normalized.contains("xapikey") || normalized.contains("x_api_key") {
+        "x_api_key".to_string()
+    } else if normalized.contains("api_key") || normalized.contains("apikey") {
+        "api_key".to_string()
+    } else if normalized.contains("service") {
+        "service_token".to_string()
+    } else if normalized.contains("authorization") || normalized.contains("bearer") {
+        "authorization_bearer".to_string()
+    } else if normalized.contains("access_token") || normalized.contains("accesstoken") {
+        "access_token".to_string()
+    } else {
+        artifact_type_part(artifact_type).to_string()
+    }
+}
+
+fn js_framework_hint(normalized: &str) -> &'static str {
+    if normalized.contains("cookies") || normalized.contains("next") {
+        "nextjs"
+    } else if normalized.contains("req.")
+        || normalized.contains("res.")
+        || normalized.contains("express")
+    {
+        "express"
+    } else if normalized.contains("axios") || normalized.contains("fetch") {
+        "javascript-http-client"
+    } else {
+        "javascript"
+    }
+}
+
+fn python_framework_hint(normalized: &str) -> &'static str {
+    if normalized.contains("request.headers") || normalized.contains("fastapi") {
+        "fastapi"
+    } else if normalized.contains("django") || normalized.contains("settings.") {
+        "django"
+    } else if normalized.contains("requests.") || normalized.contains("httpx.") {
+        "python-http-client"
+    } else {
+        "python"
+    }
+}
+
+fn config_framework_hint(language: Language) -> &'static str {
+    match language {
+        Language::Json => "json-config",
+        Language::Yaml => "yaml-config",
+        Language::Toml => "toml-config",
+        _ => "config",
+    }
+}
+
+fn sanitize_excerpt(excerpt: &str) -> String {
+    let mut redacted = BEARER_VALUE_RE
+        .replace_all(excerpt, format!("${{1}}{REDACTION}"))
+        .to_string();
+    redacted = URL_PARAM_RE
+        .replace_all(&redacted, format!("${{1}}{REDACTION}"))
+        .to_string();
+    redacted = SENSITIVE_ASSIGNMENT_RE
+        .replace_all(&redacted, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
+    redacted = JWT_RE.replace_all(&redacted, REDACTION).to_string();
+    redacted = PLACEHOLDER_SECRET_RE
+        .replace_all(&redacted, REDACTION)
+        .to_string();
+    redacted = LONG_TOKEN_RE
+        .replace_all(&redacted, |captures: &regex::Captures<'_>| {
+            let value = captures.get(0).expect("full capture").as_str();
+            if looks_high_entropy(value) {
+                REDACTION.to_string()
+            } else {
+                value.to_string()
+            }
+        })
+        .to_string();
+    if should_redact_string_literals(&redacted) {
+        redacted = QUOTED_LITERAL_RE
+            .replace_all(&redacted, format!("\"{REDACTION}\""))
+            .to_string();
+    }
+    redacted
+}
+
+fn should_redact_string_literals(excerpt: &str) -> bool {
+    let normalized = normalize_symbol(excerpt);
+    normalized.contains("authorization")
+        || normalized.contains("bearer")
+        || normalized.contains("token")
+        || normalized.contains("apikey")
+        || normalized.contains("api_key")
+        || normalized.contains("secret")
+}
+
+fn looks_high_entropy(value: &str) -> bool {
+    value.len() >= 32
+        && value.chars().any(|ch| ch.is_ascii_alphabetic())
+        && (value.chars().any(|ch| ch.is_ascii_digit())
+            || value
+                .chars()
+                .any(|ch| matches!(ch, '_' | '-' | '+' | '/' | '=')))
+}
+
+fn push_lifecycle_id(
+    lifecycle_evidence: &mut LifecycleEvidence,
+    stage: LifecycleStage,
+    evidence_id: sessionscope_model::EvidenceId,
+) {
+    match stage {
+        LifecycleStage::Issue => lifecycle_evidence.issue.push(evidence_id),
+        LifecycleStage::Store => lifecycle_evidence.store.push(evidence_id),
+        LifecycleStage::Transmit => lifecycle_evidence.transmit.push(evidence_id),
+        LifecycleStage::Validate => lifecycle_evidence.validate.push(evidence_id),
+        LifecycleStage::Refresh => lifecycle_evidence.refresh.push(evidence_id),
+        LifecycleStage::Revoke => lifecycle_evidence.revoke.push(evidence_id),
+        LifecycleStage::Expire => lifecycle_evidence.expire.push(evidence_id),
+        LifecycleStage::Introspect => lifecycle_evidence.introspect.push(evidence_id),
+    }
+}
+
+fn artifact_type_part(artifact_type: ArtifactType) -> &'static str {
+    match artifact_type {
+        ArtifactType::SessionCookie => "session_cookie",
+        ArtifactType::SignedCookie => "signed_cookie",
+        ArtifactType::AccessJwt => "access_jwt",
+        ArtifactType::RefreshJwt => "refresh_jwt",
+        ArtifactType::OpaqueBearerToken => "opaque_bearer_token",
+        ArtifactType::ApiKey => "api_key",
+        ArtifactType::ServiceToken => "service_token",
+        ArtifactType::UnknownToken => "unknown_token",
+        ArtifactType::PasswordResetToken => "password_reset_token",
+        ArtifactType::EmailVerificationToken => "email_verification_token",
+        ArtifactType::SessionRecord => "session_record",
+        ArtifactType::Unknown => "unknown",
+    }
+}
+
+fn format_stage(stage: LifecycleStage) -> &'static str {
+    match stage {
+        LifecycleStage::Issue => "issue",
+        LifecycleStage::Store => "store",
+        LifecycleStage::Transmit => "transmit",
+        LifecycleStage::Validate => "validate",
+        LifecycleStage::Refresh => "refresh",
+        LifecycleStage::Revoke => "revoke",
+        LifecycleStage::Expire => "expire",
+        LifecycleStage::Introspect => "introspect",
+    }
+}
+
+fn node_line_column(node: Node<'_>) -> (usize, usize) {
+    let position = node.start_position();
+    (position.row + 1, position.column + 1)
+}
+
+fn node_text(node: Node<'_>, source: &str) -> String {
+    node.utf8_text(source.as_bytes())
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn normalize_symbol(value: &str) -> String {
+    value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '/' | '?' | '&'))
+        .collect::<String>()
+        .to_ascii_lowercase()
+}
+
+fn normalize_symbol_without_literals(value: &str) -> String {
+    normalize_symbol(&strip_string_literals(value))
+}
+
+fn strip_string_literals(value: &str) -> String {
+    let without_templates = TEMPLATE_LITERAL_RE.replace_all(value, "``");
+    QUOTED_LITERAL_RE
+        .replace_all(&without_templates, "\"\"")
+        .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use sessionscope_model::{ArtifactType, Language, LifecycleStage};
+
+    use super::*;
+
+    fn detect(language: Language, source: &str) -> DetectionOutput {
+        BearerTokenDetector.detect(&DetectorInput {
+            path: match language {
+                Language::Python => "app.py",
+                Language::Json => "config.json",
+                _ => "app.ts",
+            },
+            language,
+            source,
+        })
+    }
+
+    #[test]
+    fn detects_javascript_bearer_and_api_key_lifecycle() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+const API_KEY = "PLACEHOLDER_API_KEY";
+const serviceToken = generateServiceToken(user.id);
+await prisma.apiKey.create({ data: { token: serviceToken, expiresAt } });
+localStorage.setItem("api_key", API_KEY);
+await fetch("https://api.example.test/users", { headers: { Authorization: `Bearer ${serviceToken}`, "X-API-Key": API_KEY } });
+const incoming = req.headers.authorization;
+await apiKeyStore.findUnique({ where: { token: incoming } });
+await revokeServiceToken(serviceToken);
+"#,
+        );
+
+        assert_artifact(&output, ArtifactType::ApiKey, "api_key");
+        assert_artifact(&output, ArtifactType::ServiceToken, "service_token");
+        assert_detector(&output, "bearer.literal.static", LifecycleStage::Store);
+        assert_detector(&output, "bearer.store.browser", LifecycleStage::Store);
+        assert_detector(&output, "bearer.transmit", LifecycleStage::Transmit);
+        assert_detector(&output, "bearer.validate", LifecycleStage::Validate);
+        assert_detector(&output, "bearer.expire", LifecycleStage::Expire);
+        assert_detector(&output, "bearer.revoke", LifecycleStage::Revoke);
+        assert!(!detected_text(&output).contains("PLACEHOLDER_API_KEY"));
+    }
+
+    #[test]
+    fn detects_python_bearer_and_api_key_lifecycle() {
+        let output = detect(
+            Language::Python,
+            r#"
+import os, secrets, httpx
+API_KEY = "PLACEHOLDER_API_KEY"
+service_token = secrets.token_urlsafe(32)
+token_store.create({"token": service_token, "expires_at": expires_at})
+headers = {"Authorization": f"Bearer {service_token}", "X-API-Key": os.environ["API_KEY"]}
+httpx.get("https://api.example.test/users", headers=headers)
+incoming = request.headers.get("authorization")
+api_key_store.find_one({"token": incoming})
+disable_service_token(service_token)
+"#,
+        );
+
+        assert_artifact(&output, ArtifactType::ApiKey, "api_key");
+        assert_artifact(&output, ArtifactType::ServiceToken, "service_token");
+        assert_detector(&output, "bearer.literal.static", LifecycleStage::Store);
+        assert_detector(&output, "bearer.transmit", LifecycleStage::Transmit);
+        assert_detector(&output, "bearer.validate", LifecycleStage::Validate);
+        assert_detector(&output, "bearer.revoke", LifecycleStage::Revoke);
+        assert!(!detected_text(&output).contains("PLACEHOLDER_API_KEY"));
+    }
+
+    #[test]
+    fn detects_config_references_without_values() {
+        let output = detect(
+            Language::Json,
+            r#"{ "service_token_env": "SERVICE_TOKEN", "x_api_key_header": "X-API-Key" }"#,
+        );
+
+        assert!(output.artifacts.iter().any(|artifact| {
+            matches!(
+                artifact.artifact_type,
+                ArtifactType::ServiceToken | ArtifactType::ApiKey
+            )
+        }));
+        assert!(!detected_text(&output).contains("SERVICE_TOKEN"));
+    }
+
+    #[test]
+    fn ignores_comments_strings_and_jwt_calls() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+// fetch("/callback?access_token=PLACEHOLDER_TOKEN")
+const sample = "Authorization: Bearer PLACEHOLDER_TOKEN";
+jwt.verify(token, JWT_SECRET);
+const csrfTokenLabel = "not auth storage";
+"#,
+        );
+
+        assert!(output.artifacts.is_empty(), "{:?}", output.artifacts);
+        assert!(output.evidence.is_empty(), "{:?}", output.evidence);
+    }
+
+    #[test]
+    fn dynamic_provider_calls_are_review_context() {
+        let output = detect(
+            Language::TypeScript,
+            "const client = auth0Provider.clientCredentialsToken({ audience });",
+        );
+
+        assert_detector(&output, "bearer.dynamic_provider", LifecycleStage::Transmit);
+        assert!(output.evidence.iter().any(|evidence| evidence.dynamic));
+    }
+
+    fn assert_artifact(output: &DetectionOutput, artifact_type: ArtifactType, name: &str) {
+        assert!(
+            output.artifacts.iter().any(|artifact| {
+                artifact.artifact_type == artifact_type
+                    && artifact.display_name.as_deref() == Some(name)
+            }),
+            "expected {artifact_type:?} named {name} in {:?}",
+            output.artifacts
+        );
+    }
+
+    fn assert_detector(output: &DetectionOutput, detector_id: &str, stage: LifecycleStage) {
+        assert!(
+            output.evidence.iter().any(|evidence| {
+                evidence.detector_id == detector_id && evidence.lifecycle_stage == stage
+            }),
+            "expected {detector_id} at {stage:?} in {:?}",
+            output.evidence
+        );
+    }
+
+    fn detected_text(output: &DetectionOutput) -> String {
+        output
+            .evidence
+            .iter()
+            .filter_map(|evidence| evidence.excerpt.as_ref())
+            .map(|excerpt| excerpt.0.as_str())
+            .chain(
+                output
+                    .artifacts
+                    .iter()
+                    .filter_map(|artifact| artifact.display_name.as_deref()),
+            )
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}

@@ -14,6 +14,8 @@ pub enum ArtifactType {
     RefreshJwt,
     OpaqueBearerToken,
     ApiKey,
+    ServiceToken,
+    UnknownToken,
     PasswordResetToken,
     EmailVerificationToken,
     SessionRecord,

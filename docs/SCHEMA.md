@@ -1,7 +1,7 @@
 # SessionScope Schema
 
 SessionScope uses the `sessionscope-model` crate as its internal inventory
-model and JSON wire schema. The current schema version is `0.4.0`.
+model and JSON wire schema. The current schema version is `0.5.0`.
 
 Design decisions for dynamic evidence, framework defaults, confidence, and
 AuthMap-style alignment are recorded in
@@ -18,7 +18,7 @@ Serialized reports include:
 
 ```json
 {
-  "schema_version": "0.4.0"
+  "schema_version": "0.5.0"
 }
 ```
 
@@ -49,6 +49,8 @@ types are:
 - `refresh_jwt`
 - `opaque_bearer_token`
 - `api_key`
+- `service_token`
+- `unknown_token`
 - `password_reset_token`
 - `email_verification_token`
 - `session_record`
@@ -131,6 +133,13 @@ Each attribute observation includes:
 Cookie attribute observations are evidence inventory, not findings. Dynamic or
 framework-default values must not be treated as proof of insecurity until a
 classifier evaluates them.
+
+Bearer/API-key token artifacts are evidence inventory for opaque token flows.
+`opaque_bearer_token`, `api_key`, `service_token`, and `unknown_token` use
+artifact-local lifecycle evidence to represent static issue, store, transmit,
+validate, expire, and revoke signals when visible. Dynamic provider-managed or
+wrapper-heavy evidence must be represented as review-required context rather
+than definitive unsafe behavior.
 
 JWT artifacts may include a `jwt_attributes` object with structured
 observations for:

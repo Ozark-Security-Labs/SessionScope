@@ -1,3 +1,4 @@
+use crate::bearer::BearerTokenDetector;
 use crate::cookies::CookieSetDetector;
 use crate::jwt::JwtDetector;
 use crate::sessions::{RefreshTokenLifecycleDetector, SessionLifecycleDetector};
@@ -17,6 +18,7 @@ impl DetectorRegistry {
         Self::empty()
             .with_detector(Box::new(CookieSetDetector))
             .with_detector(Box::new(JwtDetector))
+            .with_detector(Box::new(BearerTokenDetector))
             .with_detector(Box::new(SessionLifecycleDetector))
             .with_detector(Box::new(RefreshTokenLifecycleDetector))
     }

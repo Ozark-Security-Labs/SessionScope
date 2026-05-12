@@ -500,6 +500,8 @@ fn artifact_type_part(artifact_type: ArtifactType) -> &'static str {
         ArtifactType::RefreshJwt => "refresh_jwt",
         ArtifactType::OpaqueBearerToken => "opaque_bearer_token",
         ArtifactType::ApiKey => "api_key",
+        ArtifactType::ServiceToken => "service_token",
+        ArtifactType::UnknownToken => "unknown_token",
         ArtifactType::PasswordResetToken => "password_reset_token",
         ArtifactType::EmailVerificationToken => "email_verification_token",
         ArtifactType::SessionRecord => "session_record",
