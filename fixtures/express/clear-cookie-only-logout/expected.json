@@ -1,0 +1,9 @@
+{
+  "fixture_id": "express.clear-cookie-only-logout",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["session_cookie:session"],
+  "expected_lifecycle_stages": ["store", "revoke"],
+  "expected_findings": ["clear_cookie_only_logout:session"],
+  "notes": "Covers logout evidence that only clears a browser cookie without linked server-side revocation."
+}

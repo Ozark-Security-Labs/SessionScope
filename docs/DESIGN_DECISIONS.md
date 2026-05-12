@@ -142,3 +142,24 @@ Rules:
   requirement exists.
 - Detectors should keep token lifecycle evidence separate from authorization
   policy evidence until such an integration is designed.
+
+## SS-DEC-005: Logout Cookie Clearing And Server-Side Revocation
+
+Client-side cookie clearing is lifecycle evidence, but it is not proof that the
+server-side session, refresh token, or provider token was revoked.
+
+Rules:
+
+- Detectors may emit `revoke` evidence for cookie deletion APIs such as
+  Express `clearCookie`, Next.js `cookies().delete`, FastAPI
+  `delete_cookie`, and Django `delete_cookie`.
+- Cookie clear evidence uses `logout.cookie_clear` and should be treated as a
+  browser-side action only.
+- Server-side invalidation evidence should use more specific detector IDs such
+  as `logout.session_destroy`, `logout.token_revoke`, or
+  `logout.provider_revoke`.
+- Lifecycle classifiers may ask a reviewer question when logout only clears a
+  cookie and no linked server-side revocation evidence is present.
+- Provider and wrapper revocation calls are static-analysis context only; they
+  should stay medium or low confidence unless local source proves the exact
+  backend behavior.

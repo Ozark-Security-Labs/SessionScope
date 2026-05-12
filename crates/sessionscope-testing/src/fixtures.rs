@@ -94,7 +94,7 @@ mod tests {
     use sessionscope_classifier::classify;
     use sessionscope_core::{ScanConfig, scan_path};
     use sessionscope_detectors::DetectorRegistry;
-    use sessionscope_model::{ArtifactType, FindingCategory, SkippedReason};
+    use sessionscope_model::{ArtifactType, FindingCategory, LifecycleStage, SkippedReason};
     use sessionscope_reporters::{ReportFormat, render};
 
     use crate::snapshots::normalize_snapshot_paths;
@@ -331,6 +331,93 @@ mod tests {
         assert!(report.findings.iter().any(|finding| {
             finding.category == FindingCategory::HighConfidenceMisconfiguration
                 && finding.title.contains("expiry enforcement")
+        }));
+    }
+
+    #[test]
+    fn logout_fixtures_emit_revoke_evidence() {
+        let cases = [
+            (
+                fixture_root()
+                    .join("express")
+                    .join("cookie-session-lifecycle"),
+                "logout.session_destroy",
+            ),
+            (
+                fixture_root()
+                    .join("fastapi")
+                    .join("dependency-auth-lifecycle"),
+                "logout.session_destroy",
+            ),
+            (
+                fixture_root().join("django").join("session-and-reset-flow"),
+                "logout.session_destroy",
+            ),
+            (
+                fixture_root().join("nextjs").join("route-handler-auth"),
+                "logout.cookie_clear",
+            ),
+        ];
+
+        for (root, detector_id) in cases {
+            let report = scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display()));
+
+            assert!(
+                report.evidence.iter().any(|evidence| {
+                    evidence.lifecycle_stage == LifecycleStage::Revoke
+                        && evidence.detector_id == detector_id
+                }),
+                "{} should include revoke evidence from {detector_id}",
+                root.display()
+            );
+        }
+    }
+
+    #[test]
+    fn clear_cookie_only_fixture_produces_review_required_gap() {
+        let root = fixture_root()
+            .join("express")
+            .join("clear-cookie-only-logout");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("clear-cookie-only fixture should scan"),
+        );
+
+        assert!(report.lifecycle_paths.iter().any(|path| {
+            path.stages
+                .iter()
+                .any(|step| step.stage == LifecycleStage::Revoke)
+        }));
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("cleared on logout")
+                && finding.reviewer_question.is_some()
+        }));
+    }
+
+    #[test]
+    fn provider_revoke_fixture_emits_provider_revoke_evidence() {
+        let root = fixture_root().join("generic-ts").join("provider-revoke");
+        let report = scan_path(
+            ScanConfig::new(&root),
+            Arc::new(DetectorRegistry::builtin()),
+        )
+        .expect("provider revoke fixture should scan");
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Revoke
+                && evidence.detector_id == "logout.provider_revoke"
+        }));
+        assert!(report.artifacts.iter().any(|artifact| {
+            artifact.display_name.as_deref() == Some("refresh_token")
+                && !artifact.lifecycle_evidence.revoke.is_empty()
         }));
     }
 

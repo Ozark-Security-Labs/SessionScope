@@ -86,9 +86,17 @@ Each lifecycle path includes:
 - optional reviewer question for dynamic or framework-default-dependent paths
 
 Path IDs are derived only from non-secret facts such as artifact IDs, lifecycle
-stages, evidence IDs, and normalized source locations. Paths currently link
-same-artifact lifecycle evidence; future detectors may add refresh, revoke,
-reset-token, bearer/API-key, and provider evidence without changing this shape.
+stages, evidence IDs, and normalized source locations. Paths link same-artifact
+lifecycle evidence and may merge revoke-only evidence into an existing path
+when static display names and compatible artifact types line up. Future
+detectors may add refresh, reset-token, bearer/API-key, and provider evidence
+without changing this shape.
+
+Logout cookie deletion is represented as `revoke` lifecycle evidence, but
+`logout.cookie_clear` only proves that browser-side state is cleared. It does
+not satisfy server-side revocation checks for sessions, refresh tokens, or
+provider tokens unless linked evidence such as `logout.session_destroy`,
+`logout.token_revoke`, or `logout.provider_revoke` is also present.
 
 Cookie artifacts may include a `cookie_attributes` object with structured
 observations for:

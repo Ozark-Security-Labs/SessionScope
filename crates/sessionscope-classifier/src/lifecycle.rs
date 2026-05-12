@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use sessionscope_model::{
     Artifact, ArtifactType, Confidence, Evidence, EvidenceId, Finding, FindingCategory,
@@ -24,6 +24,7 @@ pub fn link(report: &ScanReport) -> Vec<LifecyclePath> {
         .iter()
         .filter_map(|artifact| path_for_artifact(artifact, &evidence_by_id))
         .collect::<Vec<_>>();
+    merge_revoke_only_paths(report, &evidence_by_id, &mut paths);
     sort_paths(&mut paths);
     paths
 }
@@ -37,11 +38,69 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
         };
 
         findings.extend(classify_issue_without_validate(artifact, path));
-        findings.extend(classify_refresh_without_revoke(artifact, path));
+        let evidence_by_id = evidence_by_id(report);
+        findings.extend(classify_refresh_without_revoke(
+            artifact,
+            path,
+            &evidence_by_id,
+        ));
         findings.extend(classify_reset_without_single_use(artifact, path));
+        findings.extend(classify_clear_cookie_only_logout(
+            artifact,
+            path,
+            &evidence_by_id,
+        ));
     }
 
     findings
+}
+
+fn merge_revoke_only_paths(
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+    paths: &mut Vec<LifecyclePath>,
+) {
+    let artifact_by_id = artifact_by_id(report);
+    let mut absorbed = BTreeSet::new();
+
+    for source_index in 0..paths.len() {
+        if !is_revoke_only_path(&paths[source_index]) {
+            continue;
+        }
+        let Some(source_artifact) =
+            artifact_for_path_with_lookup(&artifact_by_id, &paths[source_index])
+        else {
+            continue;
+        };
+
+        let target_index = (0..paths.len()).find(|target_index| {
+            *target_index != source_index
+                && !absorbed.contains(target_index)
+                && !is_revoke_only_path(&paths[*target_index])
+                && artifact_for_path_with_lookup(&artifact_by_id, &paths[*target_index])
+                    .is_some_and(|target_artifact| {
+                        compatible_revoke_artifacts(source_artifact, target_artifact)
+                    })
+        });
+
+        let Some(target_index) = target_index else {
+            continue;
+        };
+
+        let source_path = paths[source_index].clone();
+        merge_path(&source_path, &mut paths[target_index]);
+        refresh_path_metadata(&artifact_by_id, evidence_by_id, &mut paths[target_index]);
+        absorbed.insert(source_index);
+    }
+
+    if !absorbed.is_empty() {
+        let mut index = 0usize;
+        paths.retain(|_| {
+            let keep = !absorbed.contains(&index);
+            index += 1;
+            keep
+        });
+    }
 }
 
 pub fn sort_paths(paths: &mut [LifecyclePath]) {
@@ -119,14 +178,19 @@ fn path_for_artifact(
     id_parts.extend(all_evidence_ids.iter().map(|id| id.0.clone()));
     id_parts.extend(evidence_locations);
 
-    Some(LifecyclePath {
+    let mut path = LifecyclePath {
         id: stable_lifecycle_path_id(&id_parts),
         artifact_ids: vec![artifact.id.clone()],
         stages,
         confidence,
         dynamic,
         reviewer_question: reviewer_question_for_path(dynamic, framework_default, artifact),
-    })
+    };
+    let artifact_by_id = [(artifact.id.0.as_str(), artifact)]
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+    refresh_path_metadata(&artifact_by_id, evidence_by_id, &mut path);
+    Some(path)
 }
 
 fn classify_issue_without_validate(artifact: &Artifact, path: &LifecyclePath) -> Option<Finding> {
@@ -154,12 +218,21 @@ fn classify_issue_without_validate(artifact: &Artifact, path: &LifecyclePath) ->
     ))
 }
 
-fn classify_refresh_without_revoke(artifact: &Artifact, path: &LifecyclePath) -> Option<Finding> {
-    if !has_stage(path, LifecycleStage::Refresh) || has_stage(path, LifecycleStage::Revoke) {
+fn classify_refresh_without_revoke(
+    artifact: &Artifact,
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Option<Finding> {
+    if !has_stage(path, LifecycleStage::Refresh) || has_server_revoke(path, evidence_by_id) {
         return None;
     }
 
     let name = artifact.display_name.as_deref().unwrap_or("token");
+    let reviewer_question = if has_client_cookie_clear(path, evidence_by_id) {
+        "Where is the previous refresh token revoked or marked used server-side, beyond clearing the client cookie?"
+    } else {
+        "Where is the previous refresh token revoked or marked used during refresh?"
+    };
     Some(finding(
         "lifecycle_refresh_without_revoke",
         FindingCategory::LifecycleGap,
@@ -172,7 +245,7 @@ fn classify_refresh_without_revoke(artifact: &Artifact, path: &LifecyclePath) ->
             .to_string(),
         "Rotate refresh tokens and revoke the previous token when issuing a replacement."
             .to_string(),
-        "Where is the previous refresh token revoked or marked used during refresh?".to_string(),
+        reviewer_question.to_string(),
     ))
 }
 
@@ -200,6 +273,44 @@ fn classify_reset_without_single_use(artifact: &Artifact, path: &LifecyclePath) 
         "Store reset and verification tokens with expiry and mark them consumed after successful use."
             .to_string(),
         "Where is this reset or verification token consumed so it cannot be reused?".to_string(),
+    ))
+}
+
+fn classify_clear_cookie_only_logout(
+    artifact: &Artifact,
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Option<Finding> {
+    if !has_client_cookie_clear(path, evidence_by_id) || has_server_revoke(path, evidence_by_id) {
+        return None;
+    }
+    if !matches!(
+        artifact.artifact_type,
+        ArtifactType::SessionCookie
+            | ArtifactType::SignedCookie
+            | ArtifactType::SessionRecord
+            | ArtifactType::RefreshJwt
+            | ArtifactType::Unknown
+    ) {
+        return None;
+    }
+
+    let name = artifact.display_name.as_deref().unwrap_or("session");
+    Some(finding(
+        "lifecycle_clear_cookie_only_logout",
+        FindingCategory::LifecycleGap,
+        Severity::Low,
+        artifact,
+        path,
+        client_cookie_clear_ids(path, evidence_by_id),
+        format!("Cookie `{name}` is cleared on logout without linked server-side revocation"),
+        "Logout evidence clears a client-side cookie, but no linked server-side session, token, or provider revocation evidence was found for the same lifecycle path."
+            .to_string(),
+        "Invalidate the server-side session or refresh token in addition to deleting the browser cookie."
+            .to_string(),
+        format!(
+            "Where is the server-side session or token behind `{name}` revoked during logout?"
+        ),
     ))
 }
 
@@ -247,12 +358,32 @@ fn evidence_by_id(report: &ScanReport) -> BTreeMap<&str, &Evidence> {
         .collect()
 }
 
-fn artifact_for_path<'a>(report: &'a ScanReport, path: &LifecyclePath) -> Option<&'a Artifact> {
-    let artifact_id = path.artifact_ids.first()?;
+fn artifact_by_id(report: &ScanReport) -> BTreeMap<&str, &Artifact> {
     report
         .artifacts
         .iter()
-        .find(|artifact| &artifact.id == artifact_id)
+        .map(|artifact| (artifact.id.0.as_str(), artifact))
+        .collect()
+}
+
+fn artifact_for_path<'a>(report: &'a ScanReport, path: &LifecyclePath) -> Option<&'a Artifact> {
+    let artifact_by_id = artifact_by_id(report);
+    artifact_for_path_with_lookup(&artifact_by_id, path)
+}
+
+fn artifact_for_path_with_lookup<'a>(
+    artifact_by_id: &BTreeMap<&str, &'a Artifact>,
+    path: &LifecyclePath,
+) -> Option<&'a Artifact> {
+    path.artifact_ids
+        .iter()
+        .filter_map(|artifact_id| artifact_by_id.get(artifact_id.0.as_str()).copied())
+        .find(|artifact| !artifact_has_only_revoke_evidence(artifact))
+        .or_else(|| {
+            path.artifact_ids
+                .first()
+                .and_then(|artifact_id| artifact_by_id.get(artifact_id.0.as_str()).copied())
+        })
 }
 
 fn lifecycle_ids_for_stage(
@@ -275,6 +406,43 @@ fn has_stage(path: &LifecyclePath, stage: LifecycleStage) -> bool {
     path.stages.iter().any(|step| step.stage == stage)
 }
 
+fn has_client_cookie_clear(
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    evidence_ids_for_stage(path, LifecycleStage::Revoke)
+        .iter()
+        .any(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| evidence.detector_id == "logout.cookie_clear")
+        })
+}
+
+fn has_server_revoke(path: &LifecyclePath, evidence_by_id: &BTreeMap<&str, &Evidence>) -> bool {
+    evidence_ids_for_stage(path, LifecycleStage::Revoke)
+        .iter()
+        .any(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| evidence.detector_id != "logout.cookie_clear")
+        })
+}
+
+fn client_cookie_clear_ids(
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Vec<EvidenceId> {
+    evidence_ids_for_stage(path, LifecycleStage::Revoke)
+        .into_iter()
+        .filter(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| evidence.detector_id == "logout.cookie_clear")
+        })
+        .collect()
+}
+
 fn evidence_ids_for_stage(path: &LifecyclePath, stage: LifecycleStage) -> Vec<EvidenceId> {
     path.stages
         .iter()
@@ -292,6 +460,154 @@ fn fallback_path_ids(path: &LifecyclePath) -> Vec<EvidenceId> {
     ids.sort();
     ids.dedup();
     ids
+}
+
+fn is_revoke_only_path(path: &LifecyclePath) -> bool {
+    path.stages.len() == 1 && has_stage(path, LifecycleStage::Revoke)
+}
+
+fn artifact_has_only_revoke_evidence(artifact: &Artifact) -> bool {
+    !artifact.lifecycle_evidence.revoke.is_empty()
+        && artifact.lifecycle_evidence.issue.is_empty()
+        && artifact.lifecycle_evidence.store.is_empty()
+        && artifact.lifecycle_evidence.transmit.is_empty()
+        && artifact.lifecycle_evidence.validate.is_empty()
+        && artifact.lifecycle_evidence.refresh.is_empty()
+        && artifact.lifecycle_evidence.expire.is_empty()
+        && artifact.lifecycle_evidence.introspect.is_empty()
+}
+
+fn compatible_revoke_artifacts(source: &Artifact, target: &Artifact) -> bool {
+    if normalized_artifact_name(source) != normalized_artifact_name(target) {
+        return false;
+    }
+    source.artifact_type == target.artifact_type
+        || source.artifact_type == ArtifactType::Unknown
+        || target.artifact_type == ArtifactType::Unknown
+        || compatible_cookie_session_types(source.artifact_type, target.artifact_type)
+        || compatible_token_types(source.artifact_type, target.artifact_type)
+}
+
+fn compatible_cookie_session_types(left: ArtifactType, right: ArtifactType) -> bool {
+    matches!(
+        (left, right),
+        (
+            ArtifactType::SessionCookie | ArtifactType::SignedCookie | ArtifactType::SessionRecord,
+            ArtifactType::SessionCookie | ArtifactType::SignedCookie | ArtifactType::SessionRecord
+        )
+    )
+}
+
+fn compatible_token_types(left: ArtifactType, right: ArtifactType) -> bool {
+    matches!(
+        (left, right),
+        (
+            ArtifactType::RefreshJwt | ArtifactType::AccessJwt | ArtifactType::OpaqueBearerToken,
+            ArtifactType::RefreshJwt | ArtifactType::AccessJwt | ArtifactType::OpaqueBearerToken
+        )
+    )
+}
+
+fn normalized_artifact_name(artifact: &Artifact) -> String {
+    artifact
+        .display_name
+        .as_deref()
+        .unwrap_or("artifact")
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .split('_')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("_")
+}
+
+fn merge_path(source: &LifecyclePath, target: &mut LifecyclePath) {
+    target.artifact_ids.extend(source.artifact_ids.clone());
+    for source_step in &source.stages {
+        if let Some(target_step) = target
+            .stages
+            .iter_mut()
+            .find(|step| step.stage == source_step.stage)
+        {
+            target_step
+                .evidence_ids
+                .extend(source_step.evidence_ids.clone());
+        } else {
+            target.stages.push(source_step.clone());
+        }
+    }
+}
+
+fn refresh_path_metadata(
+    artifact_by_id: &BTreeMap<&str, &Artifact>,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+    path: &mut LifecyclePath,
+) {
+    path.artifact_ids.sort();
+    path.artifact_ids.dedup();
+    for step in &mut path.stages {
+        step.evidence_ids.sort();
+        step.evidence_ids.dedup();
+    }
+    path.stages.sort_by_key(|step| step.stage);
+
+    let artifacts = path
+        .artifact_ids
+        .iter()
+        .filter_map(|artifact_id| artifact_by_id.get(artifact_id.0.as_str()).copied())
+        .collect::<Vec<_>>();
+    let Some(primary_artifact) = artifact_for_path_with_lookup(artifact_by_id, path) else {
+        return;
+    };
+
+    let mut confidence = primary_artifact.confidence;
+    let mut dynamic = false;
+    let mut framework_default = false;
+    let mut evidence_locations = Vec::new();
+    let mut all_evidence_ids = Vec::new();
+
+    for artifact in artifacts {
+        confidence = min_confidence(confidence, artifact.confidence);
+    }
+    for step in &path.stages {
+        for evidence_id in &step.evidence_ids {
+            all_evidence_ids.push(evidence_id.clone());
+            if let Some(evidence) = evidence_by_id.get(evidence_id.0.as_str()) {
+                confidence = min_confidence(confidence, evidence.confidence);
+                dynamic |= evidence.dynamic;
+                framework_default |= evidence.framework_default;
+                evidence_locations.push(location_part(&evidence.location));
+            }
+        }
+    }
+
+    evidence_locations.sort();
+    evidence_locations.dedup();
+    all_evidence_ids.sort();
+    all_evidence_ids.dedup();
+
+    let mut id_parts = vec!["lifecycle_path".to_string()];
+    id_parts.extend(path.artifact_ids.iter().map(|id| id.0.clone()));
+    id_parts.extend(
+        path.stages
+            .iter()
+            .map(|step| format_stage(step.stage).to_string()),
+    );
+    id_parts.extend(all_evidence_ids.iter().map(|id| id.0.clone()));
+    id_parts.extend(evidence_locations);
+
+    path.id = stable_lifecycle_path_id(&id_parts);
+    path.confidence = confidence;
+    path.dynamic = dynamic;
+    path.reviewer_question =
+        reviewer_question_for_path(dynamic, framework_default, primary_artifact);
 }
 
 fn reviewer_question_for_path(
@@ -425,6 +741,19 @@ mod tests {
             excerpt: None,
             dynamic,
             framework_default: false,
+        }
+    }
+
+    fn evidence_with_detector(
+        id: &str,
+        stage: LifecycleStage,
+        detector_id: &str,
+        line: usize,
+        dynamic: bool,
+    ) -> Evidence {
+        Evidence {
+            detector_id: detector_id.to_string(),
+            ..evidence(id, stage, line, dynamic)
         }
     }
 
@@ -650,6 +979,157 @@ mod tests {
 
         assert_eq!(finding.severity, Severity::Low);
         assert!(finding.reviewer_question.is_some());
+    }
+
+    #[test]
+    fn same_name_revoke_only_artifact_merges_into_existing_path() {
+        let report = report_with_artifacts(
+            vec![
+                artifact(
+                    "artifact_session_store",
+                    ArtifactType::SessionCookie,
+                    "session",
+                    LifecycleEvidence {
+                        store: vec![EvidenceId("evidence_store".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+                artifact(
+                    "artifact_session_clear",
+                    ArtifactType::SessionCookie,
+                    "session",
+                    LifecycleEvidence {
+                        revoke: vec![EvidenceId("evidence_clear".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+            ],
+            vec![
+                evidence("evidence_store", LifecycleStage::Store, 10, false),
+                evidence_with_detector(
+                    "evidence_clear",
+                    LifecycleStage::Revoke,
+                    "logout.cookie_clear",
+                    20,
+                    false,
+                ),
+            ],
+        );
+
+        let paths = link(&report);
+
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0].artifact_ids.len(), 2);
+        assert!(has_stage(&paths[0], LifecycleStage::Store));
+        assert!(has_stage(&paths[0], LifecycleStage::Revoke));
+    }
+
+    #[test]
+    fn client_cookie_clear_does_not_satisfy_refresh_server_revoke() {
+        let mut report = report_with_artifacts(
+            vec![
+                artifact(
+                    "artifact_refresh",
+                    ArtifactType::RefreshJwt,
+                    "refresh_token",
+                    LifecycleEvidence {
+                        refresh: vec![EvidenceId("evidence_refresh".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+                artifact(
+                    "artifact_refresh_clear",
+                    ArtifactType::Unknown,
+                    "refresh_token",
+                    LifecycleEvidence {
+                        revoke: vec![EvidenceId("evidence_clear".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+            ],
+            vec![
+                evidence("evidence_refresh", LifecycleStage::Refresh, 10, false),
+                evidence_with_detector(
+                    "evidence_clear",
+                    LifecycleStage::Revoke,
+                    "logout.cookie_clear",
+                    20,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(findings.iter().any(|finding| {
+            finding.title.contains("refresh evidence")
+                && finding
+                    .reviewer_question
+                    .as_deref()
+                    .is_some_and(|question| question.contains("server-side"))
+        }));
+    }
+
+    #[test]
+    fn server_revoke_prevents_clear_cookie_only_finding() {
+        let mut report = report_with_artifacts(
+            vec![
+                artifact(
+                    "artifact_session_store",
+                    ArtifactType::SessionCookie,
+                    "session",
+                    LifecycleEvidence {
+                        store: vec![EvidenceId("evidence_store".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+                artifact(
+                    "artifact_session_clear",
+                    ArtifactType::SessionCookie,
+                    "session",
+                    LifecycleEvidence {
+                        revoke: vec![EvidenceId("evidence_clear".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+                artifact(
+                    "artifact_session_destroy",
+                    ArtifactType::SessionRecord,
+                    "session",
+                    LifecycleEvidence {
+                        revoke: vec![EvidenceId("evidence_destroy".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+            ],
+            vec![
+                evidence("evidence_store", LifecycleStage::Store, 10, false),
+                evidence_with_detector(
+                    "evidence_clear",
+                    LifecycleStage::Revoke,
+                    "logout.cookie_clear",
+                    20,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_destroy",
+                    LifecycleStage::Revoke,
+                    "logout.session_destroy",
+                    21,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            !findings
+                .iter()
+                .any(|finding| finding.title.contains("cleared on logout"))
+        );
     }
 
     #[test]
