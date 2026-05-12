@@ -8,6 +8,7 @@ use sessionscope_model::ScanReport;
 
 pub fn classify(mut report: ScanReport) -> ScanReport {
     report.findings = cookies::classify(&report);
+    report.findings.extend(jwt::classify(&report));
     sort_findings(&mut report);
     report
 }

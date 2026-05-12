@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use sessionscope_model::{
     Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeState, Evidence, EvidenceId,
-    Finding, FindingCategory, LifecycleEvidence, LifecycleStage, ScanReport, Severity,
-    SkippedReason, SourceLocation,
+    Finding, FindingCategory, JwtAttributeState, LifecycleEvidence, LifecycleStage, ScanReport,
+    Severity, SkippedReason, SourceLocation,
 };
 
 pub fn render(report: &ScanReport) -> String {
@@ -173,6 +173,9 @@ fn render_artifact(
     if let Some(attributes) = &artifact.cookie_attributes {
         render_cookie_attributes(output, attributes);
     }
+    if let Some(attributes) = &artifact.jwt_attributes {
+        render_jwt_attributes(output, attributes);
+    }
 }
 
 fn render_lifecycle_evidence(
@@ -246,6 +249,58 @@ fn render_cookie_attributes(
         ));
     }
     output.push('\n');
+}
+
+fn render_jwt_attributes(output: &mut String, attributes: &sessionscope_model::JwtAttributes) {
+    output.push_str("| JWT field | State | Value | Confidence | Evidence |\n");
+    output.push_str("| --- | --- | --- | --- | ---: |\n");
+    for (label, observation) in [
+        ("Operation", &attributes.operation),
+        ("Algorithm", &attributes.algorithm),
+        ("Key reference", &attributes.key_reference),
+        ("Issuer", &attributes.issuer),
+        ("Audience", &attributes.audience),
+        ("Expiration", &attributes.expiration),
+        ("Signature verification", &attributes.signature_verification),
+        ("Expiry enforcement", &attributes.expiry_enforcement),
+    ] {
+        output.push_str(&format!(
+            "| {label} | {} | {} | {} | {} |\n",
+            code_span(format_jwt_state(observation.state)),
+            table_cell(observation.value.as_deref().unwrap_or("-")),
+            code_span(format_confidence(observation.confidence)),
+            observation.evidence_ids.len()
+        ));
+    }
+    output.push('\n');
+
+    if let Some(identity_claims) = &attributes.identity_claims {
+        output.push_str("| JWT identity claim | State | Value | Confidence | Evidence |\n");
+        output.push_str("| --- | --- | --- | --- | ---: |\n");
+        for (label, observation) in [
+            ("Subject", &identity_claims.subject),
+            ("User ID", &identity_claims.user_id),
+            ("Tenant ID", &identity_claims.tenant_id),
+            ("Org ID", &identity_claims.org_id),
+            ("Workspace ID", &identity_claims.workspace_id),
+            ("Roles", &identity_claims.roles),
+            ("Scopes", &identity_claims.scopes),
+            ("Groups", &identity_claims.groups),
+            ("Email", &identity_claims.email),
+            ("Email verified", &identity_claims.email_verified),
+            ("Auth method", &identity_claims.auth_method),
+            ("Auth class", &identity_claims.auth_class),
+        ] {
+            output.push_str(&format!(
+                "| {label} | {} | {} | {} | {} |\n",
+                code_span(format_jwt_state(observation.state)),
+                table_cell(observation.value.as_deref().unwrap_or("-")),
+                code_span(format_confidence(observation.confidence)),
+                observation.evidence_ids.len()
+            ));
+        }
+        output.push('\n');
+    }
 }
 
 fn lifecycle_rows(lifecycle_evidence: &LifecycleEvidence) -> Vec<(LifecycleStage, &EvidenceId)> {
@@ -355,6 +410,16 @@ fn format_state(state: CookieAttributeState) -> &'static str {
         CookieAttributeState::Dynamic => "dynamic",
         CookieAttributeState::FrameworkDefault => "framework_default",
         CookieAttributeState::Unknown => "unknown",
+    }
+}
+
+fn format_jwt_state(state: JwtAttributeState) -> &'static str {
+    match state {
+        JwtAttributeState::Present => "present",
+        JwtAttributeState::Missing => "missing",
+        JwtAttributeState::Dynamic => "dynamic",
+        JwtAttributeState::FrameworkDefault => "framework_default",
+        JwtAttributeState::Unknown => "unknown",
     }
 }
 
@@ -480,7 +545,8 @@ mod tests {
     use sessionscope_model::{
         Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
         CookieAttributeState, CookieAttributes, Evidence, EvidenceId, FileScanResult, Finding,
-        FindingCategory, FindingId, Language, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION,
+        FindingCategory, FindingId, JwtAttributeObservation, JwtAttributeState, JwtAttributes,
+        JwtIdentityClaims, Language, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION,
         SanitizedExcerpt, ScanReport, ScanSummary, Severity, SkippedReason, SourceLocation,
     };
 
@@ -499,7 +565,7 @@ mod tests {
 
         let rendered = render(&report);
 
-        assert!(rendered.contains("- Schema version: `0.2.0`"));
+        assert!(rendered.contains("- Schema version: `0.3.0`"));
         assert!(rendered.contains("No skipped files."));
         assert!(rendered.contains("No findings were detected."));
         assert!(rendered.contains("No artifacts were detected."));
@@ -584,6 +650,7 @@ mod tests {
                 confidence: Confidence::High,
                 framework_hints: vec!["jsonwebtoken".to_string()],
                 cookie_attributes: None,
+                jwt_attributes: Some(jwt_attributes(evidence_id.clone())),
             }],
             evidence: vec![Evidence {
                 id: evidence_id.clone(),
@@ -617,6 +684,18 @@ mod tests {
 
         assert!(rendered.contains("### `access_jwt`"));
         assert!(rendered.contains("#### `access_jwt`"));
+        assert!(rendered.contains("| JWT field | State | Value | Confidence | Evidence |"));
+        assert!(rendered.contains("| Issuer | `present` | ISSUER | `high` | 1 |"));
+        assert!(
+            rendered.contains("| Signature verification | `present` | verified | `high` | 0 |")
+        );
+        assert!(
+            rendered.contains("| JWT identity claim | State | Value | Confidence | Evidence |")
+        );
+        assert!(rendered.contains("| Subject | `present` | userId | `high` | 1 |"));
+        assert!(rendered.contains(
+            "| Expiry enforcement | `framework_default` | library\\_default | `low` | 0 |"
+        ));
         assert!(rendered.contains("Category: `missing_validation_evidence`"));
         assert!(rendered.contains("- Source locations: `src/auth.ts:23:10`"));
         assert!(rendered.contains("| `validate` | `evidence_jwt_verify` | src/auth.ts:23:10 | `medium` | jwt.validation | `no` | `no` | jwt.verify\\(token, secret\\) |"));
@@ -739,6 +818,7 @@ mod tests {
             confidence: Confidence::High,
             framework_hints: vec!["express".to_string()],
             cookie_attributes: Some(attributes()),
+            jwt_attributes: None,
         }
     }
 
@@ -768,6 +848,65 @@ mod tests {
             expires: missing.clone(),
             path: missing.clone(),
             domain: missing,
+        }
+    }
+
+    fn jwt_attributes(evidence_id: EvidenceId) -> JwtAttributes {
+        let present = JwtAttributeObservation {
+            state: JwtAttributeState::Present,
+            value: Some("ISSUER".to_string()),
+            evidence_ids: vec![evidence_id.clone()],
+            confidence: Confidence::High,
+        };
+        let missing = JwtAttributeObservation {
+            state: JwtAttributeState::Missing,
+            value: None,
+            evidence_ids: Vec::new(),
+            confidence: Confidence::High,
+        };
+        JwtAttributes {
+            operation: JwtAttributeObservation {
+                state: JwtAttributeState::Present,
+                value: Some("validate".to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::High,
+            },
+            algorithm: missing.clone(),
+            key_reference: missing.clone(),
+            issuer: present,
+            audience: missing.clone(),
+            expiration: missing.clone(),
+            signature_verification: JwtAttributeObservation {
+                state: JwtAttributeState::Present,
+                value: Some("verified".to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::High,
+            },
+            expiry_enforcement: JwtAttributeObservation {
+                state: JwtAttributeState::FrameworkDefault,
+                value: Some("library_default".to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::Low,
+            },
+            identity_claims: Some(JwtIdentityClaims {
+                subject: JwtAttributeObservation {
+                    state: JwtAttributeState::Present,
+                    value: Some("userId".to_string()),
+                    evidence_ids: vec![evidence_id],
+                    confidence: Confidence::High,
+                },
+                user_id: missing.clone(),
+                tenant_id: missing.clone(),
+                org_id: missing.clone(),
+                workspace_id: missing.clone(),
+                roles: missing.clone(),
+                scopes: missing.clone(),
+                groups: missing.clone(),
+                email: missing.clone(),
+                email_verified: missing.clone(),
+                auth_method: missing.clone(),
+                auth_class: missing,
+            }),
         }
     }
 

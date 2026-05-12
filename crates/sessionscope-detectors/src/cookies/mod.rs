@@ -293,6 +293,7 @@ fn calls_to_output(
             confidence,
             framework_hints: vec![call.framework_hint.to_string()],
             cookie_attributes: Some(cookie_attributes),
+            jwt_attributes: None,
         });
 
         output.evidence.push(Evidence {

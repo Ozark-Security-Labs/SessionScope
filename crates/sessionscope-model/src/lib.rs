@@ -7,7 +7,8 @@ pub mod schema;
 
 pub use artifact::{
     Artifact, ArtifactId, ArtifactType, CookieAttributeObservation, CookieAttributeState,
-    CookieAttributes, LifecycleEvidence,
+    CookieAttributes, JwtAttributeObservation, JwtAttributeState, JwtAttributes, JwtIdentityClaims,
+    LifecycleEvidence,
 };
 pub use evidence::{Confidence, Evidence, EvidenceId, SanitizedExcerpt, SourceLocation};
 pub use finding::{Finding, FindingCategory, FindingId, Severity};
@@ -22,7 +23,8 @@ mod tests {
     use super::{
         Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
         CookieAttributeState, CookieAttributes, Evidence, EvidenceId, Finding, FindingCategory,
-        FindingId, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION, SanitizedExcerpt, Severity,
+        FindingId, JwtAttributeObservation, JwtAttributeState, JwtAttributes, JwtIdentityClaims,
+        LifecycleEvidence, LifecycleStage, SCHEMA_VERSION, SanitizedExcerpt, Severity,
         SourceLocation, stable_artifact_id, stable_evidence_id, stable_finding_id,
     };
 
@@ -62,6 +64,7 @@ mod tests {
             confidence: Confidence::High,
             framework_hints: vec!["express".to_string()],
             cookie_attributes: None,
+            jwt_attributes: None,
         };
 
         let serialized =
@@ -102,7 +105,7 @@ mod tests {
 
     #[test]
     fn enum_wire_values_are_snake_case() {
-        assert_eq!(SCHEMA_VERSION, "0.2.0");
+        assert_eq!(SCHEMA_VERSION, "0.3.0");
         assert_eq!(
             serde_json::to_value(FindingCategory::HighConfidenceMisconfiguration)
                 .expect("category should serialize"),
@@ -167,6 +170,85 @@ mod tests {
         assert_eq!(deserialized, attributes);
         assert!(serialized.contains("\"http_only\""));
         assert!(serialized.contains("\"same_site\""));
+    }
+
+    #[test]
+    fn round_trips_jwt_attribute_inventory() {
+        let evidence_id = EvidenceId("evidence_jwt_issuer".to_string());
+        let observed = JwtAttributeObservation {
+            state: JwtAttributeState::Present,
+            value: Some("ISSUER".to_string()),
+            evidence_ids: vec![evidence_id],
+            confidence: Confidence::High,
+        };
+        let missing = JwtAttributeObservation {
+            state: JwtAttributeState::Missing,
+            value: None,
+            evidence_ids: Vec::new(),
+            confidence: Confidence::High,
+        };
+        let attributes = JwtAttributes {
+            operation: JwtAttributeObservation {
+                state: JwtAttributeState::Present,
+                value: Some("validate".to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::High,
+            },
+            algorithm: missing.clone(),
+            key_reference: missing.clone(),
+            issuer: observed,
+            audience: missing.clone(),
+            expiration: missing.clone(),
+            signature_verification: JwtAttributeObservation {
+                state: JwtAttributeState::Present,
+                value: Some("verified".to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::High,
+            },
+            expiry_enforcement: JwtAttributeObservation {
+                state: JwtAttributeState::FrameworkDefault,
+                value: Some("library_default".to_string()),
+                evidence_ids: Vec::new(),
+                confidence: Confidence::Low,
+            },
+            identity_claims: Some(JwtIdentityClaims {
+                subject: JwtAttributeObservation {
+                    state: JwtAttributeState::Present,
+                    value: Some("userId".to_string()),
+                    evidence_ids: Vec::new(),
+                    confidence: Confidence::High,
+                },
+                user_id: missing.clone(),
+                tenant_id: missing.clone(),
+                org_id: missing.clone(),
+                workspace_id: missing.clone(),
+                roles: missing.clone(),
+                scopes: missing.clone(),
+                groups: missing.clone(),
+                email: missing.clone(),
+                email_verified: missing.clone(),
+                auth_method: missing.clone(),
+                auth_class: missing,
+            }),
+        };
+
+        let serialized = serde_json::to_string(&attributes).expect("jwt attributes serialize");
+        let deserialized: JwtAttributes =
+            serde_json::from_str(&serialized).expect("jwt attributes deserialize");
+
+        assert_eq!(deserialized, attributes);
+        assert!(serialized.contains("\"issuer\""));
+        assert!(serialized.contains("\"key_reference\""));
+        assert!(serialized.contains("\"signature_verification\""));
+        assert!(serialized.contains("\"expiry_enforcement\""));
+        assert!(serialized.contains("\"identity_claims\""));
+        assert!(serialized.contains("\"subject\""));
+
+        let mut attributes_without_claims = attributes;
+        attributes_without_claims.identity_claims = None;
+        let serialized_without_claims =
+            serde_json::to_string(&attributes_without_claims).expect("jwt attributes serialize");
+        assert!(!serialized_without_claims.contains("\"identity_claims\""));
     }
 
     #[test]

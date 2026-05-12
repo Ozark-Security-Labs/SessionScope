@@ -1,4 +1,5 @@
 use crate::cookies::CookieSetDetector;
+use crate::jwt::JwtDetector;
 use crate::{DetectionOutput, Detector, DetectorInput};
 
 #[derive(Default)]
@@ -12,7 +13,9 @@ impl DetectorRegistry {
     }
 
     pub fn builtin() -> Self {
-        Self::empty().with_detector(Box::new(CookieSetDetector))
+        Self::empty()
+            .with_detector(Box::new(CookieSetDetector))
+            .with_detector(Box::new(JwtDetector))
     }
 
     pub fn with_detector(mut self, detector: Box<dyn Detector>) -> Self {

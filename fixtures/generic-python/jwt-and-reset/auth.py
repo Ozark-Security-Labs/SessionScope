@@ -13,6 +13,11 @@ def issue_access_jwt(user_id: str) -> str:
     return jwt.encode(
         {
             "sub": user_id,
+            "workspace_id": "placeholder-workspace",
+            "groups": ["admins"],
+            "email": "person@example.com",
+            "email_verified": True,
+            "acr": "urn:mfa",
             "iss": ISSUER,
             "aud": AUDIENCE,
             "iat": now,
@@ -34,7 +39,12 @@ def verify_access_jwt(token: str):
 
 
 def verify_legacy_jwt(token: str):
-    return jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+    return jwt.decode(
+        token,
+        JWT_SECRET,
+        algorithms=["HS256"],
+        options={"verify_exp": False},
+    )
 
 
 def create_reset_token(user_id: str):

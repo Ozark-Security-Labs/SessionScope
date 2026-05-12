@@ -35,6 +35,16 @@ static COOKIE_VALUE_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?ix)(\bvalue\s*[:=]\s*)(["'])([^"']*)(["'])"#)
         .expect("cookie value key regex should compile")
 });
+static JWT_API_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?sx)\b(?:[A-Za-z_][A-Za-z0-9_]*\s*\.\s*)?(?:sign|verify|decode|encode|jwtVerify|decodeJwt)\s*\((?:[^()]|\([^)]*\)){0,600}\)"#,
+    )
+    .expect("JWT API call regex should compile")
+});
+static QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'"#)
+        .expect("quoted literal regex should compile")
+});
 static SENSITIVE_QUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?ix)(["']?\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b["']?\s*[:=]\s*)(["'])([^"']*)(["'])"#,
@@ -49,13 +59,23 @@ static SENSITIVE_UNQUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static SENSITIVE_CLAIM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?ix)(["'](?:sub|email|name|phone|address|sid|jti)["']\s*:\s*["'])([^"']+)(["'])"#,
+        r#"(?ix)(["']?(?:sub|email|email_verified|emailVerified|phone|address|sid|jti|user_id|userId|uid|tenant|tenant_id|tenantId|org|org_id|organization_id|organizationId|workspace|workspace_id|workspaceId|role|roles|scope|scopes|groups|amr|acr|auth_method|authMethod|auth_class|authClass)["']?\s*:\s*["'])([^"']+)(["'])"#,
     )
     .expect("sensitive claim regex should compile")
+});
+static SENSITIVE_CLAIM_COLLECTION_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?ix)(["']?(?:role|roles|scope|scopes|groups|amr|acr|auth_method|authMethod|auth_class|authClass)["']?\s*:\s*)(\[[^\]]*\]|\{[^}]*\})"#,
+    )
+    .expect("sensitive claim collection regex should compile")
 });
 static JWT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{6,}\b")
         .expect("JWT regex should compile")
+});
+static EMAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+        .expect("email regex should compile")
 });
 static PLACEHOLDER_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\bPLACEHOLDER[A-Z0-9_]*(?:TOKEN|SECRET|JWT)[A-Z0-9_]*\b")
@@ -105,6 +125,7 @@ pub fn safe_excerpt_at_location_with_options(
 pub fn redact_sensitive_values(input: &str) -> String {
     let mut output = PRIVATE_KEY_RE.replace_all(input, REDACTION).to_string();
     output = redact_cookie_headers(&output);
+    output = redact_jwt_api_calls(&output);
     output = BEARER_RE
         .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string();
@@ -126,6 +147,10 @@ pub fn redact_sensitive_values(input: &str) -> String {
     output = SENSITIVE_CLAIM_RE
         .replace_all(&output, format!("${{1}}{REDACTION}${{3}}"))
         .to_string();
+    output = SENSITIVE_CLAIM_COLLECTION_RE
+        .replace_all(&output, format!("${{1}}{REDACTION}"))
+        .to_string();
+    output = EMAIL_RE.replace_all(&output, REDACTION).to_string();
     output = JWT_RE.replace_all(&output, REDACTION).to_string();
     output = PLACEHOLDER_SECRET_RE
         .replace_all(&output, REDACTION)
@@ -138,6 +163,24 @@ pub fn redact_sensitive_values(input: &str) -> String {
             } else {
                 value.to_string()
             }
+        })
+        .to_string()
+}
+
+fn redact_jwt_api_calls(input: &str) -> String {
+    JWT_API_CALL_RE
+        .replace_all(input, |captures: &regex::Captures<'_>| {
+            let call = captures.get(0).expect("full capture should exist").as_str();
+            QUOTED_LITERAL_RE
+                .replace_all(call, |literal: &regex::Captures<'_>| {
+                    let value = literal
+                        .get(0)
+                        .expect("literal capture should exist")
+                        .as_str();
+                    let quote = &value[..1];
+                    format!("{quote}{REDACTION}{quote}")
+                })
+                .to_string()
         })
         .to_string()
 }
@@ -205,6 +248,42 @@ fn sanitize_artifact(artifact: &mut Artifact) {
         ] {
             if let Some(value) = &mut observation.value {
                 *value = redact_sensitive_values(value);
+            }
+        }
+    }
+    if let Some(attributes) = &mut artifact.jwt_attributes {
+        for observation in [
+            &mut attributes.operation,
+            &mut attributes.algorithm,
+            &mut attributes.key_reference,
+            &mut attributes.issuer,
+            &mut attributes.audience,
+            &mut attributes.expiration,
+            &mut attributes.signature_verification,
+            &mut attributes.expiry_enforcement,
+        ] {
+            if let Some(value) = &mut observation.value {
+                *value = redact_sensitive_values(value);
+            }
+        }
+        if let Some(identity_claims) = &mut attributes.identity_claims {
+            for observation in [
+                &mut identity_claims.subject,
+                &mut identity_claims.user_id,
+                &mut identity_claims.tenant_id,
+                &mut identity_claims.org_id,
+                &mut identity_claims.workspace_id,
+                &mut identity_claims.roles,
+                &mut identity_claims.scopes,
+                &mut identity_claims.groups,
+                &mut identity_claims.email,
+                &mut identity_claims.email_verified,
+                &mut identity_claims.auth_method,
+                &mut identity_claims.auth_class,
+            ] {
+                if let Some(value) = &mut observation.value {
+                    *value = redact_sensitive_values(value);
+                }
             }
         }
     }
@@ -335,7 +414,8 @@ mod tests {
     use sessionscope_detectors::DetectionOutput;
     use sessionscope_model::{
         Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeObservation,
-        CookieAttributeState, CookieAttributes, LifecycleEvidence, SourceLocation,
+        CookieAttributeState, CookieAttributes, JwtAttributeObservation, JwtAttributeState,
+        JwtAttributes, JwtIdentityClaims, LifecycleEvidence, SourceLocation,
     };
 
     use super::{
@@ -350,6 +430,26 @@ mod tests {
 
         assert!(output.contains("Authorization: Bearer [REDACTED]"));
         assert!(!output.contains("aaa.bbb.cccccccccccccccccccccc"));
+    }
+
+    #[test]
+    fn redacts_short_jwt_api_positional_literals() {
+        let output = redact_sensitive_values(
+            r#"jwt.sign({ sub: "user-123" }, "dev-secret"); jwt.verify("opaque-token", "secret"); jwt.decode("short-token"); jwt.decode(token, key="tiny", algorithms=["HS256"])"#,
+        );
+
+        for leaked in [
+            "user-123",
+            "dev-secret",
+            "opaque-token",
+            "short-token",
+            "\"secret\"",
+            "\"tiny\"",
+            "HS256",
+        ] {
+            assert!(!output.contains(leaked), "{leaked} leaked in {output}");
+        }
+        assert!(output.contains("[REDACTED]"));
     }
 
     #[test]
@@ -378,15 +478,19 @@ mod tests {
     #[test]
     fn redacts_sensitive_assignments_url_params_and_claim_values() {
         let output = redact_sensitive_values(
-            "client_secret=\"abcd1234SECRET\" /callback?access_token=abcd1234SECRET {\"sub\":\"user-123\", \"aud\":\"api\"}",
+            "client_secret=\"abcd1234SECRET\" /callback?access_token=abcd1234SECRET {\"sub\":\"user-123\", \"aud\":\"api\", \"roles\":[\"admin\"], tenant_id:\"tenant-123\"}",
         );
 
         assert!(output.contains("client_secret=\"[REDACTED]\""));
         assert!(output.contains("access_token=[REDACTED]"));
         assert!(output.contains("\"sub\":\"[REDACTED]\""));
         assert!(output.contains("\"aud\":\"api\""));
+        assert!(output.contains("\"roles\":[REDACTED]"));
+        assert!(output.contains("tenant_id:\"[REDACTED]\""));
         assert!(!output.contains("abcd1234SECRET"));
         assert!(!output.contains("user-123"));
+        assert!(!output.contains("admin"));
+        assert!(!output.contains("tenant-123"));
     }
 
     #[test]
@@ -489,6 +593,7 @@ mod tests {
                 confidence: Confidence::High,
                 framework_hints: Vec::new(),
                 cookie_attributes: Some(cookie_attributes_with_value(secret)),
+                jwt_attributes: None,
             }],
             evidence: Vec::new(),
             diagnostics: Vec::new(),
@@ -499,6 +604,38 @@ mod tests {
             .as_ref()
             .expect("attributes should remain")
             .domain
+            .value
+            .as_deref()
+            .expect("value should remain");
+        assert_eq!(value, "[REDACTED]");
+    }
+
+    #[test]
+    fn sanitizes_jwt_identity_claim_attribute_values() {
+        let output = sanitize_detection_output(DetectionOutput {
+            artifacts: vec![Artifact {
+                id: ArtifactId("artifact_jwt".to_string()),
+                artifact_type: ArtifactType::AccessJwt,
+                display_name: Some("access_jwt".to_string()),
+                locations: Vec::new(),
+                lifecycle_evidence: LifecycleEvidence::default(),
+                confidence: Confidence::High,
+                framework_hints: Vec::new(),
+                cookie_attributes: None,
+                jwt_attributes: Some(jwt_attributes_with_identity_value("person@example.com")),
+            }],
+            evidence: Vec::new(),
+            diagnostics: Vec::new(),
+        });
+
+        let value = output.artifacts[0]
+            .jwt_attributes
+            .as_ref()
+            .expect("jwt attributes should remain")
+            .identity_claims
+            .as_ref()
+            .expect("identity claims should remain")
+            .email
             .value
             .as_deref()
             .expect("value should remain");
@@ -525,6 +662,44 @@ mod tests {
                 evidence_ids: Vec::new(),
                 confidence: Confidence::High,
             },
+        }
+    }
+
+    fn jwt_attributes_with_identity_value(value: &str) -> JwtAttributes {
+        let missing = JwtAttributeObservation {
+            state: JwtAttributeState::Missing,
+            value: None,
+            evidence_ids: Vec::new(),
+            confidence: Confidence::High,
+        };
+        JwtAttributes {
+            operation: missing.clone(),
+            algorithm: missing.clone(),
+            key_reference: missing.clone(),
+            issuer: missing.clone(),
+            audience: missing.clone(),
+            expiration: missing.clone(),
+            signature_verification: missing.clone(),
+            expiry_enforcement: missing.clone(),
+            identity_claims: Some(JwtIdentityClaims {
+                subject: missing.clone(),
+                user_id: missing.clone(),
+                tenant_id: missing.clone(),
+                org_id: missing.clone(),
+                workspace_id: missing.clone(),
+                roles: missing.clone(),
+                scopes: missing.clone(),
+                groups: missing.clone(),
+                email: JwtAttributeObservation {
+                    state: JwtAttributeState::Present,
+                    value: Some(value.to_string()),
+                    evidence_ids: Vec::new(),
+                    confidence: Confidence::High,
+                },
+                email_verified: missing.clone(),
+                auth_method: missing.clone(),
+                auth_class: missing,
+            }),
         }
     }
 }

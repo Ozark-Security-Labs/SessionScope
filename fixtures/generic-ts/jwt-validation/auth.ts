@@ -5,11 +5,17 @@ const ISSUER = "https://placeholder.issuer.invalid";
 const AUDIENCE = "placeholder-service";
 
 export function issueAccessJwt(userId: string): string {
+  const claims = {
+    sub: userId,
+    tenant_id: "placeholder-tenant",
+    roles: ["admin"],
+    scope: "read:sessions",
+    email: "person@example.com",
+    emailVerified: true,
+    amr: "pwd",
+  };
   return jwt.sign(
-    {
-      sub: userId,
-      scope: "read:sessions",
-    },
+    claims,
     JWT_SECRET,
     {
       issuer: ISSUER,
@@ -27,7 +33,11 @@ export function verifyAccessJwt(token: string) {
 }
 
 export function verifyLegacyJwt(token: string) {
-  return jwt.verify(token, JWT_SECRET);
+  return jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+}
+
+export function inspectAccessJwt(token: string) {
+  return jwt.decode(token);
 }
 
 export const placeholderJwt =

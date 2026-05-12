@@ -1,7 +1,7 @@
 # SessionScope Schema
 
 SessionScope uses the `sessionscope-model` crate as its internal inventory
-model and JSON wire schema. The current schema version is `0.2.0`.
+model and JSON wire schema. The current schema version is `0.3.0`.
 
 Design decisions for dynamic evidence, framework defaults, confidence, and
 AuthMap-style alignment are recorded in
@@ -18,7 +18,7 @@ Serialized reports include:
 
 ```json
 {
-  "schema_version": "0.2.0"
+  "schema_version": "0.3.0"
 }
 ```
 
@@ -55,8 +55,9 @@ types are:
 - `unknown`
 
 Artifacts include a stable ID, type, optional safe display name, source
-locations, confidence, framework hints, lifecycle evidence references, and
-optional cookie attributes for cookie artifacts.
+locations, confidence, framework hints, lifecycle evidence references, optional
+cookie attributes for cookie artifacts, and optional JWT attributes for JWT
+artifacts.
 
 Lifecycle evidence is grouped by stage:
 
@@ -90,6 +91,103 @@ Each attribute observation includes:
 Cookie attribute observations are evidence inventory, not findings. Dynamic or
 framework-default values must not be treated as proof of insecurity until a
 classifier evaluates them.
+
+JWT artifacts may include a `jwt_attributes` object with structured
+observations for:
+
+- `operation`
+- `algorithm`
+- `key_reference`
+- `issuer`
+- `audience`
+- `expiration`
+- `signature_verification`
+- `expiry_enforcement`
+- optional `identity_claims`
+
+Each JWT observation includes:
+
+- `state`: `present`, `missing`, `dynamic`, `framework_default`, or
+  `unknown`
+- optional sanitized `value`
+- related `evidence_ids`
+- `confidence`
+
+JWT attribute values must be safe static identifiers or redacted placeholders,
+not token values, private keys, signing secrets, or runtime JWT contents.
+`expiration` describes issued-token expiry evidence; `expiry_enforcement`
+describes verification-time expiry behavior.
+
+`identity_claims` is a nested object for the SessionScope-owned ClaimTrace
+subset when statically visible in JWT issue payloads. It uses the same
+observation shape as the top-level JWT attributes and may contain:
+
+- `subject`
+- `user_id`
+- `tenant_id`
+- `org_id`
+- `workspace_id`
+- `roles`
+- `scopes`
+- `groups`
+- `email`
+- `email_verified`
+- `auth_method`
+- `auth_class`
+
+Identity-claim observations are trust-boundary inventory only. They indicate
+that a JWT may carry a claim useful for downstream authorization review; they do
+not mean the claim is trustworthy unless validation evidence also exists.
+Literal identity claim values, including subjects, user IDs, tenant IDs, org
+IDs, workspace IDs, roles, scopes, groups, email addresses, and auth method
+strings, must be redacted or summarized as placeholders. Boolean
+`email_verified` literals may be retained because they do not identify a
+principal.
+
+Example JWT attributes:
+
+```json
+{
+  "issuer": {
+    "state": "present",
+    "value": "ISSUER",
+    "evidence_ids": ["evidence_jwt_attribute_issuer"],
+    "confidence": "high"
+  },
+  "audience": {
+    "state": "present",
+    "value": "AUDIENCE",
+    "evidence_ids": ["evidence_jwt_attribute_audience"],
+    "confidence": "high"
+  },
+  "expiration": {
+    "state": "present",
+    "value": "[literal]",
+    "evidence_ids": ["evidence_jwt_attribute_expiration"],
+    "confidence": "high"
+  },
+  "identity_claims": {
+    "subject": {
+      "state": "present",
+      "value": "userId",
+      "evidence_ids": ["evidence_jwt_attribute_subject"],
+      "confidence": "high"
+    },
+    "tenant_id": {
+      "state": "present",
+      "value": "tenantId",
+      "evidence_ids": ["evidence_jwt_attribute_tenant_id"],
+      "confidence": "high"
+    },
+    "roles": {
+      "state": "present",
+      "value": "[literal]",
+      "evidence_ids": ["evidence_jwt_attribute_roles"],
+      "confidence": "high"
+    }
+  }
+}
+```
 
 ## Evidence
 

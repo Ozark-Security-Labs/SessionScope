@@ -138,7 +138,7 @@ version. A compact cookie audit excerpt looks like:
 
 ```json
 {
-  "schema_version": "0.2.0",
+  "schema_version": "0.3.0",
   "summary": {
     "files_discovered": 1,
     "files_scanned": 1,

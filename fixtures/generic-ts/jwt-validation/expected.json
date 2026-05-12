@@ -8,6 +8,8 @@
     "jwt_issuer_evidence_present",
     "jwt_audience_evidence_present",
     "jwt_expiry_evidence_present",
+    "decode_without_verify:inspectAccessJwt",
+    "disabled_expiry_enforcement:verifyLegacyJwt",
     "missing_validation_evidence:verifyLegacyJwt"
   ],
   "notes": "Covers generic TypeScript JWT issue and verification with a deliberate legacy verify call missing issuer/audience options."
