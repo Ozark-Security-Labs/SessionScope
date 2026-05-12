@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-ts.provider-refresh",
+  "framework": "generic-ts",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["provider_refresh:refresh_token"],
+  "expected_lifecycle_stages": ["refresh"],
+  "expected_findings": ["provider_refresh_review_required"],
+  "notes": "Covers provider-managed refresh behavior as dynamic review context without live provider probing."
+}

@@ -1,0 +1,9 @@
+{
+  "fixture_id": "django.password-change-refresh-revoke",
+  "framework": "django",
+  "source_files": ["views.py"],
+  "expected_artifacts": ["refresh_token"],
+  "expected_lifecycle_stages": ["revoke"],
+  "expected_findings": ["password_change_refresh_revocation_present"],
+  "notes": "Covers password-change-triggered refresh-token revocation evidence."
+}

@@ -98,6 +98,13 @@ not satisfy server-side revocation checks for sessions, refresh tokens, or
 provider tokens unless linked evidence such as `logout.session_destroy`,
 `logout.token_revoke`, or `logout.provider_revoke` is also present.
 
+Refresh-token detector evidence uses the existing lifecycle stages. Static
+rotation or revocation evidence, such as marking the previous refresh token
+used, deleting it, denylisting it, or revoking a token family, may satisfy the
+server-side revoke stage when linked into the same refresh-token path.
+Provider-managed refresh evidence is dynamic review context unless local source
+also shows deterministic rotation or revocation behavior.
+
 Cookie artifacts may include a `cookie_attributes` object with structured
 observations for:
 

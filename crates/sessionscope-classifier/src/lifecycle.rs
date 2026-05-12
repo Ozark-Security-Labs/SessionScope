@@ -25,6 +25,7 @@ pub fn link(report: &ScanReport) -> Vec<LifecyclePath> {
         .filter_map(|artifact| path_for_artifact(artifact, &evidence_by_id))
         .collect::<Vec<_>>();
     merge_revoke_only_paths(report, &evidence_by_id, &mut paths);
+    merge_refresh_paths(report, &evidence_by_id, &mut paths);
     sort_paths(&mut paths);
     paths
 }
@@ -91,6 +92,59 @@ fn merge_revoke_only_paths(
         merge_path(&source_path, &mut paths[target_index]);
         refresh_path_metadata(&artifact_by_id, evidence_by_id, &mut paths[target_index]);
         absorbed.insert(source_index);
+    }
+
+    if !absorbed.is_empty() {
+        let mut index = 0usize;
+        paths.retain(|_| {
+            let keep = !absorbed.contains(&index);
+            index += 1;
+            keep
+        });
+    }
+}
+
+fn merge_refresh_paths(
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+    paths: &mut Vec<LifecyclePath>,
+) {
+    let artifact_by_id = artifact_by_id(report);
+    let mut absorbed = BTreeSet::new();
+
+    for target_index in 0..paths.len() {
+        if absorbed.contains(&target_index)
+            || !is_refresh_path(&artifact_by_id, &paths[target_index])
+        {
+            continue;
+        }
+
+        for source_index in (target_index + 1)..paths.len() {
+            if absorbed.contains(&source_index)
+                || !is_refresh_path(&artifact_by_id, &paths[source_index])
+            {
+                continue;
+            }
+
+            let Some(target_artifact) =
+                artifact_for_path_with_lookup(&artifact_by_id, &paths[target_index])
+            else {
+                continue;
+            };
+            let Some(source_artifact) =
+                artifact_for_path_with_lookup(&artifact_by_id, &paths[source_index])
+            else {
+                continue;
+            };
+
+            if compatible_refresh_artifacts(source_artifact, target_artifact) {
+                let source_path = paths[source_index].clone();
+                merge_path(&source_path, &mut paths[target_index]);
+                absorbed.insert(source_index);
+            }
+        }
+
+        refresh_path_metadata(&artifact_by_id, evidence_by_id, &mut paths[target_index]);
     }
 
     if !absorbed.is_empty() {
@@ -228,6 +282,25 @@ fn classify_refresh_without_revoke(
     }
 
     let name = artifact.display_name.as_deref().unwrap_or("token");
+    if has_dynamic_or_provider_refresh(path, evidence_by_id) {
+        return Some(finding(
+            "lifecycle_refresh_dynamic_review",
+            FindingCategory::DynamicReviewRequired,
+            Severity::Low,
+            artifact,
+            path,
+            evidence_ids_for_stage(path, LifecycleStage::Refresh),
+            format!("Token `{name}` has dynamic refresh behavior without linked revocation evidence"),
+            "Refresh lifecycle evidence appears provider-managed or dynamic, and no deterministic source-bound revoke or rotation evidence was linked for the same artifact."
+                .to_string(),
+            "Confirm the provider or runtime refresh policy rotates or revokes previous refresh tokens."
+                .to_string(),
+            format!(
+                "Which provider setting or runtime path revokes previous refresh tokens for `{name}`?"
+            ),
+        ));
+    }
+
     let reviewer_question = if has_client_cookie_clear(path, evidence_by_id) {
         "Where is the previous refresh token revoked or marked used server-side, beyond clearing the client cookie?"
     } else {
@@ -429,6 +502,21 @@ fn has_server_revoke(path: &LifecyclePath, evidence_by_id: &BTreeMap<&str, &Evid
         })
 }
 
+fn has_dynamic_or_provider_refresh(
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    evidence_ids_for_stage(path, LifecycleStage::Refresh)
+        .iter()
+        .any(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| {
+                    evidence.dynamic || evidence.detector_id == "refresh.provider"
+                })
+        })
+}
+
 fn client_cookie_clear_ids(
     path: &LifecyclePath,
     evidence_by_id: &BTreeMap<&str, &Evidence>,
@@ -486,6 +574,39 @@ fn compatible_revoke_artifacts(source: &Artifact, target: &Artifact) -> bool {
         || target.artifact_type == ArtifactType::Unknown
         || compatible_cookie_session_types(source.artifact_type, target.artifact_type)
         || compatible_token_types(source.artifact_type, target.artifact_type)
+}
+
+fn is_refresh_path(artifact_by_id: &BTreeMap<&str, &Artifact>, path: &LifecyclePath) -> bool {
+    path.artifact_ids
+        .iter()
+        .filter_map(|artifact_id| artifact_by_id.get(artifact_id.0.as_str()).copied())
+        .any(is_refresh_artifact)
+        || has_stage(path, LifecycleStage::Refresh)
+}
+
+fn is_refresh_artifact(artifact: &Artifact) -> bool {
+    artifact.artifact_type == ArtifactType::RefreshJwt
+        || matches!(
+            normalized_refresh_name(artifact).as_deref(),
+            Some("refresh_token" | "refresh_jwt")
+        )
+}
+
+fn compatible_refresh_artifacts(source: &Artifact, target: &Artifact) -> bool {
+    is_refresh_artifact(source)
+        && is_refresh_artifact(target)
+        && (source.artifact_type == target.artifact_type
+            || source.artifact_type == ArtifactType::Unknown
+            || target.artifact_type == ArtifactType::Unknown
+            || compatible_token_types(source.artifact_type, target.artifact_type))
+}
+
+fn normalized_refresh_name(artifact: &Artifact) -> Option<&'static str> {
+    match normalized_artifact_name(artifact).as_str() {
+        "refresh" | "refresh_token" => Some("refresh_token"),
+        "refresh_jwt" => Some("refresh_jwt"),
+        _ => None,
+    }
 }
 
 fn compatible_cookie_session_types(left: ArtifactType, right: ArtifactType) -> bool {
@@ -1130,6 +1251,146 @@ mod tests {
                 .iter()
                 .any(|finding| finding.title.contains("cleared on logout"))
         );
+    }
+
+    #[test]
+    fn same_name_refresh_artifacts_merge_across_lifecycle_stages() {
+        let report = report_with_artifacts(
+            vec![
+                artifact(
+                    "artifact_refresh_store",
+                    ArtifactType::Unknown,
+                    "refresh_token",
+                    LifecycleEvidence {
+                        store: vec![EvidenceId("evidence_store".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+                artifact(
+                    "artifact_refresh_handler",
+                    ArtifactType::Unknown,
+                    "refresh",
+                    LifecycleEvidence {
+                        refresh: vec![EvidenceId("evidence_refresh".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+                artifact(
+                    "artifact_refresh_revoke",
+                    ArtifactType::RefreshJwt,
+                    "refresh_jwt",
+                    LifecycleEvidence {
+                        revoke: vec![EvidenceId("evidence_revoke".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+            ],
+            vec![
+                evidence_with_detector(
+                    "evidence_store",
+                    LifecycleStage::Store,
+                    "refresh.store",
+                    10,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_refresh",
+                    LifecycleStage::Refresh,
+                    "refresh.handler",
+                    20,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_revoke",
+                    LifecycleStage::Revoke,
+                    "refresh.rotate",
+                    30,
+                    false,
+                ),
+            ],
+        );
+
+        let paths = link(&report);
+
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0].artifact_ids.len(), 3);
+        assert!(has_stage(&paths[0], LifecycleStage::Store));
+        assert!(has_stage(&paths[0], LifecycleStage::Refresh));
+        assert!(has_stage(&paths[0], LifecycleStage::Revoke));
+    }
+
+    #[test]
+    fn refresh_rotate_revoke_prevents_lifecycle_gap() {
+        let mut report = report_with_artifacts(
+            vec![
+                artifact(
+                    "artifact_refresh",
+                    ArtifactType::Unknown,
+                    "refresh_token",
+                    LifecycleEvidence {
+                        refresh: vec![EvidenceId("evidence_refresh".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+                artifact(
+                    "artifact_refresh_revoke",
+                    ArtifactType::Unknown,
+                    "refresh_token",
+                    LifecycleEvidence {
+                        revoke: vec![EvidenceId("evidence_revoke".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+            ],
+            vec![
+                evidence_with_detector(
+                    "evidence_refresh",
+                    LifecycleStage::Refresh,
+                    "refresh.handler",
+                    10,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_revoke",
+                    LifecycleStage::Revoke,
+                    "refresh.rotate",
+                    20,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        assert!(classify(&report).is_empty());
+    }
+
+    #[test]
+    fn provider_dynamic_refresh_without_revoke_is_review_required() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_provider_refresh",
+                ArtifactType::Unknown,
+                "refresh_token",
+                LifecycleEvidence {
+                    refresh: vec![EvidenceId("evidence_provider".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![evidence_with_detector(
+                "evidence_provider",
+                LifecycleStage::Refresh,
+                "refresh.provider",
+                10,
+                true,
+            )],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+        let finding = findings.first().expect("dynamic review finding");
+
+        assert_eq!(finding.category, FindingCategory::DynamicReviewRequired);
+        assert!(finding.title.contains("dynamic refresh behavior"));
     }
 
     #[test]

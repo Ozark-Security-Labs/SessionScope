@@ -422,6 +422,147 @@ mod tests {
     }
 
     #[test]
+    fn refresh_fixtures_emit_lifecycle_evidence() {
+        let cases = [
+            (
+                fixture_root().join("express").join("refresh-rotation"),
+                vec![
+                    ("refresh.handler", LifecycleStage::Refresh),
+                    ("refresh.validate", LifecycleStage::Validate),
+                    ("refresh.rotate", LifecycleStage::Revoke),
+                    ("refresh.store", LifecycleStage::Store),
+                    ("refresh.expire", LifecycleStage::Expire),
+                ],
+            ),
+            (
+                fixture_root()
+                    .join("generic-ts")
+                    .join("refresh-reuse-detection"),
+                vec![
+                    ("refresh.reuse_detection", LifecycleStage::Validate),
+                    ("refresh.revoke", LifecycleStage::Revoke),
+                ],
+            ),
+            (
+                fixture_root()
+                    .join("django")
+                    .join("password-change-refresh-revoke"),
+                vec![("refresh.revoke", LifecycleStage::Revoke)],
+            ),
+            (
+                fixture_root().join("generic-ts").join("provider-refresh"),
+                vec![("refresh.provider", LifecycleStage::Refresh)],
+            ),
+        ];
+
+        for (root, expected) in cases {
+            let report = scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display()));
+
+            for (detector_id, stage) in expected {
+                assert!(
+                    report.evidence.iter().any(|evidence| {
+                        evidence.detector_id == detector_id && evidence.lifecycle_stage == stage
+                    }),
+                    "{} should include {detector_id} at {stage:?}",
+                    root.display()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn refresh_rotation_fixture_has_no_missing_revoke_gap() {
+        let root = fixture_root().join("express").join("refresh-rotation");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("refresh rotation fixture should scan"),
+        );
+
+        assert!(report.lifecycle_paths.iter().any(|path| {
+            path.stages
+                .iter()
+                .any(|step| step.stage == LifecycleStage::Refresh)
+                && path
+                    .stages
+                    .iter()
+                    .any(|step| step.stage == LifecycleStage::Revoke)
+        }));
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("refresh evidence"))
+        );
+    }
+
+    #[test]
+    fn refresh_without_rotation_fixture_produces_lifecycle_gap() {
+        let root = fixture_root()
+            .join("express")
+            .join("refresh-without-rotation");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("refresh-without-rotation fixture should scan"),
+        );
+
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("refresh evidence")
+        }));
+    }
+
+    #[test]
+    fn provider_refresh_fixture_produces_dynamic_review() {
+        let root = fixture_root().join("generic-ts").join("provider-refresh");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("provider refresh fixture should scan"),
+        );
+
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::DynamicReviewRequired
+                && finding.title.contains("dynamic refresh behavior")
+        }));
+    }
+
+    #[test]
+    fn existing_logout_fixture_links_refresh_revocation() {
+        let root = fixture_root()
+            .join("express")
+            .join("cookie-session-lifecycle");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("express cookie fixture should scan"),
+        );
+
+        assert!(report.lifecycle_paths.iter().any(|path| {
+            path.stages
+                .iter()
+                .any(|step| step.stage == LifecycleStage::Refresh)
+                && path
+                    .stages
+                    .iter()
+                    .any(|step| step.stage == LifecycleStage::Revoke)
+        }));
+    }
+
+    #[test]
     fn generic_jwt_fixtures_render_sanitized_identity_claims() {
         for root in [
             fixture_root().join("generic-ts").join("jwt-validation"),

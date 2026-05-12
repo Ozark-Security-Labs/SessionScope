@@ -1,0 +1,9 @@
+{
+  "fixture_id": "express.refresh-without-rotation",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["refresh_token"],
+  "expected_lifecycle_stages": ["validate", "refresh"],
+  "expected_findings": ["refresh_without_rotation_or_revoke"],
+  "notes": "Covers refresh handler/use evidence without old-token rotation or server-side revocation evidence."
+}

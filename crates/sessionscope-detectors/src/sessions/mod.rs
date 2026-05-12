@@ -48,9 +48,27 @@ impl Detector for SessionLifecycleDetector {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RefreshTokenLifecycleDetector;
+
+impl Detector for RefreshTokenLifecycleDetector {
+    fn id(&self) -> &'static str {
+        "refresh.lifecycle"
+    }
+
+    fn detect(&self, input: &DetectorInput<'_>) -> DetectionOutput {
+        match input.language {
+            Language::JavaScript | Language::TypeScript => detect_refresh_javascript_like(input),
+            Language::Python => detect_refresh_python(input),
+            _ => DetectionOutput::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Signal {
     detector_id: &'static str,
+    stage: LifecycleStage,
     artifact_type: ArtifactType,
     display_name: String,
     framework_hint: &'static str,
@@ -79,6 +97,376 @@ fn detect_python(input: &DetectorInput<'_>) -> DetectionOutput {
     let mut signals = Vec::new();
     collect_python_signals(tree.root_node(), input.source, &mut signals);
     signals_to_output(input, signals)
+}
+
+fn detect_refresh_javascript_like(input: &DetectorInput<'_>) -> DetectionOutput {
+    let Some(tree) = parse_javascript_like(input, input.source) else {
+        return DetectionOutput::default();
+    };
+
+    let mut signals = Vec::new();
+    collect_refresh_js_signals(tree.root_node(), input.source, &mut signals);
+    signals_to_output(input, signals)
+}
+
+fn detect_refresh_python(input: &DetectorInput<'_>) -> DetectionOutput {
+    let Some(tree) = parse_python(input.source) else {
+        return DetectionOutput::default();
+    };
+
+    let mut signals = Vec::new();
+    collect_refresh_python_signals(tree.root_node(), input.source, &mut signals);
+    signals_to_output(input, signals)
+}
+
+fn collect_refresh_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+    match node.kind() {
+        "call_expression" => collect_refresh_js_call_signal(node, source, signals),
+        "function_declaration" | "method_definition" => {
+            if js_function_name(node, source)
+                .as_deref()
+                .is_some_and(|name| name.to_ascii_lowercase().contains("refresh"))
+            {
+                signals.push(refresh_signal(
+                    "refresh.handler",
+                    LifecycleStage::Refresh,
+                    node,
+                    source,
+                    "javascript",
+                    Confidence::Medium,
+                    true,
+                ));
+            }
+        }
+        "export_statement" => {
+            let text = node_text(node, source);
+            let normalized = normalize_symbol(&text);
+            if normalized.contains("refresh")
+                && (normalized.contains("functionpatch")
+                    || normalized.contains("functionpost")
+                    || normalized.contains("constpatch")
+                    || normalized.contains("constpost"))
+            {
+                signals.push(refresh_signal(
+                    "refresh.handler",
+                    LifecycleStage::Refresh,
+                    node,
+                    source,
+                    "nextjs",
+                    Confidence::Medium,
+                    true,
+                ));
+            }
+        }
+        _ => {}
+    }
+
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_refresh_js_signals(child, source, signals);
+    }
+}
+
+fn collect_refresh_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+    let text = node_text(node, source);
+    let normalized = normalize_symbol(&text);
+
+    if is_js_refresh_route(&text) {
+        signals.push(refresh_signal(
+            "refresh.handler",
+            LifecycleStage::Refresh,
+            node,
+            source,
+            "express",
+            Confidence::High,
+            false,
+        ));
+    }
+
+    if is_refresh_cookie_store_call(node, source) || is_refresh_store_call(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.store",
+            LifecycleStage::Store,
+            node,
+            source,
+            refresh_framework_hint(&text),
+            Confidence::High,
+            false,
+        ));
+        if has_refresh_expiry_text(&normalized) {
+            signals.push(refresh_signal(
+                "refresh.expire",
+                LifecycleStage::Expire,
+                node,
+                source,
+                refresh_framework_hint(&text),
+                Confidence::High,
+                false,
+            ));
+        }
+    }
+
+    if is_refresh_issue_call(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.issue",
+            LifecycleStage::Issue,
+            node,
+            source,
+            "javascript",
+            Confidence::High,
+            false,
+        ));
+    }
+
+    if is_refresh_validate_call(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.validate",
+            LifecycleStage::Validate,
+            node,
+            source,
+            refresh_framework_hint(&text),
+            Confidence::High,
+            false,
+        ));
+    }
+
+    if is_refresh_rotate_call(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.rotate",
+            LifecycleStage::Refresh,
+            node,
+            source,
+            refresh_framework_hint(&text),
+            Confidence::High,
+            false,
+        ));
+        if has_old_token_invalidation_text(&normalized) {
+            signals.push(refresh_signal(
+                "refresh.rotate",
+                LifecycleStage::Revoke,
+                node,
+                source,
+                refresh_framework_hint(&text),
+                Confidence::High,
+                false,
+            ));
+        }
+    } else if is_refresh_revoke_call(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.revoke",
+            LifecycleStage::Revoke,
+            node,
+            source,
+            refresh_framework_hint(&text),
+            Confidence::High,
+            false,
+        ));
+    }
+
+    if is_refresh_reuse_detection(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.reuse_detection",
+            LifecycleStage::Validate,
+            node,
+            source,
+            refresh_framework_hint(&text),
+            Confidence::High,
+            false,
+        ));
+        if has_family_invalidation_text(&normalized) {
+            signals.push(refresh_signal(
+                "refresh.reuse_detection",
+                LifecycleStage::Revoke,
+                node,
+                source,
+                refresh_framework_hint(&text),
+                Confidence::High,
+                false,
+            ));
+        }
+    }
+
+    if is_refresh_provider_call(&normalized) {
+        let stage = if normalized.contains("revoke")
+            || normalized.contains("delete")
+            || normalized.contains("signout")
+        {
+            LifecycleStage::Revoke
+        } else {
+            LifecycleStage::Refresh
+        };
+        signals.push(refresh_signal(
+            "refresh.provider",
+            stage,
+            node,
+            source,
+            "provider",
+            Confidence::Medium,
+            true,
+        ));
+    }
+}
+
+fn collect_refresh_python_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+    if node.kind() == "function_definition" {
+        let name = child_by_field(node, "name").map(|name| node_text(name, source));
+        let decorators = python_decorator_text(node, source);
+        if name
+            .as_deref()
+            .is_some_and(|name| name.to_ascii_lowercase().contains("refresh"))
+            || decorators.to_ascii_lowercase().contains("/refresh")
+        {
+            signals.push(refresh_signal(
+                "refresh.handler",
+                LifecycleStage::Refresh,
+                node,
+                source,
+                python_framework_hint(&decorators),
+                Confidence::High,
+                false,
+            ));
+        }
+    }
+
+    if node.kind() == "call" {
+        collect_refresh_python_call_signal(node, source, signals);
+    }
+
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_refresh_python_signals(child, source, signals);
+    }
+}
+
+fn collect_refresh_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+    let function = child_by_field(node, "function")
+        .map(|function| node_text(function, source))
+        .unwrap_or_default();
+    let text = node_text(node, source);
+    let normalized = normalize_symbol(&format!("{function} {text}"));
+
+    if is_refresh_store_call(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.store",
+            LifecycleStage::Store,
+            node,
+            source,
+            refresh_framework_hint(&text),
+            Confidence::High,
+            false,
+        ));
+        if has_refresh_expiry_text(&normalized) {
+            signals.push(refresh_signal(
+                "refresh.expire",
+                LifecycleStage::Expire,
+                node,
+                source,
+                refresh_framework_hint(&text),
+                Confidence::High,
+                false,
+            ));
+        }
+    }
+
+    if is_refresh_issue_call(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.issue",
+            LifecycleStage::Issue,
+            node,
+            source,
+            "python",
+            Confidence::High,
+            false,
+        ));
+    }
+
+    if is_refresh_validate_call(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.validate",
+            LifecycleStage::Validate,
+            node,
+            source,
+            refresh_framework_hint(&text),
+            Confidence::High,
+            false,
+        ));
+    }
+
+    if is_refresh_rotate_call(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.rotate",
+            LifecycleStage::Refresh,
+            node,
+            source,
+            refresh_framework_hint(&text),
+            Confidence::High,
+            false,
+        ));
+        if has_old_token_invalidation_text(&normalized) {
+            signals.push(refresh_signal(
+                "refresh.rotate",
+                LifecycleStage::Revoke,
+                node,
+                source,
+                refresh_framework_hint(&text),
+                Confidence::High,
+                false,
+            ));
+        }
+    } else if is_refresh_revoke_call(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.revoke",
+            LifecycleStage::Revoke,
+            node,
+            source,
+            refresh_framework_hint(&text),
+            Confidence::High,
+            false,
+        ));
+    }
+
+    if is_refresh_reuse_detection(&normalized) {
+        signals.push(refresh_signal(
+            "refresh.reuse_detection",
+            LifecycleStage::Validate,
+            node,
+            source,
+            refresh_framework_hint(&text),
+            Confidence::High,
+            false,
+        ));
+        if has_family_invalidation_text(&normalized) {
+            signals.push(refresh_signal(
+                "refresh.reuse_detection",
+                LifecycleStage::Revoke,
+                node,
+                source,
+                refresh_framework_hint(&text),
+                Confidence::High,
+                false,
+            ));
+        }
+    }
+
+    if is_refresh_provider_call(&normalized) {
+        let stage = if normalized.contains("revoke")
+            || normalized.contains("delete")
+            || normalized.contains("signout")
+        {
+            LifecycleStage::Revoke
+        } else {
+            LifecycleStage::Refresh
+        };
+        signals.push(refresh_signal(
+            "refresh.provider",
+            stage,
+            node,
+            source,
+            "provider",
+            Confidence::Medium,
+            true,
+        ));
+    }
 }
 
 fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
@@ -330,6 +718,7 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
     for signal in signals {
         let key = (
             signal.detector_id,
+            signal.stage,
             signal.artifact_type,
             signal.display_name.clone(),
             signal.line,
@@ -355,7 +744,7 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
         ]);
         let evidence_id = stable_evidence_id(&[
             signal.detector_id,
-            "revoke",
+            format_stage(signal.stage),
             input.path,
             &signal.line.to_string(),
             &signal.column.to_string(),
@@ -367,10 +756,7 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
             artifact_type,
             display_name: Some(signal.display_name),
             locations: vec![location.clone()],
-            lifecycle_evidence: LifecycleEvidence {
-                revoke: vec![evidence_id.clone()],
-                ..LifecycleEvidence::default()
-            },
+            lifecycle_evidence: lifecycle_evidence_for_stage(signal.stage, evidence_id.clone()),
             confidence: signal.confidence,
             framework_hints: vec![signal.framework_hint.to_string()],
             cookie_attributes: None,
@@ -378,7 +764,7 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
         });
         output.evidence.push(Evidence {
             id: evidence_id,
-            lifecycle_stage: LifecycleStage::Revoke,
+            lifecycle_stage: signal.stage,
             location,
             detector_id: signal.detector_id.to_string(),
             confidence: signal.confidence,
@@ -401,8 +787,33 @@ fn signal(
     confidence: Confidence,
     dynamic: bool,
 ) -> Signal {
+    signal_for_stage(
+        detector_id,
+        LifecycleStage::Revoke,
+        artifact_type,
+        display_name,
+        framework_hint,
+        node,
+        source,
+        confidence,
+        dynamic,
+    )
+}
+
+fn signal_for_stage(
+    detector_id: &'static str,
+    stage: LifecycleStage,
+    artifact_type: ArtifactType,
+    display_name: &str,
+    framework_hint: &'static str,
+    node: Node<'_>,
+    source: &str,
+    confidence: Confidence,
+    dynamic: bool,
+) -> Signal {
     Signal {
         detector_id,
+        stage,
         artifact_type,
         display_name: normalize_display_name(display_name),
         framework_hint,
@@ -412,6 +823,47 @@ fn signal(
         dynamic,
         excerpt: SanitizedExcerpt(sanitize_excerpt(&node_text(node, source))),
     }
+}
+
+fn refresh_signal(
+    detector_id: &'static str,
+    stage: LifecycleStage,
+    node: Node<'_>,
+    source: &str,
+    framework_hint: &'static str,
+    confidence: Confidence,
+    dynamic: bool,
+) -> Signal {
+    let normalized = normalize_symbol(&node_text(node, source));
+    signal_for_stage(
+        detector_id,
+        stage,
+        refresh_artifact_type(&normalized),
+        "refresh_token",
+        framework_hint,
+        node,
+        source,
+        confidence,
+        dynamic,
+    )
+}
+
+fn lifecycle_evidence_for_stage(
+    stage: LifecycleStage,
+    evidence_id: sessionscope_model::EvidenceId,
+) -> LifecycleEvidence {
+    let mut lifecycle_evidence = LifecycleEvidence::default();
+    match stage {
+        LifecycleStage::Issue => lifecycle_evidence.issue.push(evidence_id),
+        LifecycleStage::Store => lifecycle_evidence.store.push(evidence_id),
+        LifecycleStage::Transmit => lifecycle_evidence.transmit.push(evidence_id),
+        LifecycleStage::Validate => lifecycle_evidence.validate.push(evidence_id),
+        LifecycleStage::Refresh => lifecycle_evidence.refresh.push(evidence_id),
+        LifecycleStage::Revoke => lifecycle_evidence.revoke.push(evidence_id),
+        LifecycleStage::Expire => lifecycle_evidence.expire.push(evidence_id),
+        LifecycleStage::Introspect => lifecycle_evidence.introspect.push(evidence_id),
+    }
+    lifecycle_evidence
 }
 
 fn parse_javascript_like(input: &DetectorInput<'_>, source: &str) -> Option<Tree> {
@@ -439,6 +891,27 @@ fn is_js_logout_route(text: &str) -> bool {
     let normalized = normalize_symbol(text);
     (normalized.contains("app.post") || normalized.contains("router.post"))
         && normalized.contains("logout")
+}
+
+fn is_js_refresh_route(text: &str) -> bool {
+    let normalized = normalize_symbol(text);
+    (normalized.contains("app.post")
+        || normalized.contains("router.post")
+        || normalized.contains("app.patch")
+        || normalized.contains("router.patch"))
+        && normalized.contains("refresh")
+}
+
+fn is_refresh_cookie_store_call(node: Node<'_>, source: &str) -> bool {
+    let function = child_by_field(node, "function")
+        .map(|function| node_text(function, source))
+        .unwrap_or_default();
+    let text = node_text(node, source).to_ascii_lowercase();
+    (function.ends_with(".cookie")
+        || function.ends_with(".set")
+        || function.ends_with(".set_cookie")
+        || function == "set_cookie")
+        && text.contains("refresh")
 }
 
 fn is_js_clear_cookie_call(node: Node<'_>, source: &str) -> bool {
@@ -500,6 +973,164 @@ fn is_provider_revoke_text(normalized: &str) -> bool {
         || normalized.contains("supabase.auth.signout")
         || normalized.contains("clerk.sessions.revoke")
         || normalized.contains("identityprovider.revoke")
+}
+
+fn is_refresh_provider_call(normalized: &str) -> bool {
+    (normalized.contains("provider")
+        || normalized.contains("auth0")
+        || normalized.contains("okta")
+        || normalized.contains("oauth")
+        || normalized.contains("supabase")
+        || normalized.contains("clerk"))
+        && (normalized.contains("refresh")
+            || normalized.contains("rotate")
+            || normalized.contains("revoke")
+            || normalized.contains("signout"))
+}
+
+fn is_refresh_issue_call(normalized: &str) -> bool {
+    normalized.contains("refresh")
+        && (normalized.contains("issuerefresh")
+            || normalized.contains("createrefresh")
+            || normalized.contains("generaterefresh")
+            || normalized.contains("newrefreshtoken")
+            || normalized.contains("signrefresh")
+            || normalized.contains("signjwt")
+            || normalized.contains("jwt.encode")
+            || normalized.contains("randombytes")
+            || normalized.contains("randomuuid")
+            || normalized.contains("token_urlsafe"))
+}
+
+fn is_refresh_store_call(normalized: &str) -> bool {
+    normalized.contains("refresh")
+        && (normalized.contains(".create")
+            || normalized.contains(".insert")
+            || normalized.contains(".save")
+            || normalized.contains(".set")
+            || normalized.contains(".update")
+            || normalized.contains("storerefresh")
+            || normalized.contains("store_refresh")
+            || normalized.contains("persist")
+            || normalized.contains("set_cookie")
+            || normalized.contains("cookies.set"))
+}
+
+fn is_refresh_validate_call(normalized: &str) -> bool {
+    normalized.contains("refresh")
+        && (normalized.contains(".find")
+            || normalized.contains("findunique")
+            || normalized.contains("findfirst")
+            || normalized.contains("findone")
+            || normalized.contains("lookup")
+            || normalized.contains("compare")
+            || normalized.contains("verify")
+            || normalized.contains("jwtverify")
+            || normalized.contains("jwt.decode")
+            || normalized.contains("cookies.get")
+            || normalized.contains("request.cookies")
+            || normalized.contains("request.body")
+            || normalized.contains("revoked")
+            || normalized.contains("used")
+            || normalized.contains("expires"))
+}
+
+fn is_refresh_rotate_call(normalized: &str) -> bool {
+    normalized.contains("refresh")
+        && (normalized.contains("rotate")
+            || normalized.contains("rotation")
+            || normalized.contains("markused")
+            || normalized.contains("mark_refresh_token_used")
+            || normalized.contains("usedat")
+            || normalized.contains("replace")
+            || normalized.contains("previousrefresh")
+            || normalized.contains("oldrefresh"))
+}
+
+fn is_refresh_revoke_call(normalized: &str) -> bool {
+    normalized.contains("refresh")
+        && (normalized.contains("revoke")
+            || normalized.contains("invalidate")
+            || normalized.contains("delete")
+            || normalized.contains("destro")
+            || normalized.contains("denylist")
+            || normalized.contains("blacklist")
+            || normalized.contains("revokedat")
+            || normalized.contains("passwordchange")
+            || normalized.contains("password_change"))
+}
+
+fn is_refresh_reuse_detection(normalized: &str) -> bool {
+    normalized.contains("refresh")
+        && (normalized.contains("reuse")
+            || normalized.contains("reused")
+            || normalized.contains("tokenfamily")
+            || normalized.contains("token_family")
+            || normalized.contains("familyid")
+            || normalized.contains("family_id"))
+}
+
+fn has_old_token_invalidation_text(normalized: &str) -> bool {
+    normalized.contains("revoke")
+        || normalized.contains("invalidate")
+        || normalized.contains("delete")
+        || normalized.contains("markused")
+        || normalized.contains("mark_refresh_token_used")
+        || normalized.contains("usedat")
+        || normalized.contains("revokedat")
+        || normalized.contains("previousrefresh")
+        || normalized.contains("oldrefresh")
+}
+
+fn has_family_invalidation_text(normalized: &str) -> bool {
+    has_old_token_invalidation_text(normalized)
+        && (normalized.contains("family")
+            || normalized.contains("session")
+            || normalized.contains("user"))
+}
+
+fn has_refresh_expiry_text(normalized: &str) -> bool {
+    normalized.contains("expires")
+        || normalized.contains("expiresat")
+        || normalized.contains("expires_at")
+        || normalized.contains("maxage")
+        || normalized.contains("max_age")
+        || normalized.contains("ttl")
+}
+
+fn refresh_artifact_type(normalized: &str) -> ArtifactType {
+    if normalized.contains("jwt")
+        || normalized.contains("signjwt")
+        || normalized.contains("jwt.encode")
+        || normalized.contains("jwtverify")
+    {
+        ArtifactType::RefreshJwt
+    } else {
+        ArtifactType::Unknown
+    }
+}
+
+fn refresh_framework_hint(text: &str) -> &'static str {
+    let normalized = text.to_ascii_lowercase();
+    if normalized.contains("cookies()") {
+        "nextjs"
+    } else if normalized.contains("@app.") || normalized.contains("@router.") {
+        "fastapi"
+    } else if normalized.contains("django") {
+        "django"
+    } else if normalized.contains("provider")
+        || normalized.contains("auth0")
+        || normalized.contains("okta")
+        || normalized.contains("oauth")
+        || normalized.contains("supabase")
+        || normalized.contains("clerk")
+    {
+        "provider"
+    } else if normalized.contains("app.") || normalized.contains("router.") {
+        "express"
+    } else {
+        "refresh"
+    }
 }
 
 fn is_token_revoke_call(normalized: &str) -> bool {
@@ -695,12 +1326,37 @@ fn artifact_type_part(artifact_type: ArtifactType) -> &'static str {
     }
 }
 
+fn format_stage(stage: LifecycleStage) -> &'static str {
+    match stage {
+        LifecycleStage::Issue => "issue",
+        LifecycleStage::Store => "store",
+        LifecycleStage::Transmit => "transmit",
+        LifecycleStage::Validate => "validate",
+        LifecycleStage::Refresh => "refresh",
+        LifecycleStage::Revoke => "revoke",
+        LifecycleStage::Expire => "expire",
+        LifecycleStage::Introspect => "introspect",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn detect(language: Language, source: &str) -> DetectionOutput {
         SessionLifecycleDetector.detect(&DetectorInput {
+            path: match language {
+                Language::Python => "app.py",
+                Language::TypeScript => "app.ts",
+                _ => "app.js",
+            },
+            language,
+            source,
+        })
+    }
+
+    fn detect_refresh(language: Language, source: &str) -> DetectionOutput {
+        RefreshTokenLifecycleDetector.detect(&DetectorInput {
             path: match language {
                 Language::Python => "app.py",
                 Language::TypeScript => "app.ts",
@@ -841,6 +1497,179 @@ app.post("/logout", () => revokeRefreshToken("PLACEHOLDER_REFRESH_TOKEN"));
         assert!(text.contains(REDACTION));
     }
 
+    #[test]
+    fn detects_express_refresh_rotation_and_old_token_invalidation() {
+        let output = detect_refresh(
+            Language::TypeScript,
+            r#"
+app.post("/refresh", async (request, response) => {
+  const previousRefreshToken = request.cookies.refresh_token;
+  const stored = await refreshTokenStore.findUnique({ where: { token: previousRefreshToken } });
+  const nextRefreshToken = generateRefreshToken(stored.userId);
+  await refreshTokenStore.update({ data: { usedAt: new Date() } });
+  await refreshTokenStore.create({ data: { token: nextRefreshToken, expiresAt: refreshExpiry } });
+  response.cookie("refresh_token", nextRefreshToken, { httpOnly: true, maxAge: 604800 });
+});
+"#,
+        );
+
+        assert_detector(&output, "refresh.handler");
+        assert_detector(&output, "refresh.validate");
+        assert_detector(&output, "refresh.issue");
+        assert_detector(&output, "refresh.rotate");
+        assert_detector(&output, "refresh.store");
+        assert_detector(&output, "refresh.expire");
+        assert_stage(&output, "refresh.rotate", LifecycleStage::Revoke);
+    }
+
+    #[test]
+    fn detects_nextjs_refresh_cookie_get_and_set() {
+        let output = detect_refresh(
+            Language::TypeScript,
+            r#"
+export async function PATCH() {
+  const refreshToken = cookies().get("refresh")?.value;
+  await verifyRefreshJwt(refreshToken);
+  const nextRefresh = await rotateRefreshToken(refreshToken);
+  cookies().set("refresh", nextRefresh, { httpOnly: true, maxAge: 604800 });
+}
+"#,
+        );
+
+        assert_detector(&output, "refresh.handler");
+        assert_detector(&output, "refresh.validate");
+        assert_detector(&output, "refresh.rotate");
+        assert_detector(&output, "refresh.store");
+    }
+
+    #[test]
+    fn detects_fastapi_refresh_lookup_expiry_and_rotation() {
+        let output = detect_refresh(
+            Language::Python,
+            r#"
+@app.post("/refresh")
+def refresh(response, refresh_token: str):
+    stored = refresh_store.find_one(refresh_token)
+    verify_refresh_jwt(refresh_token)
+    mark_refresh_token_used(refresh_token)
+    next_refresh_token = create_refresh_token(stored["user_id"])
+    refresh_store.create({"token": next_refresh_token, "expires_at": refresh_expiry})
+    response.set_cookie("refresh_token", next_refresh_token, max_age=604800)
+"#,
+        );
+
+        assert_detector(&output, "refresh.handler");
+        assert_detector(&output, "refresh.validate");
+        assert_detector(&output, "refresh.issue");
+        assert_detector(&output, "refresh.rotate");
+        assert_detector(&output, "refresh.store");
+        assert_detector(&output, "refresh.expire");
+        assert_stage(&output, "refresh.rotate", LifecycleStage::Revoke);
+    }
+
+    #[test]
+    fn detects_django_password_change_refresh_revocation() {
+        let output = detect_refresh(
+            Language::Python,
+            r#"
+def password_change_complete(request):
+    revoke_refresh_tokens_for_user(request.user.pk)
+    invalidate_user_sessions(request.user.pk)
+"#,
+        );
+
+        assert_detector(&output, "refresh.revoke");
+        assert_stage(&output, "refresh.revoke", LifecycleStage::Revoke);
+    }
+
+    #[test]
+    fn detects_refresh_without_rotation_evidence() {
+        let output = detect_refresh(
+            Language::TypeScript,
+            r#"
+app.post("/refresh", async (request, response) => {
+  const refreshToken = request.cookies.refresh_token;
+  const stored = await refreshTokenStore.findUnique({ where: { token: refreshToken } });
+  const nextAccessToken = issueAccessJwt(stored.userId);
+  return response.json({ accessToken: nextAccessToken });
+});
+"#,
+        );
+
+        assert_detector(&output, "refresh.handler");
+        assert_detector(&output, "refresh.validate");
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "refresh.revoke")
+        );
+    }
+
+    #[test]
+    fn detects_reuse_detection_with_family_invalidation() {
+        let output = detect_refresh(
+            Language::TypeScript,
+            r#"
+if (isRefreshTokenReuse(refreshToken)) {
+  revokeRefreshTokenFamily(user.id);
+}
+"#,
+        );
+
+        assert_detector(&output, "refresh.reuse_detection");
+        assert_stage(&output, "refresh.reuse_detection", LifecycleStage::Validate);
+        assert_detector(&output, "refresh.revoke");
+    }
+
+    #[test]
+    fn detects_refresh_provider_abstraction_as_dynamic() {
+        let output = detect_refresh(
+            Language::TypeScript,
+            r#"
+const rotated = await auth0.refresh(refreshToken);
+"#,
+        );
+
+        let evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.detector_id == "refresh.provider")
+            .expect("provider evidence");
+        assert_eq!(evidence.lifecycle_stage, LifecycleStage::Refresh);
+        assert!(evidence.dynamic);
+    }
+
+    #[test]
+    fn refresh_detector_ignores_comments_and_redacts_placeholders() {
+        let output = detect_refresh(
+            Language::TypeScript,
+            r#"
+// revokeRefreshToken("PLACEHOLDER_REFRESH_TOKEN")
+const sample = "refreshTokenStore.create({ token: PLACEHOLDER_REFRESH_TOKEN })";
+app.post("/refresh", () => generateRefreshToken("PLACEHOLDER_REFRESH_TOKEN"));
+"#,
+        );
+
+        assert_detector(&output, "refresh.handler");
+        assert_detector(&output, "refresh.issue");
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "refresh.revoke")
+        );
+        let text = output
+            .evidence
+            .iter()
+            .filter_map(|evidence| evidence.excerpt.as_ref())
+            .map(|excerpt| excerpt.0.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!text.contains("PLACEHOLDER_REFRESH_TOKEN"));
+        assert!(text.contains(REDACTION));
+    }
+
     fn assert_detector(output: &DetectionOutput, detector_id: &str) {
         assert!(
             output
@@ -848,6 +1677,18 @@ app.post("/logout", () => revokeRefreshToken("PLACEHOLDER_REFRESH_TOKEN"));
                 .iter()
                 .any(|evidence| evidence.detector_id == detector_id),
             "expected detector {detector_id} in {:?}",
+            output.evidence
+        );
+    }
+
+    fn assert_stage(output: &DetectionOutput, detector_id: &str, stage: LifecycleStage) {
+        assert!(
+            output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == detector_id
+                    && evidence.lifecycle_stage == stage),
+            "expected detector {detector_id} at stage {stage:?} in {:?}",
             output.evidence
         );
     }

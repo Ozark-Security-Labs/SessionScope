@@ -163,3 +163,23 @@ Rules:
 - Provider and wrapper revocation calls are static-analysis context only; they
   should stay medium or low confidence unless local source proves the exact
   backend behavior.
+
+## SS-DEC-006: Refresh-Token Rotation And Provider-Managed Behavior
+
+Refresh-token rotation and reuse handling require server-side lifecycle
+evidence. Seeing a refresh handler or provider SDK call is useful context, but
+it is not proof that previous refresh tokens are invalidated.
+
+Rules:
+
+- Refresh handlers, token generation, storage, validation, expiry, rotation,
+  reuse detection, and revocation should be emitted as lifecycle evidence when
+  statically visible.
+- Old-token invalidation, mark-used updates, denylist writes, token-family
+  revocation, and provider revoke calls may satisfy server-side revocation
+  checks when linked to the same refresh-token path.
+- Provider-managed refresh behavior should be represented as dynamic review
+  context unless local source proves the provider rotates or revokes previous
+  refresh tokens.
+- Clearing a refresh cookie remains client-side evidence only; it does not
+  satisfy refresh-token rotation or revocation checks.
