@@ -17,20 +17,28 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
             || attributes.signature_verification.state == JwtAttributeState::Missing
         {
             findings.push(finding(
-                "jwt_decode_without_verify",
-                FindingCategory::HighConfidenceMisconfiguration,
-                Severity::High,
                 artifact,
-                fallback_ids(
-                    &attributes.signature_verification.evidence_ids,
-                    &artifact.lifecycle_evidence.introspect,
-                ),
-                format!("JWT `{name}` is decoded or parsed without signature verification"),
-                "Evidence shows this JWT path does not verify signatures before reading claims."
-                    .to_string(),
-                "Use a verification API with the expected issuer, audience, and signing key before trusting claims."
-                    .to_string(),
-                "Is this decoded JWT used only for non-security-sensitive introspection?".to_string(),
+                FindingRequest {
+                    rule_id: "jwt_decode_without_verify".to_string(),
+                    category: FindingCategory::HighConfidenceMisconfiguration,
+                    severity: Severity::High,
+                    evidence_ids: fallback_ids(
+                        &attributes.signature_verification.evidence_ids,
+                        &artifact.lifecycle_evidence.introspect,
+                    ),
+                    title: format!(
+                        "JWT `{name}` is decoded or parsed without signature verification"
+                    ),
+                    description:
+                        "Evidence shows this JWT path does not verify signatures before reading claims."
+                            .to_string(),
+                    suggested_fix:
+                        "Use a verification API with the expected issuer, audience, and signing key before trusting claims."
+                            .to_string(),
+                    reviewer_question:
+                        "Is this decoded JWT used only for non-security-sensitive introspection?"
+                            .to_string(),
+                },
             ));
         }
 
@@ -52,35 +60,45 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
         if !artifact.lifecycle_evidence.issue.is_empty() {
             match attributes.expiration.state {
                 JwtAttributeState::Missing => findings.push(finding(
-                    "jwt_missing_expiration",
-                    FindingCategory::LifecycleGap,
-                    Severity::Low,
                     artifact,
-                    fallback_ids(
-                        &attributes.expiration.evidence_ids,
-                        &artifact.lifecycle_evidence.expire,
-                    ),
-                    format!("JWT `{name}` issue evidence has no expiration evidence"),
-                    "JWT issue evidence was detected without a static expiration claim or option."
-                        .to_string(),
-                    "Set an explicit expiration claim or library expiration option when issuing JWTs."
-                        .to_string(),
-                    "Should this JWT have a bounded lifetime?".to_string(),
+                    FindingRequest {
+                        rule_id: "jwt_missing_expiration".to_string(),
+                        category: FindingCategory::LifecycleGap,
+                        severity: Severity::Low,
+                        evidence_ids: fallback_ids(
+                            &attributes.expiration.evidence_ids,
+                            &artifact.lifecycle_evidence.expire,
+                        ),
+                        title: format!("JWT `{name}` issue evidence has no expiration evidence"),
+                        description:
+                            "JWT issue evidence was detected without a static expiration claim or option."
+                                .to_string(),
+                        suggested_fix:
+                            "Set an explicit expiration claim or library expiration option when issuing JWTs."
+                                .to_string(),
+                        reviewer_question: "Should this JWT have a bounded lifetime?".to_string(),
+                    },
                 )),
                 JwtAttributeState::Dynamic => findings.push(finding(
-                    "jwt_dynamic_expiration",
-                    FindingCategory::DynamicReviewRequired,
-                    Severity::Medium,
                     artifact,
-                    fallback_ids(
-                        &attributes.expiration.evidence_ids,
-                        &artifact.lifecycle_evidence.expire,
-                    ),
-                    format!("JWT `{name}` expiration evidence is dynamic"),
-                    "JWT expiration appears to depend on unresolved runtime options.".to_string(),
-                    "Confirm the effective production lifetime and make the expiration explicit when possible."
-                        .to_string(),
-                    "What effective JWT lifetime is configured in production?".to_string(),
+                    FindingRequest {
+                        rule_id: "jwt_dynamic_expiration".to_string(),
+                        category: FindingCategory::DynamicReviewRequired,
+                        severity: Severity::Medium,
+                        evidence_ids: fallback_ids(
+                            &attributes.expiration.evidence_ids,
+                            &artifact.lifecycle_evidence.expire,
+                        ),
+                        title: format!("JWT `{name}` expiration evidence is dynamic"),
+                        description:
+                            "JWT expiration appears to depend on unresolved runtime options."
+                                .to_string(),
+                        suggested_fix:
+                            "Confirm the effective production lifetime and make the expiration explicit when possible."
+                                .to_string(),
+                        reviewer_question:
+                            "What effective JWT lifetime is configured in production?".to_string(),
+                    },
                 )),
                 _ => {}
             }
@@ -91,51 +109,69 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
         {
             match attributes.expiry_enforcement.state {
                 JwtAttributeState::Missing => findings.push(finding(
-                    "jwt_expiry_enforcement_disabled",
-                    FindingCategory::HighConfidenceMisconfiguration,
-                    Severity::High,
                     artifact,
-                    fallback_ids(
-                        &attributes.expiry_enforcement.evidence_ids,
-                        &artifact.lifecycle_evidence.validate,
-                    ),
-                    format!("JWT `{name}` expiry enforcement is disabled or absent"),
-                    "Evidence shows this JWT validation path does not enforce expiration."
-                        .to_string(),
-                    "Require expiration enforcement when validating JWTs.".to_string(),
-                    "Can expired tokens be accepted on this path?".to_string(),
+                    FindingRequest {
+                        rule_id: "jwt_expiry_enforcement_disabled".to_string(),
+                        category: FindingCategory::HighConfidenceMisconfiguration,
+                        severity: Severity::High,
+                        evidence_ids: fallback_ids(
+                            &attributes.expiry_enforcement.evidence_ids,
+                            &artifact.lifecycle_evidence.validate,
+                        ),
+                        title: format!("JWT `{name}` expiry enforcement is disabled or absent"),
+                        description:
+                            "Evidence shows this JWT validation path does not enforce expiration."
+                                .to_string(),
+                        suggested_fix: "Require expiration enforcement when validating JWTs."
+                            .to_string(),
+                        reviewer_question: "Can expired tokens be accepted on this path?"
+                            .to_string(),
+                    },
                 )),
                 JwtAttributeState::Dynamic => findings.push(finding(
-                    "jwt_dynamic_expiry_enforcement",
-                    FindingCategory::DynamicReviewRequired,
-                    Severity::Medium,
                     artifact,
-                    fallback_ids(
-                        &attributes.expiry_enforcement.evidence_ids,
-                        &artifact.lifecycle_evidence.validate,
-                    ),
-                    format!("JWT `{name}` expiry enforcement is dynamic"),
-                    "JWT expiry enforcement appears to depend on unresolved runtime options."
-                        .to_string(),
-                    "Confirm production verification rejects expired JWTs.".to_string(),
-                    "What expiry enforcement settings are active in production?".to_string(),
+                    FindingRequest {
+                        rule_id: "jwt_dynamic_expiry_enforcement".to_string(),
+                        category: FindingCategory::DynamicReviewRequired,
+                        severity: Severity::Medium,
+                        evidence_ids: fallback_ids(
+                            &attributes.expiry_enforcement.evidence_ids,
+                            &artifact.lifecycle_evidence.validate,
+                        ),
+                        title: format!("JWT `{name}` expiry enforcement is dynamic"),
+                        description:
+                            "JWT expiry enforcement appears to depend on unresolved runtime options."
+                                .to_string(),
+                        suggested_fix: "Confirm production verification rejects expired JWTs."
+                            .to_string(),
+                        reviewer_question:
+                            "What expiry enforcement settings are active in production?"
+                                .to_string(),
+                    },
                 )),
                 JwtAttributeState::FrameworkDefault => findings.push(finding(
-                    "jwt_default_expiry_enforcement",
-                    FindingCategory::FrameworkDefaultAssumed,
-                    Severity::Low,
                     artifact,
-                    fallback_ids(
-                        &attributes.expiry_enforcement.evidence_ids,
-                        &artifact.lifecycle_evidence.validate,
-                    ),
-                    format!("JWT `{name}` expiry enforcement relies on library defaults"),
-                    "JWT validation appears to rely on the library default for expiration enforcement."
-                        .to_string(),
-                    "Make expiration enforcement explicit or document the library version and default."
-                        .to_string(),
-                    "Which JWT library version and settings determine expiration enforcement here?"
-                        .to_string(),
+                    FindingRequest {
+                        rule_id: "jwt_default_expiry_enforcement".to_string(),
+                        category: FindingCategory::FrameworkDefaultAssumed,
+                        severity: Severity::Low,
+                        evidence_ids: fallback_ids(
+                            &attributes.expiry_enforcement.evidence_ids,
+                            &artifact.lifecycle_evidence.validate,
+                        ),
+                        title: format!(
+                            "JWT `{name}` expiry enforcement relies on library defaults"
+                        ),
+                        description:
+                            "JWT validation appears to rely on the library default for expiration enforcement."
+                                .to_string(),
+                        suggested_fix:
+                            "Make expiration enforcement explicit or document the library version and default."
+                                .to_string(),
+                        reviewer_question:
+                            "Which JWT library version and settings determine expiration enforcement here?"
+                                .to_string(),
+                    },
                 )),
                 _ => {}
             }
@@ -153,67 +189,84 @@ fn classify_validation_field(
 ) -> Option<Finding> {
     match observation.state {
         JwtAttributeState::Missing => Some(finding(
-            &format!("jwt_missing_{field_name}"),
-            FindingCategory::MissingValidationEvidence,
-            Severity::Medium,
             artifact,
-            fallback_ids(
-                &observation.evidence_ids,
-                &artifact.lifecycle_evidence.validate,
-            ),
-            format!("JWT `{name}` verification has no {field_name} evidence"),
-            format!("JWT verification evidence does not include an expected {field_name} check."),
-            format!("Require an expected {field_name} when verifying JWTs."),
-            format!("Should this service reject tokens with an unexpected {field_name}?"),
+            FindingRequest {
+                rule_id: format!("jwt_missing_{field_name}"),
+                category: FindingCategory::MissingValidationEvidence,
+                severity: Severity::Medium,
+                evidence_ids: fallback_ids(
+                    &observation.evidence_ids,
+                    &artifact.lifecycle_evidence.validate,
+                ),
+                title: format!("JWT `{name}` verification has no {field_name} evidence"),
+                description: format!(
+                    "JWT verification evidence does not include an expected {field_name} check."
+                ),
+                suggested_fix: format!("Require an expected {field_name} when verifying JWTs."),
+                reviewer_question: format!(
+                    "Should this service reject tokens with an unexpected {field_name}?"
+                ),
+            },
         )),
         JwtAttributeState::Dynamic => Some(finding(
-            &format!("jwt_dynamic_{field_name}"),
-            FindingCategory::DynamicReviewRequired,
-            Severity::Medium,
             artifact,
-            fallback_ids(
-                &observation.evidence_ids,
-                &artifact.lifecycle_evidence.validate,
-            ),
-            format!("JWT `{name}` {field_name} validation is dynamic"),
-            format!("JWT {field_name} validation appears to depend on unresolved runtime options."),
-            format!(
-                "Confirm the effective production {field_name} and make it explicit when possible."
-            ),
-            format!("What {field_name} value is accepted in production?"),
+            FindingRequest {
+                rule_id: format!("jwt_dynamic_{field_name}"),
+                category: FindingCategory::DynamicReviewRequired,
+                severity: Severity::Medium,
+                evidence_ids: fallback_ids(
+                    &observation.evidence_ids,
+                    &artifact.lifecycle_evidence.validate,
+                ),
+                title: format!("JWT `{name}` {field_name} validation is dynamic"),
+                description: format!(
+                    "JWT {field_name} validation appears to depend on unresolved runtime options."
+                ),
+                suggested_fix: format!(
+                    "Confirm the effective production {field_name} and make it explicit when possible."
+                ),
+                reviewer_question: format!("What {field_name} value is accepted in production?"),
+            },
         )),
         _ => None,
     }
 }
 
-fn finding(
-    rule_id: &str,
+struct FindingRequest {
+    rule_id: String,
     category: FindingCategory,
     severity: Severity,
-    artifact: &Artifact,
     evidence_ids: Vec<EvidenceId>,
     title: String,
     description: String,
     suggested_fix: String,
     reviewer_question: String,
-) -> Finding {
-    let evidence_part = evidence_ids
+}
+
+fn finding(artifact: &Artifact, request: FindingRequest) -> Finding {
+    let evidence_part = request
+        .evidence_ids
         .first()
         .map(|id| id.0.as_str())
         .unwrap_or("no_evidence");
     let name_part = artifact.display_name.as_deref().unwrap_or("dynamic");
-    let id = stable_finding_id(&[rule_id, artifact.id.0.as_str(), evidence_part, name_part]);
+    let id = stable_finding_id(&[
+        request.rule_id.as_str(),
+        artifact.id.0.as_str(),
+        evidence_part,
+        name_part,
+    ]);
 
     Finding {
         id,
-        category,
-        severity,
+        category: request.category,
+        severity: request.severity,
         artifact_ids: vec![artifact.id.clone()],
-        evidence_ids,
-        title,
-        description,
-        suggested_fix: Some(suggested_fix),
-        reviewer_question: Some(reviewer_question),
+        evidence_ids: request.evidence_ids,
+        title: request.title,
+        description: request.description,
+        suggested_fix: Some(request.suggested_fix),
+        reviewer_question: Some(request.reviewer_question),
     }
 }
 

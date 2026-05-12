@@ -26,6 +26,16 @@ static LONG_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)(secret|private[_-]?key|signing[_-]?key|token|jwt)\s*[:=]\s*["'][^"']*["']"#)
         .expect("sensitive literal regex should compile")
 });
+static JWT_API_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?sx)\b(?:[A-Za-z_][A-Za-z0-9_]*\s*\.\s*)?(?:sign|verify|decode|encode|jwtVerify|decodeJwt)\s*\((?:[^()]|\([^)]*\)){0,600}\)"#,
+    )
+    .expect("JWT API call regex should compile")
+});
+static QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'"#)
+        .expect("quoted literal regex should compile")
+});
 static SENSITIVE_CLAIM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?ix)(["']?(?:sub|email|email_verified|emailVerified|phone|address|sid|jti|user_id|userId|uid|tenant|tenant_id|tenantId|org|org_id|organization_id|organizationId|workspace|workspace_id|workspaceId|role|roles|scope|scopes|groups|amr|acr|auth_method|authMethod|auth_class|authClass)["']?\s*:\s*["'])([^"']+)(["'])"#,
@@ -248,6 +258,17 @@ struct FieldSet {
     fields: BTreeMap<JwtField, JwtFieldEvidence>,
     dynamic: bool,
 }
+
+#[derive(Debug, Clone)]
+struct ScopedFieldSet {
+    fields: BTreeMap<JwtField, JwtFieldEvidence>,
+    dynamic: bool,
+    declaration_end_byte: usize,
+    scope_start_byte: usize,
+    scope_end_byte: usize,
+}
+
+type AliasMap = BTreeMap<String, Vec<ScopedFieldSet>>;
 
 fn detect_javascript_like(input: &DetectorInput<'_>, detector_id: &str) -> DetectionOutput {
     let Some(tree) = parse_javascript_like(input, input.source) else {
@@ -674,7 +695,7 @@ fn collect_js_calls<'tree>(
     node: Node<'tree>,
     source: &str,
     imports: &JsImports,
-    option_aliases: &BTreeMap<String, FieldSet>,
+    option_aliases: &AliasMap,
     function_name: Option<&str>,
     calls: &mut Vec<JwtCall>,
 ) {
@@ -704,7 +725,7 @@ fn js_jwt_call<'tree>(
     node: Node<'tree>,
     source: &str,
     imports: &JsImports,
-    option_aliases: &BTreeMap<String, FieldSet>,
+    option_aliases: &AliasMap,
     function_name: Option<&str>,
 ) -> Option<JwtCall> {
     let function = node.child_by_field_name("function")?;
@@ -813,7 +834,7 @@ fn js_jwt_call<'tree>(
         framework_hint,
         line,
         column,
-        excerpt: excerpt_for_node(source, node),
+        excerpt: jwt_call_excerpt(api_name, operation),
         display_name,
         artifact_type,
         fields,
@@ -880,7 +901,7 @@ fn js_jose_sign_call<'tree>(
         framework_hint: "jose",
         line,
         column,
-        excerpt: excerpt_for_node(source, node),
+        excerpt: jwt_call_excerpt("jose.SignJWT.sign", JwtOperation::Issue),
         display_name,
         artifact_type,
         fields,
@@ -891,7 +912,7 @@ fn add_js_sign_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
     argument_nodes: &[Node<'_>],
-    option_aliases: &BTreeMap<String, FieldSet>,
+    option_aliases: &AliasMap,
     line: usize,
     column: usize,
 ) {
@@ -949,7 +970,7 @@ fn add_js_verify_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
     argument_nodes: &[Node<'_>],
-    option_aliases: &BTreeMap<String, FieldSet>,
+    option_aliases: &AliasMap,
     line: usize,
     column: usize,
     jose: bool,
@@ -980,7 +1001,14 @@ fn add_js_verify_fields(
                 (JwtField::Algorithm, &["algorithms", "algorithm"][..]),
                 (JwtField::Issuer, &["issuer"][..]),
                 (JwtField::Audience, &["audience"][..]),
-                (JwtField::ExpiryEnforcement, &["maxAge"][..]),
+                (
+                    JwtField::ExpiryEnforcement,
+                    if jose {
+                        &["maxTokenAge"][..]
+                    } else {
+                        &["maxAge"][..]
+                    },
+                ),
             ],
             line,
             column,
@@ -1040,7 +1068,7 @@ fn add_js_expiry_enforcement(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
     options: Node<'_>,
-    aliases: &BTreeMap<String, FieldSet>,
+    aliases: &AliasMap,
     line: usize,
     column: usize,
     jose: bool,
@@ -1059,7 +1087,8 @@ fn add_js_expiry_enforcement(
             );
             return;
         }
-        if let Some(max_age) = object_property_value(options, source, "maxAge") {
+        let max_age_name = if jose { "maxTokenAge" } else { "maxAge" };
+        if let Some(max_age) = object_property_value(options, source, max_age_name) {
             add_present_node(fields, JwtField::ExpiryEnforcement, max_age, source);
             return;
         }
@@ -1071,7 +1100,7 @@ fn add_js_expiry_enforcement(
         }
     } else if options.kind() == "identifier" {
         let alias_name = node_text(options, source);
-        if let Some(alias) = aliases.get(&alias_name) {
+        if let Some(alias) = lookup_alias(aliases, &alias_name, options) {
             if let Some(observation) = alias.fields.get(&JwtField::ExpiryEnforcement) {
                 fields
                     .entry(JwtField::ExpiryEnforcement)
@@ -1119,7 +1148,7 @@ fn add_js_options_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
     node: Node<'_>,
-    aliases: &BTreeMap<String, FieldSet>,
+    aliases: &AliasMap,
     wanted: &[(JwtField, &[&str])],
     line: usize,
     column: usize,
@@ -1137,7 +1166,7 @@ fn add_js_options_fields(
         }
     } else if node.kind() == "identifier" {
         let alias_name = node_text(node, source);
-        if let Some(alias) = aliases.get(&alias_name) {
+        if let Some(alias) = lookup_alias(aliases, &alias_name, node) {
             for (field, _) in wanted {
                 if let Some(value) = alias.fields.get(field) {
                     fields.entry(*field).or_insert_with(|| value.clone());
@@ -1167,7 +1196,7 @@ fn collect_python_calls<'tree>(
     node: Node<'tree>,
     source: &str,
     imports: &PyImports,
-    option_aliases: &BTreeMap<String, FieldSet>,
+    option_aliases: &AliasMap,
     function_name: Option<&str>,
     calls: &mut Vec<JwtCall>,
 ) {
@@ -1198,7 +1227,7 @@ fn python_jwt_call<'tree>(
     node: Node<'tree>,
     source: &str,
     imports: &PyImports,
-    option_aliases: &BTreeMap<String, FieldSet>,
+    option_aliases: &AliasMap,
     function_name: Option<&str>,
 ) -> Option<JwtCall> {
     let function = node.child_by_field_name("function")?;
@@ -1281,7 +1310,7 @@ fn python_jwt_call<'tree>(
         framework_hint: "pyjwt",
         line,
         column,
-        excerpt: excerpt_for_node(source, node),
+        excerpt: jwt_call_excerpt(api_name, operation),
         display_name,
         artifact_type,
         fields,
@@ -1292,12 +1321,21 @@ fn add_python_encode_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
     argument_nodes: &[Node<'_>],
-    option_aliases: &BTreeMap<String, FieldSet>,
+    option_aliases: &AliasMap,
     line: usize,
     column: usize,
 ) {
-    add_key_reference(fields, source, argument_nodes.get(1).copied(), line, column);
-    if let Some(payload) = argument_nodes.first().copied() {
+    let positional_arguments = positional_argument_nodes(argument_nodes);
+    let key = positional_arguments
+        .get(1)
+        .copied()
+        .or_else(|| python_keyword_value(argument_nodes, source, "key"));
+    add_key_reference(fields, source, key, line, column);
+    if let Some(payload) = positional_arguments
+        .first()
+        .copied()
+        .or_else(|| python_keyword_value(argument_nodes, source, "payload"))
+    {
         add_object_field(
             fields,
             JwtField::Issuer,
@@ -1351,12 +1389,17 @@ fn add_python_decode_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
     argument_nodes: &[Node<'_>],
-    option_aliases: &BTreeMap<String, FieldSet>,
+    option_aliases: &AliasMap,
     line: usize,
     column: usize,
 ) {
-    add_key_reference(fields, source, argument_nodes.get(1).copied(), line, column);
-    if argument_nodes.get(1).is_some() {
+    let positional_arguments = positional_argument_nodes(argument_nodes);
+    let key = positional_arguments
+        .get(1)
+        .copied()
+        .or_else(|| python_keyword_value(argument_nodes, source, "key"));
+    add_key_reference(fields, source, key, line, column);
+    if key.is_some() {
         add_present_value(
             fields,
             JwtField::SignatureVerification,
@@ -1395,7 +1438,7 @@ fn add_python_decode_without_verify_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
     argument_nodes: &[Node<'_>],
-    option_aliases: &BTreeMap<String, FieldSet>,
+    option_aliases: &AliasMap,
     line: usize,
     column: usize,
 ) {
@@ -1438,7 +1481,7 @@ fn add_python_options_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
     node: Node<'_>,
-    aliases: &BTreeMap<String, FieldSet>,
+    aliases: &AliasMap,
     line: usize,
     column: usize,
 ) {
@@ -1452,7 +1495,7 @@ fn add_python_options_fields(
         }
     } else if node.kind() == "identifier" {
         let alias_name = node_text(node, source);
-        if let Some(alias) = aliases.get(&alias_name) {
+        if let Some(alias) = lookup_alias(aliases, &alias_name, node) {
             for field in [JwtField::Issuer, JwtField::Audience, JwtField::Algorithm] {
                 if let Some(value) = alias.fields.get(&field) {
                     fields.entry(field).or_insert_with(|| value.clone());
@@ -1476,7 +1519,7 @@ fn add_python_expiry_enforcement(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
     argument_nodes: &[Node<'_>],
-    aliases: &BTreeMap<String, FieldSet>,
+    aliases: &AliasMap,
     line: usize,
     column: usize,
 ) {
@@ -1525,7 +1568,7 @@ fn add_python_expiry_enforcement(
         }
     } else if options.kind() == "identifier" {
         let alias_name = node_text(options, source);
-        if let Some(alias) = aliases.get(&alias_name) {
+        if let Some(alias) = lookup_alias(aliases, &alias_name, options) {
             if let Some(observation) = alias.fields.get(&JwtField::ExpiryEnforcement) {
                 fields
                     .entry(JwtField::ExpiryEnforcement)
@@ -1564,7 +1607,7 @@ fn add_python_expiry_enforcement(
 fn python_decode_disables_verification(
     source: &str,
     argument_nodes: &[Node<'_>],
-    option_aliases: &BTreeMap<String, FieldSet>,
+    option_aliases: &AliasMap,
 ) -> bool {
     let Some(options) = python_keyword_value(argument_nodes, source, "options") else {
         return false;
@@ -1575,8 +1618,7 @@ fn python_decode_disables_verification(
     }
     if options.kind() == "identifier" {
         let alias_name = node_text(options, source);
-        return option_aliases
-            .get(&alias_name)
+        return lookup_alias(option_aliases, &alias_name, options)
             .is_some_and(|alias| alias.fields.contains_key(&JwtField::Operation));
     }
     false
@@ -1701,53 +1743,125 @@ fn collect_python_imports(source: &str) -> PyImports {
     imports
 }
 
-fn collect_js_option_aliases(root: Node<'_>, source: &str) -> BTreeMap<String, FieldSet> {
+fn collect_js_option_aliases(root: Node<'_>, source: &str) -> AliasMap {
     let mut aliases = BTreeMap::new();
-    collect_option_aliases(root, source, &mut aliases, true);
+    collect_option_aliases(
+        root,
+        source,
+        &mut aliases,
+        true,
+        root.start_byte(),
+        root.end_byte(),
+    );
     aliases
 }
 
-fn collect_python_option_aliases(root: Node<'_>, source: &str) -> BTreeMap<String, FieldSet> {
+fn collect_python_option_aliases(root: Node<'_>, source: &str) -> AliasMap {
     let mut aliases = BTreeMap::new();
-    collect_option_aliases(root, source, &mut aliases, false);
+    collect_option_aliases(
+        root,
+        source,
+        &mut aliases,
+        false,
+        root.start_byte(),
+        root.end_byte(),
+    );
     aliases
 }
 
 fn collect_option_aliases(
     node: Node<'_>,
     source: &str,
-    aliases: &mut BTreeMap<String, FieldSet>,
+    aliases: &mut AliasMap,
     javascript: bool,
+    scope_start_byte: usize,
+    scope_end_byte: usize,
 ) {
+    let (scope_start_byte, scope_end_byte) = if is_scope_node(node) {
+        (node.start_byte(), node.end_byte())
+    } else {
+        (scope_start_byte, scope_end_byte)
+    };
+
     if javascript && node.kind() == "variable_declarator" {
         if let (Some(name), Some(value)) = (
             node.child_by_field_name("name"),
             node.child_by_field_name("value"),
         ) && is_object_literal(value)
         {
-            aliases.insert(
-                node_text(name, source),
-                field_set_from_object(value, source),
-            );
+            aliases
+                .entry(node_text(name, source))
+                .or_default()
+                .push(scoped_field_set(
+                    field_set_from_object(value, source),
+                    node,
+                    scope_start_byte,
+                    scope_end_byte,
+                ));
         }
-    } else if !javascript && node.kind() == "assignment" {
-        if let (Some(left), Some(right)) = (
+    } else if !javascript
+        && node.kind() == "assignment"
+        && let (Some(left), Some(right)) = (
             node.child_by_field_name("left"),
             node.child_by_field_name("right"),
-        ) && left.kind() == "identifier"
-            && is_dictionary(right)
-        {
-            aliases.insert(
-                node_text(left, source),
+        )
+        && left.kind() == "identifier"
+        && is_dictionary(right)
+    {
+        aliases
+            .entry(node_text(left, source))
+            .or_default()
+            .push(scoped_field_set(
                 field_set_from_object(right, source),
-            );
-        }
+                node,
+                scope_start_byte,
+                scope_end_byte,
+            ));
     }
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_option_aliases(child, source, aliases, javascript);
+        collect_option_aliases(
+            child,
+            source,
+            aliases,
+            javascript,
+            scope_start_byte,
+            scope_end_byte,
+        );
     }
+}
+
+fn scoped_field_set(
+    field_set: FieldSet,
+    declaration: Node<'_>,
+    scope_start_byte: usize,
+    scope_end_byte: usize,
+) -> ScopedFieldSet {
+    ScopedFieldSet {
+        fields: field_set.fields,
+        dynamic: field_set.dynamic,
+        declaration_end_byte: declaration.end_byte(),
+        scope_start_byte,
+        scope_end_byte,
+    }
+}
+
+fn lookup_alias<'a>(
+    aliases: &'a AliasMap,
+    name: &str,
+    use_node: Node<'_>,
+) -> Option<&'a ScopedFieldSet> {
+    aliases.get(name).and_then(|bindings| {
+        bindings
+            .iter()
+            .filter(|binding| {
+                binding.declaration_end_byte <= use_node.start_byte()
+                    && use_node.start_byte() >= binding.scope_start_byte
+                    && use_node.end_byte() <= binding.scope_end_byte
+            })
+            .max_by_key(|binding| binding.declaration_end_byte)
+    })
 }
 
 fn field_set_from_object(node: Node<'_>, source: &str) -> FieldSet {
@@ -1757,7 +1871,7 @@ fn field_set_from_object(node: Node<'_>, source: &str) -> FieldSet {
         (JwtField::Issuer, &["issuer", "iss"][..]),
         (JwtField::Audience, &["audience", "aud"][..]),
         (JwtField::Expiration, &["expiresIn", "expires", "exp"][..]),
-        (JwtField::ExpiryEnforcement, &["maxAge"][..]),
+        (JwtField::ExpiryEnforcement, &["maxAge", "maxTokenAge"][..]),
     ] {
         add_object_field(&mut fields, field, node, source, names, 1, 1);
     }
@@ -1867,13 +1981,13 @@ fn add_identity_claim_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     payload: Node<'_>,
     source: &str,
-    aliases: &BTreeMap<String, FieldSet>,
+    aliases: &AliasMap,
 ) {
     if is_object_literal(payload) || is_dictionary(payload) {
         add_identity_claim_fields_from_object(fields, payload, source);
     } else if payload.kind() == "identifier" {
         let alias_name = node_text(payload, source);
-        if let Some(alias) = aliases.get(&alias_name) {
+        if let Some(alias) = lookup_alias(aliases, &alias_name, payload) {
             for field in JwtField::IDENTITY_CLAIMS {
                 if let Some(value) = alias.fields.get(&field) {
                     fields.entry(field).or_insert_with(|| value.clone());
@@ -1992,6 +2106,27 @@ fn add_present_node(
     );
 }
 
+fn add_present_synthetic(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    field: JwtField,
+    node: Node<'_>,
+    source: &str,
+    excerpt: impl Into<SanitizedExcerpt>,
+) {
+    let (line, column) = node_line_column(node);
+    fields.insert(
+        field,
+        JwtFieldEvidence {
+            state: JwtAttributeState::Present,
+            value: Some(safe_node_value(node, source)),
+            confidence: Confidence::High,
+            line,
+            column,
+            excerpt: excerpt.into(),
+        },
+    );
+}
+
 fn add_key_reference(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
@@ -2000,7 +2135,13 @@ fn add_key_reference(
     column: usize,
 ) {
     match node {
-        Some(node) => add_present_node(fields, JwtField::KeyReference, node, source),
+        Some(node) => add_present_synthetic(
+            fields,
+            JwtField::KeyReference,
+            node,
+            source,
+            "JWT key reference is present",
+        ),
         None => add_missing(fields, JwtField::KeyReference, line, column),
     }
 }
@@ -2132,6 +2273,11 @@ fn add_regex_chain_field(
 ) {
     let regex = Regex::new(pattern).expect("chain regex should compile");
     if let Some(capture) = regex.captures(text) {
+        let excerpt = if field == JwtField::KeyReference {
+            "JWT key reference is present".to_string()
+        } else {
+            redact_excerpt(capture[0].trim())
+        };
         fields.insert(
             field,
             JwtFieldEvidence {
@@ -2140,7 +2286,7 @@ fn add_regex_chain_field(
                 confidence: Confidence::High,
                 line,
                 column,
-                excerpt: SanitizedExcerpt(redact_excerpt(capture[0].trim())),
+                excerpt: SanitizedExcerpt(excerpt),
             },
         );
     }
@@ -2228,6 +2374,13 @@ fn push_lifecycle_id(
     }
 }
 
+fn jwt_call_excerpt(api_name: &str, operation: JwtOperation) -> SanitizedExcerpt {
+    SanitizedExcerpt(format!(
+        "{api_name} {} call detected with token and key arguments redacted",
+        operation.value()
+    ))
+}
+
 fn jwt_state_part(state: JwtAttributeState) -> &'static str {
     match state {
         JwtAttributeState::Present => "present",
@@ -2299,6 +2452,18 @@ fn is_member_expression(node: Node<'_>) -> bool {
     )
 }
 
+fn is_scope_node(node: Node<'_>) -> bool {
+    matches!(
+        node.kind(),
+        "program"
+            | "function_declaration"
+            | "function"
+            | "arrow_function"
+            | "method_definition"
+            | "function_definition"
+    )
+}
+
 fn python_keyword_value<'tree>(
     argument_nodes: &[Node<'tree>],
     source: &str,
@@ -2318,6 +2483,14 @@ fn python_keyword_value<'tree>(
         }
     }
     None
+}
+
+fn positional_argument_nodes<'tree>(argument_nodes: &[Node<'tree>]) -> Vec<Node<'tree>> {
+    argument_nodes
+        .iter()
+        .copied()
+        .filter(|node| node.kind() != "keyword_argument")
+        .collect()
 }
 
 fn is_false_literal(node: Node<'_>, source: &str) -> bool {
@@ -2449,6 +2622,7 @@ fn redact_excerpt(text: &str) -> String {
     let mut output = PLACEHOLDER_SECRET_RE
         .replace_all(text, REDACTION)
         .to_string();
+    output = redact_jwt_api_calls(&output);
     output = JWT_RE.replace_all(&output, REDACTION).to_string();
     output = LONG_LITERAL_RE
         .replace_all(&output, |captures: &regex::Captures<'_>| {
@@ -2470,6 +2644,24 @@ fn redact_excerpt(text: &str) -> String {
         .to_string();
     output = EMAIL_RE.replace_all(&output, REDACTION).to_string();
     output
+}
+
+fn redact_jwt_api_calls(input: &str) -> String {
+    JWT_API_CALL_RE
+        .replace_all(input, |captures: &regex::Captures<'_>| {
+            let call = captures.get(0).expect("full capture should exist").as_str();
+            QUOTED_LITERAL_RE
+                .replace_all(call, |literal: &regex::Captures<'_>| {
+                    let value = literal
+                        .get(0)
+                        .expect("literal capture should exist")
+                        .as_str();
+                    let quote = &value[..1];
+                    format!("{quote}{REDACTION}{quote}")
+                })
+                .to_string()
+        })
+        .to_string()
 }
 
 fn parse_string_text(text: &str) -> Option<String> {
@@ -2857,6 +3049,248 @@ def verify_legacy_jwt(token):
                 .state,
             JwtAttributeState::Missing
         );
+    }
+
+    #[test]
+    fn redacts_short_literal_jwt_tokens_and_keys_from_evidence() {
+        let ts_output = detect(
+            Language::TypeScript,
+            r#"
+import jwt from "jsonwebtoken";
+export function issueAccessJwt() {
+  return jwt.sign({ sub: "user-123" }, "dev-secret", { expiresIn: "15m" });
+}
+export function verifyAccessJwt() {
+  return jwt.verify("opaque-token", "secret", { issuer: ISSUER, audience: AUDIENCE });
+}
+export function inspectAccessJwt() {
+  return jwt.decode("short-token");
+}
+"#,
+        );
+        let py_output = detect(
+            Language::Python,
+            r#"
+import jwt
+def verify_access_jwt(token):
+    return jwt.decode(token, key="secret", algorithms=["HS256"], issuer=ISSUER, audience=AUDIENCE)
+"#,
+        );
+
+        let detected = format!(
+            "{}\n{}",
+            detected_text(&ts_output),
+            detected_text(&py_output)
+        );
+        for leaked in [
+            "dev-secret",
+            "opaque-token",
+            "short-token",
+            "\"secret\"",
+            "user-123",
+        ] {
+            assert!(!detected.contains(leaked), "{leaked} leaked in {detected}");
+        }
+    }
+
+    #[test]
+    fn detects_pyjwt_keyword_key_without_confusing_other_keywords() {
+        let missing_key = detect(
+            Language::Python,
+            r#"
+import jwt
+def verify_access_jwt(token):
+    return jwt.decode(token, algorithms=["HS256"], issuer=ISSUER, audience=AUDIENCE)
+"#,
+        );
+        let artifact = missing_key
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("access_jwt"))
+            .expect("access JWT should exist");
+        let attributes = artifact.jwt_attributes.as_ref().expect("attributes");
+        assert_eq!(
+            attributes.signature_verification.state,
+            JwtAttributeState::Missing
+        );
+        assert_eq!(attributes.key_reference.state, JwtAttributeState::Missing);
+
+        let keyword_key = detect(
+            Language::Python,
+            r#"
+import jwt
+def verify_access_jwt(token):
+    return jwt.decode(token, key=PUBLIC_KEY, algorithms=["HS256"], issuer=ISSUER, audience=AUDIENCE)
+"#,
+        );
+        let artifact = keyword_key
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("access_jwt"))
+            .expect("access JWT should exist");
+        let attributes = artifact.jwt_attributes.as_ref().expect("attributes");
+        assert_eq!(
+            attributes.signature_verification.state,
+            JwtAttributeState::Present
+        );
+        assert_eq!(
+            attributes.key_reference.value.as_deref(),
+            Some("PUBLIC_KEY")
+        );
+
+        let encode_keyword_key = detect(
+            Language::Python,
+            r#"
+import jwt
+def issue_access_jwt(user_id):
+    claims = {"sub": user_id, "exp": expires_at}
+    return jwt.encode(payload=claims, key=JWT_SECRET, algorithm="HS256")
+"#,
+        );
+        let artifact = encode_keyword_key
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("access_jwt"))
+            .expect("access JWT should exist");
+        let attributes = artifact.jwt_attributes.as_ref().expect("attributes");
+        assert_eq!(
+            attributes.key_reference.value.as_deref(),
+            Some("JWT_SECRET")
+        );
+        assert!(attributes.identity_claims.is_some());
+    }
+
+    #[test]
+    fn jose_uses_max_token_age_for_explicit_expiry_enforcement() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+import { jwtVerify } from "jose";
+export async function verifyAccessJwt(token: string) {
+  return jwtVerify(token, key, { issuer, audience, maxTokenAge: "15m" });
+}
+export async function verifyLegacyJwt(token: string) {
+  return jwtVerify(token, key, { issuer, audience, maxAge: "15m" });
+}
+"#,
+        );
+
+        let access = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("access_jwt"))
+            .expect("access JWT should exist");
+        assert_eq!(
+            access
+                .jwt_attributes
+                .as_ref()
+                .expect("attributes")
+                .expiry_enforcement
+                .state,
+            JwtAttributeState::Present
+        );
+
+        let legacy = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("legacy_access_jwt"))
+            .expect("legacy JWT should exist");
+        assert_eq!(
+            legacy
+                .jwt_attributes
+                .as_ref()
+                .expect("attributes")
+                .expiry_enforcement
+                .state,
+            JwtAttributeState::FrameworkDefault
+        );
+    }
+
+    #[test]
+    fn scoped_aliases_must_precede_the_jwt_call() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+import jwt from "jsonwebtoken";
+const JWT_SECRET = "PLACEHOLDER_SECRET_DO_NOT_USE";
+function unrelated() {
+  const claims = { sub: otherUser, tenant_id: otherTenant };
+  return claims;
+}
+export function issueAccessJwt(userId: string) {
+  return jwt.sign(claims, JWT_SECRET, { expiresIn: "15m" });
+  const claims = { sub: userId, tenant_id: tenantId };
+}
+export function issueRefreshJwt(userId: string) {
+  const claims = { sub: userId, tenant_id: tenantId };
+  return jwt.sign(claims, JWT_SECRET, { expiresIn: "7d" });
+}
+"#,
+        );
+
+        let access = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("access_jwt"))
+            .expect("access JWT should exist");
+        assert!(
+            access
+                .jwt_attributes
+                .as_ref()
+                .expect("attributes")
+                .identity_claims
+                .is_none()
+        );
+
+        let refresh = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("refresh_jwt"))
+            .expect("refresh JWT should exist");
+        assert_eq!(
+            refresh
+                .jwt_attributes
+                .as_ref()
+                .expect("attributes")
+                .identity_claims
+                .as_ref()
+                .expect("identity claims")
+                .subject
+                .value
+                .as_deref(),
+            Some("userId")
+        );
+    }
+
+    #[test]
+    fn detects_jsonwebtoken_namespace_and_commonjs_import_forms() {
+        let namespace_output = detect(
+            Language::TypeScript,
+            r#"
+import * as tokenLib from "jsonwebtoken";
+export function issueAccessJwt(userId: string) {
+  return tokenLib.sign({ sub: userId, exp: expiresAt }, JWT_SECRET);
+}
+"#,
+        );
+        assert!(namespace_output.artifacts.iter().any(|artifact| {
+            artifact.display_name.as_deref() == Some("access_jwt")
+                && !artifact.lifecycle_evidence.issue.is_empty()
+        }));
+
+        let commonjs_output = detect(
+            Language::JavaScript,
+            r#"
+const { verify } = require("jsonwebtoken");
+function verifyAccessJwt(token) {
+  return verify(token, JWT_SECRET, { issuer: ISSUER, audience: AUDIENCE });
+}
+"#,
+        );
+        assert!(commonjs_output.artifacts.iter().any(|artifact| {
+            artifact.display_name.as_deref() == Some("access_jwt")
+                && !artifact.lifecycle_evidence.validate.is_empty()
+        }));
     }
 
     #[test]

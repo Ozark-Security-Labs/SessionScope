@@ -35,6 +35,16 @@ static COOKIE_VALUE_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?ix)(\bvalue\s*[:=]\s*)(["'])([^"']*)(["'])"#)
         .expect("cookie value key regex should compile")
 });
+static JWT_API_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?sx)\b(?:[A-Za-z_][A-Za-z0-9_]*\s*\.\s*)?(?:sign|verify|decode|encode|jwtVerify|decodeJwt)\s*\((?:[^()]|\([^)]*\)){0,600}\)"#,
+    )
+    .expect("JWT API call regex should compile")
+});
+static QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'"#)
+        .expect("quoted literal regex should compile")
+});
 static SENSITIVE_QUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?ix)(["']?\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b["']?\s*[:=]\s*)(["'])([^"']*)(["'])"#,
@@ -115,6 +125,7 @@ pub fn safe_excerpt_at_location_with_options(
 pub fn redact_sensitive_values(input: &str) -> String {
     let mut output = PRIVATE_KEY_RE.replace_all(input, REDACTION).to_string();
     output = redact_cookie_headers(&output);
+    output = redact_jwt_api_calls(&output);
     output = BEARER_RE
         .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string();
@@ -152,6 +163,24 @@ pub fn redact_sensitive_values(input: &str) -> String {
             } else {
                 value.to_string()
             }
+        })
+        .to_string()
+}
+
+fn redact_jwt_api_calls(input: &str) -> String {
+    JWT_API_CALL_RE
+        .replace_all(input, |captures: &regex::Captures<'_>| {
+            let call = captures.get(0).expect("full capture should exist").as_str();
+            QUOTED_LITERAL_RE
+                .replace_all(call, |literal: &regex::Captures<'_>| {
+                    let value = literal
+                        .get(0)
+                        .expect("literal capture should exist")
+                        .as_str();
+                    let quote = &value[..1];
+                    format!("{quote}{REDACTION}{quote}")
+                })
+                .to_string()
         })
         .to_string()
 }
@@ -401,6 +430,26 @@ mod tests {
 
         assert!(output.contains("Authorization: Bearer [REDACTED]"));
         assert!(!output.contains("aaa.bbb.cccccccccccccccccccccc"));
+    }
+
+    #[test]
+    fn redacts_short_jwt_api_positional_literals() {
+        let output = redact_sensitive_values(
+            r#"jwt.sign({ sub: "user-123" }, "dev-secret"); jwt.verify("opaque-token", "secret"); jwt.decode("short-token"); jwt.decode(token, key="tiny", algorithms=["HS256"])"#,
+        );
+
+        for leaked in [
+            "user-123",
+            "dev-secret",
+            "opaque-token",
+            "short-token",
+            "\"secret\"",
+            "\"tiny\"",
+            "HS256",
+        ] {
+            assert!(!output.contains(leaked), "{leaked} leaked in {output}");
+        }
+        assert!(output.contains("[REDACTED]"));
     }
 
     #[test]
