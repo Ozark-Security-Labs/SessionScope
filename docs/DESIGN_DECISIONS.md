@@ -190,3 +190,28 @@ Rules:
   refresh tokens.
 - Clearing a refresh cookie remains client-side evidence only; it does not
   satisfy refresh-token rotation or revocation checks.
+
+## SS-DEC-007: Session Fixation Signals Are Review-Required
+
+Session fixation review depends on framework behavior, middleware ordering, and
+the exact point where an authenticated or elevated identity is bound to a
+session. Static evidence should identify likely transition points and visible
+rotation, but it should not claim exploitability from missing local evidence
+alone.
+
+Rules:
+
+- Login, sign-in, auth callback, impersonation, role elevation, admin
+  promotion, and permission-change handlers may emit session transition
+  evidence.
+- Explicit session regeneration, session-key cycling, and clear-and-reissue
+  cookie-session patterns may satisfy nearby transition review when linked by
+  local source context.
+- Recognized Django `login(request, user)`, `auth_login(request, user)`, and
+  `request.session.cycle_key()` calls are acceptable framework/default
+  regeneration evidence when visible in source.
+- Missing regeneration near a login or privilege transition should produce a
+  medium-severity `dynamic_review_required` finding with a reviewer question,
+  not a high-confidence misconfiguration.
+- Logout-only handlers and cookie deletion evidence should not create session
+  fixation findings.

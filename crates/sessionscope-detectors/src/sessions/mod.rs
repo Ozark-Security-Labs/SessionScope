@@ -80,6 +80,7 @@ struct Signal {
     column: usize,
     confidence: Confidence,
     dynamic: bool,
+    framework_default: bool,
     excerpt: SanitizedExcerpt,
 }
 
@@ -92,6 +93,7 @@ struct SignalSpec {
     framework_hint: &'static str,
     confidence: Confidence,
     dynamic: bool,
+    framework_default: bool,
 }
 
 impl SignalSpec {
@@ -112,6 +114,7 @@ impl SignalSpec {
             framework_hint,
             confidence,
             dynamic,
+            framework_default: false,
         }
     }
 
@@ -132,6 +135,11 @@ impl SignalSpec {
             confidence,
             dynamic,
         )
+    }
+
+    fn framework_default(mut self) -> Self {
+        self.framework_default = true;
+        self
     }
 }
 
@@ -527,6 +535,9 @@ fn collect_refresh_python_call_signal(node: Node<'_>, source: &str, signals: &mu
 fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
     match node.kind() {
         "call_expression" => collect_js_call_signal(node, source, signals),
+        "assignment_expression" | "augmented_assignment_expression" | "expression_statement" => {
+            collect_js_assignment_signal(node, source, signals);
+        }
         "function_declaration" | "method_definition"
             if js_function_name(node, source).is_some_and(|name| {
                 name == "DELETE" || name.to_ascii_lowercase().contains("logout")
@@ -545,6 +556,33 @@ fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
                 source,
             ));
         }
+        "function_declaration" | "method_definition" => {
+            let name = js_function_name(node, source).unwrap_or_default();
+            let normalized = normalize_symbol(&name);
+            if is_auth_handler_context(&normalized) {
+                signals.push(session_fixation_signal(
+                    "session.auth_transition",
+                    LifecycleStage::Issue,
+                    node,
+                    source,
+                    "javascript",
+                    Confidence::Medium,
+                    true,
+                    false,
+                ));
+            } else if is_privilege_transition_context(&normalized) {
+                signals.push(session_fixation_signal(
+                    "session.privilege_transition",
+                    LifecycleStage::Issue,
+                    node,
+                    source,
+                    "javascript",
+                    Confidence::Medium,
+                    true,
+                    false,
+                ));
+            }
+        }
         "export_statement" => {
             let text = node_text(node, source);
             if text.contains("function DELETE") || text.contains("const DELETE") {
@@ -561,6 +599,30 @@ fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
                     source,
                 ));
             }
+            let normalized = normalize_symbol_without_literals(&text);
+            if is_auth_handler_context(&normalized) {
+                signals.push(session_fixation_signal(
+                    "session.auth_transition",
+                    LifecycleStage::Issue,
+                    node,
+                    source,
+                    "nextjs",
+                    Confidence::Medium,
+                    true,
+                    false,
+                ));
+            } else if is_privilege_transition_context(&normalized) {
+                signals.push(session_fixation_signal(
+                    "session.privilege_transition",
+                    LifecycleStage::Issue,
+                    node,
+                    source,
+                    "nextjs",
+                    Confidence::Medium,
+                    true,
+                    false,
+                ));
+            }
         }
         _ => {}
     }
@@ -574,6 +636,76 @@ fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
 fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
     let text = node_text(node, source);
     let normalized = normalize_symbol_without_literals(&text);
+
+    if is_js_auth_transition_route(&text) {
+        signals.push(session_fixation_signal(
+            "session.auth_transition",
+            LifecycleStage::Issue,
+            node,
+            source,
+            "express",
+            Confidence::High,
+            false,
+            false,
+        ));
+    }
+
+    if is_js_privilege_transition_route(&text) || is_privilege_transition_call(&normalized) {
+        signals.push(session_fixation_signal(
+            "session.privilege_transition",
+            LifecycleStage::Issue,
+            node,
+            source,
+            js_session_framework_hint(&text),
+            if is_js_privilege_transition_route(&text) {
+                Confidence::High
+            } else {
+                Confidence::Medium
+            },
+            !is_js_privilege_transition_route(&text),
+            false,
+        ));
+    }
+
+    if is_js_session_regenerate_call(&normalized) {
+        signals.push(session_fixation_signal(
+            "session.regenerate",
+            LifecycleStage::Refresh,
+            node,
+            source,
+            js_session_framework_hint(&text),
+            Confidence::High,
+            false,
+            false,
+        ));
+    }
+
+    if is_js_session_reissue_context(node, source) {
+        signals.push(session_fixation_signal(
+            "session.reissue",
+            LifecycleStage::Refresh,
+            node,
+            source,
+            "cookie-session",
+            Confidence::Medium,
+            true,
+            false,
+        ));
+    }
+
+    if is_js_session_cookie_store_call(node, source) && is_auth_or_privilege_ancestor(node, source)
+    {
+        signals.push(session_fixation_signal(
+            "session.store_after_auth",
+            LifecycleStage::Store,
+            node,
+            source,
+            js_session_framework_hint(&text),
+            Confidence::High,
+            false,
+            false,
+        ));
+    }
 
     if is_js_logout_route(&text) {
         signals.push(signal(
@@ -663,11 +795,35 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
     }
 }
 
+fn collect_js_assignment_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+    let text = node_text(node, source);
+    let normalized = normalize_symbol(&text);
+    if is_js_session_mutation(&normalized) && is_auth_or_privilege_ancestor(node, source) {
+        signals.push(session_fixation_signal(
+            "session.store_after_auth",
+            LifecycleStage::Store,
+            node,
+            source,
+            js_session_framework_hint(&ancestor_context_text(node, source)),
+            Confidence::High,
+            false,
+            false,
+        ));
+    }
+}
+
 fn collect_python_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
     if node.kind() == "function_definition" {
         let name = child_by_field(node, "name").map(|name| node_text(name, source));
         let decorators = python_decorator_text(node, source);
-        if name.is_some_and(|name| name.to_ascii_lowercase().contains("logout"))
+        let normalized_context = normalize_symbol(&format!(
+            "{} {}",
+            name.clone().unwrap_or_default(),
+            decorators
+        ));
+        if name
+            .as_deref()
+            .is_some_and(|name| name.to_ascii_lowercase().contains("logout"))
             || decorators.to_ascii_lowercase().contains("/logout")
         {
             signals.push(signal(
@@ -682,11 +838,40 @@ fn collect_python_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal
                 node,
                 source,
             ));
+        } else if is_auth_handler_context(&normalized_context) {
+            signals.push(session_fixation_signal(
+                "session.auth_transition",
+                LifecycleStage::Issue,
+                node,
+                source,
+                python_framework_hint(&decorators),
+                Confidence::High,
+                false,
+                false,
+            ));
+        } else if is_privilege_transition_context(&normalized_context) {
+            signals.push(session_fixation_signal(
+                "session.privilege_transition",
+                LifecycleStage::Issue,
+                node,
+                source,
+                python_framework_hint(&decorators),
+                Confidence::High,
+                false,
+                false,
+            ));
         }
     }
 
     if node.kind() == "call" {
         collect_python_call_signal(node, source, signals);
+    }
+
+    if node.kind() == "assignment"
+        || node.kind() == "augmented_assignment"
+        || node.kind() == "expression_statement"
+    {
+        collect_python_assignment_signal(node, source, signals);
     }
 
     let mut cursor = node.walk();
@@ -701,6 +886,71 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
         .unwrap_or_default();
     let text = node_text(node, source);
     let normalized = normalize_symbol_without_literals(&format!("{function} {text}"));
+
+    if is_python_django_login_call(&function, &normalized) {
+        signals.push(session_fixation_signal(
+            "session.auth_transition",
+            LifecycleStage::Issue,
+            node,
+            source,
+            "django",
+            Confidence::High,
+            false,
+            false,
+        ));
+        signals.push(session_fixation_signal(
+            "session.framework_default_regenerate",
+            LifecycleStage::Refresh,
+            node,
+            source,
+            "django",
+            Confidence::High,
+            false,
+            true,
+        ));
+        return;
+    }
+
+    if is_python_session_cycle_key_call(&normalized) {
+        signals.push(session_fixation_signal(
+            "session.regenerate",
+            LifecycleStage::Refresh,
+            node,
+            source,
+            "django",
+            Confidence::High,
+            false,
+            false,
+        ));
+    }
+
+    if is_python_session_reissue_context(node, source) {
+        signals.push(session_fixation_signal(
+            "session.reissue",
+            LifecycleStage::Refresh,
+            node,
+            source,
+            python_framework_hint(&ancestor_context_text(node, source)),
+            Confidence::Medium,
+            true,
+            false,
+        ));
+    }
+
+    if is_python_session_cookie_store_call(&function, &normalized)
+        && is_auth_or_privilege_ancestor(node, source)
+    {
+        signals.push(session_fixation_signal(
+            "session.store_after_auth",
+            LifecycleStage::Store,
+            node,
+            source,
+            python_framework_hint(&ancestor_context_text(node, source)),
+            Confidence::High,
+            false,
+            false,
+        ));
+    }
 
     if function.ends_with(".delete_cookie") || function == "delete_cookie" {
         let name = first_call_string_argument(node, source)
@@ -791,6 +1041,23 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
     }
 }
 
+fn collect_python_assignment_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+    let text = node_text(node, source);
+    let normalized = normalize_symbol(&text);
+    if is_python_session_mutation(&normalized) && is_auth_or_privilege_ancestor(node, source) {
+        signals.push(session_fixation_signal(
+            "session.store_after_auth",
+            LifecycleStage::Store,
+            node,
+            source,
+            python_framework_hint(&ancestor_context_text(node, source)),
+            Confidence::High,
+            false,
+            false,
+        ));
+    }
+}
+
 fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> DetectionOutput {
     let mut output = DetectionOutput::default();
     let mut seen = BTreeSet::new();
@@ -850,7 +1117,7 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
             confidence: signal.confidence,
             excerpt: Some(signal.excerpt),
             dynamic: signal.dynamic,
-            framework_default: false,
+            framework_default: signal.framework_default,
         });
     }
 
@@ -868,8 +1135,37 @@ fn signal(spec: SignalSpec, node: Node<'_>, source: &str) -> Signal {
         column: node.start_position().column + 1,
         confidence: spec.confidence,
         dynamic: spec.dynamic,
+        framework_default: spec.framework_default,
         excerpt: SanitizedExcerpt(sanitize_excerpt(&node_text(node, source))),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn session_fixation_signal(
+    detector_id: &'static str,
+    stage: LifecycleStage,
+    node: Node<'_>,
+    source: &str,
+    framework_hint: &'static str,
+    confidence: Confidence,
+    dynamic: bool,
+    framework_default: bool,
+) -> Signal {
+    let spec = SignalSpec::new(
+        detector_id,
+        stage,
+        ArtifactType::SessionRecord,
+        "session",
+        framework_hint,
+        confidence,
+        dynamic,
+    );
+    let spec = if framework_default {
+        spec.framework_default()
+    } else {
+        spec
+    };
+    signal(spec, node, source)
 }
 
 fn refresh_signal(
@@ -940,6 +1236,188 @@ fn is_js_logout_route(text: &str) -> bool {
     let normalized = normalize_symbol(text);
     (normalized.contains("app.post") || normalized.contains("router.post"))
         && normalized.contains("logout")
+}
+
+fn is_js_auth_transition_route(text: &str) -> bool {
+    let normalized = normalize_symbol(text);
+    is_js_route_call(&normalized)
+        && is_auth_transition_context(&normalized)
+        && !is_logout_context(&normalized)
+}
+
+fn is_js_privilege_transition_route(text: &str) -> bool {
+    let normalized = normalize_symbol(text);
+    is_js_route_call(&normalized)
+        && is_privilege_transition_context(&normalized)
+        && !is_logout_context(&normalized)
+}
+
+fn is_js_route_call(normalized: &str) -> bool {
+    normalized.contains("app.get")
+        || normalized.contains("app.post")
+        || normalized.contains("app.put")
+        || normalized.contains("app.patch")
+        || normalized.contains("router.get")
+        || normalized.contains("router.post")
+        || normalized.contains("router.put")
+        || normalized.contains("router.patch")
+}
+
+fn is_auth_transition_context(normalized: &str) -> bool {
+    !is_logout_context(normalized)
+        && (normalized.contains("login")
+            || normalized.contains("signin")
+            || normalized.contains("sign_in")
+            || normalized.contains("authcallback")
+            || normalized.contains("auth/callback")
+            || normalized.contains("callback")
+            || normalized.contains("authenticate")
+            || normalized.contains("authentication")
+            || normalized.contains("password_verify")
+            || normalized.contains("passwordverify"))
+}
+
+fn is_auth_handler_context(normalized: &str) -> bool {
+    !is_logout_context(normalized)
+        && (normalized.contains("login")
+            || normalized.contains("signin")
+            || normalized.contains("sign_in")
+            || normalized.contains("authcallback")
+            || normalized.contains("auth/callback")
+            || normalized.contains("callback")
+            || normalized.contains("password_verify")
+            || normalized.contains("passwordverify"))
+}
+
+fn is_privilege_transition_context(normalized: &str) -> bool {
+    !is_logout_context(normalized)
+        && (normalized.contains("promote")
+            || normalized.contains("elevate")
+            || normalized.contains("privilege")
+            || normalized.contains("permission")
+            || normalized.contains("impersonat")
+            || normalized.contains("sudo")
+            || normalized.contains("makeadmin")
+            || normalized.contains("make_admin")
+            || normalized.contains("roleadmin")
+            || normalized.contains("role/admin")
+            || normalized.contains("role_admin")
+            || normalized.contains("admin/promote")
+            || normalized.contains("grantrole")
+            || normalized.contains("grant_role"))
+}
+
+fn is_logout_context(normalized: &str) -> bool {
+    normalized.contains("logout")
+        || normalized.contains("signout")
+        || normalized.contains("sign_out")
+}
+
+fn is_privilege_transition_call(normalized: &str) -> bool {
+    is_privilege_transition_context(normalized)
+        && (normalized.contains("set")
+            || normalized.contains("update")
+            || normalized.contains("grant")
+            || normalized.contains("assign")
+            || normalized.contains("promote")
+            || normalized.contains("impersonat"))
+}
+
+fn is_js_session_regenerate_call(normalized: &str) -> bool {
+    normalized.contains("session.regenerate")
+        || normalized.contains("req.session.regenerate")
+        || normalized.contains("request.session.regenerate")
+        || normalized.contains("regeneratesession")
+        || normalized.contains("rotate_session")
+        || normalized.contains("rotatesession")
+        || normalized.contains("cyclesession")
+}
+
+fn is_js_session_mutation(normalized: &str) -> bool {
+    (normalized.contains("req.session")
+        || normalized.contains("request.session")
+        || normalized.contains("ctx.session")
+        || normalized.contains("session.user")
+        || normalized.contains("session.userid")
+        || normalized.contains("session.user_id")
+        || normalized.contains("session.role"))
+        && (normalized.contains("user")
+            || normalized.contains("account")
+            || normalized.contains("role")
+            || normalized.contains("admin")
+            || normalized.contains("auth")
+            || normalized.contains("impersonat"))
+}
+
+fn is_js_session_cookie_store_call(node: Node<'_>, source: &str) -> bool {
+    let function = child_by_field(node, "function")
+        .map(|function| node_text(function, source))
+        .unwrap_or_default();
+    let normalized = normalize_symbol_without_literals(&node_text(node, source));
+    (function.ends_with(".cookie")
+        || function.ends_with(".set")
+        || function.ends_with(".setCookie")
+        || function.ends_with(".set_cookie"))
+        && (normalized.contains("session") || normalized.contains("connect.sid"))
+}
+
+fn is_js_session_reissue_context(node: Node<'_>, source: &str) -> bool {
+    let context = normalize_symbol(&ancestor_context_text(node, source));
+    is_auth_transition_context(&context)
+        && (context.contains("clearcookie")
+            || context.contains("cookies.delete")
+            || context.contains("sessionnull")
+            || context.contains("req.sessionnull"))
+        && (context.contains(".cookie")
+            || context.contains("cookies.set")
+            || context.contains("setcookie"))
+        && context.contains("session")
+}
+
+fn is_auth_or_privilege_ancestor(node: Node<'_>, source: &str) -> bool {
+    let mut current = node.parent();
+    let mut depth = 0;
+    while let Some(candidate) = current {
+        let context = normalize_symbol(&node_text(candidate, source));
+        if is_auth_transition_context(&context) || is_privilege_transition_context(&context) {
+            return true;
+        }
+        current = candidate.parent();
+        depth += 1;
+        if depth > 16 {
+            break;
+        }
+    }
+    false
+}
+
+fn ancestor_context_text(node: Node<'_>, source: &str) -> String {
+    let mut current = node.parent();
+    let mut depth = 0;
+    while let Some(candidate) = current {
+        if matches!(
+            candidate.kind(),
+            "call_expression"
+                | "function_declaration"
+                | "function"
+                | "arrow_function"
+                | "method_definition"
+                | "export_statement"
+                | "function_definition"
+        ) {
+            let text = node_text(candidate, source);
+            if text.len() <= 12_000 {
+                return text;
+            }
+            return text.chars().take(12_000).collect();
+        }
+        current = candidate.parent();
+        depth += 1;
+        if depth > 16 {
+            break;
+        }
+    }
+    node_text(node, source)
 }
 
 fn is_js_refresh_route(text: &str) -> bool {
@@ -1292,6 +1770,60 @@ fn python_framework_hint(text: &str) -> &'static str {
     }
 }
 
+fn js_session_framework_hint(text: &str) -> &'static str {
+    let normalized = text.to_ascii_lowercase();
+    if normalized.contains("cookie-session") || normalized.contains("clearcookie") {
+        "cookie-session"
+    } else if normalized.contains("cookies()") || normalized.contains("nexturl") {
+        "nextjs"
+    } else if normalized.contains("app.") || normalized.contains("router.") {
+        "express"
+    } else {
+        "javascript"
+    }
+}
+
+fn is_python_django_login_call(function: &str, normalized: &str) -> bool {
+    matches!(function, "login" | "auth_login")
+        || function.ends_with(".login")
+        || normalized.contains("authlogin")
+}
+
+fn is_python_session_cycle_key_call(normalized: &str) -> bool {
+    normalized.contains("session.cycle_key")
+        || normalized.contains("request.session.cycle_key")
+        || normalized.contains("cycle_key")
+        || normalized.contains("cyclesession")
+        || normalized.contains("rotate_session")
+}
+
+fn is_python_session_mutation(normalized: &str) -> bool {
+    (normalized.contains("request.session")
+        || normalized.contains("session")
+        || normalized.contains("request.session.user")
+        || normalized.contains("request.sessionuserid")
+        || normalized.contains("request.sessionuser_id"))
+        && (normalized.contains("user")
+            || normalized.contains("account")
+            || normalized.contains("role")
+            || normalized.contains("admin")
+            || normalized.contains("auth")
+            || normalized.contains("impersonat"))
+}
+
+fn is_python_session_cookie_store_call(function: &str, normalized: &str) -> bool {
+    (function.ends_with(".set_cookie") || function == "set_cookie")
+        && (normalized.contains("session") || normalized.contains("sessionid"))
+}
+
+fn is_python_session_reissue_context(node: Node<'_>, source: &str) -> bool {
+    let context = normalize_symbol(&ancestor_context_text(node, source));
+    is_auth_transition_context(&context)
+        && (context.contains("delete_cookie") || context.contains("session.flush"))
+        && context.contains("set_cookie")
+        && (context.contains("session") || context.contains("sessionid"))
+}
+
 fn python_cookie_clear_framework(node: Node<'_>) -> &'static str {
     let mut current = Some(node);
     while let Some(node) = current {
@@ -1619,6 +2151,131 @@ app.post("/logout", () => revokeRefreshToken("short-secret"));
             .join("\n");
         assert!(!text.contains("short-secret"));
         assert!(text.contains(REDACTION));
+    }
+
+    #[test]
+    fn detects_express_login_regeneration_and_session_mutation() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+app.post("/login", async (request, response) => {
+  const user = await verifyPassword(request.body.email, request.body.password);
+  request.session.regenerate(() => {
+    request.session.userId = user.id;
+  });
+});
+"#,
+        );
+
+        assert_detector(&output, "session.auth_transition");
+        assert_detector(&output, "session.regenerate");
+        assert_detector(&output, "session.store_after_auth");
+        assert_stage(&output, "session.auth_transition", LifecycleStage::Issue);
+        assert_stage(&output, "session.regenerate", LifecycleStage::Refresh);
+    }
+
+    #[test]
+    fn detects_express_login_without_regeneration() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+app.post("/legacy-login", async (request, response) => {
+  const user = await authenticate(request.body.email, request.body.password);
+  request.session.userId = user.id;
+});
+"#,
+        );
+
+        assert_detector(&output, "session.auth_transition");
+        assert_detector(&output, "session.store_after_auth");
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "session.regenerate")
+        );
+    }
+
+    #[test]
+    fn detects_cookie_session_reissue_pattern() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+app.post("/signin", async (request, response) => {
+  response.clearCookie("session");
+  response.cookie("session", buildSignedSession(request.user.id), { httpOnly: true });
+});
+"#,
+        );
+
+        assert_detector(&output, "session.auth_transition");
+        assert_detector(&output, "session.reissue");
+        assert_stage(&output, "session.reissue", LifecycleStage::Refresh);
+    }
+
+    #[test]
+    fn detects_django_cycle_key_and_framework_default_login() {
+        let output = detect(
+            Language::Python,
+            r#"
+def login_with_cycle_key(request):
+    request.session.cycle_key()
+    request.session["user_id"] = request.user.pk
+
+def login_with_framework_default(request, user):
+    login(request, user)
+"#,
+        );
+
+        assert_detector(&output, "session.auth_transition");
+        assert_detector(&output, "session.regenerate");
+        assert_detector(&output, "session.framework_default_regenerate");
+        assert!(output.evidence.iter().any(|evidence| {
+            evidence.detector_id == "session.framework_default_regenerate"
+                && evidence.framework_default
+        }));
+    }
+
+    #[test]
+    fn detects_privilege_elevation_without_regeneration() {
+        let output = detect(
+            Language::Python,
+            r#"
+def promote_to_admin(request):
+    request.session["role"] = "admin"
+"#,
+        );
+
+        assert_detector(&output, "session.privilege_transition");
+        assert_detector(&output, "session.store_after_auth");
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "session.regenerate")
+        );
+    }
+
+    #[test]
+    fn logout_only_does_not_emit_fixation_transition_evidence() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+app.post("/logout", (request, response) => {
+  response.clearCookie("session");
+  request.session.destroy();
+});
+"#,
+        );
+
+        assert_detector(&output, "logout.handler");
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "session.auth_transition"
+                    || evidence.detector_id == "session.privilege_transition")
+        );
     }
 
     #[test]

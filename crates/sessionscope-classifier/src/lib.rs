@@ -3,6 +3,7 @@ pub mod cookies;
 pub mod jwt;
 pub mod lifecycle;
 pub mod query_params;
+pub mod session_fixation;
 pub mod trust_boundary;
 
 use sessionscope_model::ScanReport;
@@ -13,6 +14,7 @@ pub fn classify(mut report: ScanReport) -> ScanReport {
     report.findings.extend(jwt::classify(&report));
     report.findings.extend(bearer::classify(&report));
     report.findings.extend(query_params::classify(&report));
+    report.findings.extend(session_fixation::classify(&report));
     report.findings.extend(lifecycle::classify(&report));
     sort_findings(&mut report);
     report

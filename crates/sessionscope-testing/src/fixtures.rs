@@ -838,6 +838,69 @@ mod tests {
     }
 
     #[test]
+    fn session_fixation_fixtures_emit_review_required_findings() {
+        let cases = [
+            fixture_root()
+                .join("express")
+                .join("session-fixation-signals"),
+            fixture_root()
+                .join("django")
+                .join("session-fixation-signals"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "session.auth_transition"
+                    && evidence.lifecycle_stage == LifecycleStage::Issue
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "session.store_after_auth"
+                    && evidence.lifecycle_stage == LifecycleStage::Store
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                matches!(
+                    evidence.detector_id.as_str(),
+                    "session.regenerate"
+                        | "session.reissue"
+                        | "session.framework_default_regenerate"
+                ) && evidence.lifecycle_stage == LifecycleStage::Refresh
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "session.privilege_transition"
+                    && evidence.lifecycle_stage == LifecycleStage::Issue
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::DynamicReviewRequired
+                    && finding.title.contains("Session regeneration evidence")
+                    && finding.reviewer_question.is_some()
+            }));
+            assert!(
+                report.findings.iter().any(|finding| {
+                    finding.category == FindingCategory::DynamicReviewRequired
+                        && finding.title.contains("privilege transition")
+                        && finding.reviewer_question.is_some()
+                }),
+                "{} should include privilege transition review",
+                root.display()
+            );
+
+            for format in [ReportFormat::Json, ReportFormat::Markdown] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("password\":"));
+                assert!(!rendered.contains("PLACEHOLDER"));
+            }
+        }
+    }
+
+    #[test]
     fn express_cookie_fixture_renders_deterministic_json_inventory() {
         let root = fixture_root()
             .join("express")
