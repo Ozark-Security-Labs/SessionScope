@@ -33,8 +33,10 @@ Placeholder values intentionally look fake:
 | `generic-ts/` | `provider-refresh` | Provider-managed refresh behavior represented as dynamic review context. |
 | `generic-ts/` | `provider-revoke` | Provider abstraction revocation evidence without live provider calls. |
 | `generic-ts/` | `bearer-api-key-lifecycle` | Generic TypeScript opaque bearer token, service token, and API-key lifecycle evidence. |
+| `generic-ts/` | `trust-boundary-token-reuse` | TypeScript token scope, environment, frontend/backend, and trust-boundary reuse evidence. |
 | `generic-python/` | `jwt-and-reset` | Generic Python/PyJWT-style issue/verify cases and reset-token lifecycle examples. |
 | `generic-python/` | `bearer-api-key-lifecycle` | Generic Python opaque bearer token, service token, and API-key lifecycle evidence. |
+| `generic-python/` | `trust-boundary-token-reuse` | Python token scope, environment, frontend/backend, and trust-boundary reuse evidence. |
 
 The `generic-ts` family covers the generic JavaScript/TypeScript JWT fixture
 space for now. Add narrower `generic-js` fixtures only if future detectors need

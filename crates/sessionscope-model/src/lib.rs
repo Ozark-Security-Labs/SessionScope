@@ -8,7 +8,8 @@ pub mod schema;
 pub use artifact::{
     Artifact, ArtifactId, ArtifactType, CookieAttributeObservation, CookieAttributeState,
     CookieAttributes, JwtAttributeObservation, JwtAttributeState, JwtAttributes, JwtIdentityClaims,
-    LifecycleEvidence,
+    LifecycleEvidence, TokenBoundaryAttributeState, TokenBoundaryAttributes,
+    TokenBoundaryObservation,
 };
 pub use evidence::{Confidence, Evidence, EvidenceId, SanitizedExcerpt, SourceLocation};
 pub use finding::{Finding, FindingCategory, FindingId, Severity};
@@ -28,8 +29,9 @@ mod tests {
         CookieAttributeState, CookieAttributes, Evidence, EvidenceId, Finding, FindingCategory,
         FindingId, JwtAttributeObservation, JwtAttributeState, JwtAttributes, JwtIdentityClaims,
         LifecycleEvidence, LifecyclePath, LifecyclePathId, LifecyclePathStep, LifecycleStage,
-        SCHEMA_VERSION, SanitizedExcerpt, Severity, SourceLocation, stable_artifact_id,
-        stable_evidence_id, stable_finding_id, stable_lifecycle_path_id,
+        SCHEMA_VERSION, SanitizedExcerpt, Severity, SourceLocation, TokenBoundaryAttributeState,
+        TokenBoundaryAttributes, TokenBoundaryObservation, stable_artifact_id, stable_evidence_id,
+        stable_finding_id, stable_lifecycle_path_id,
     };
 
     fn source_location() -> SourceLocation {
@@ -69,6 +71,7 @@ mod tests {
             framework_hints: vec!["express".to_string()],
             cookie_attributes: None,
             jwt_attributes: None,
+            token_boundary_attributes: None,
         };
 
         let serialized =
@@ -79,6 +82,54 @@ mod tests {
         assert_eq!(deserialized, artifact);
         assert!(serialized.contains("\"artifact_type\":\"session_cookie\""));
         assert!(serialized.contains("\"lifecycle_evidence\""));
+    }
+
+    #[test]
+    fn round_trips_token_boundary_inventory() {
+        let evidence_id = EvidenceId("evidence_boundary_audience".to_string());
+        let present = TokenBoundaryObservation {
+            state: TokenBoundaryAttributeState::Present,
+            value: Some("internal_api".to_string()),
+            evidence_ids: vec![evidence_id],
+            confidence: Confidence::High,
+        };
+        let missing = TokenBoundaryObservation {
+            state: TokenBoundaryAttributeState::Missing,
+            value: None,
+            evidence_ids: Vec::new(),
+            confidence: Confidence::High,
+        };
+        let attributes = TokenBoundaryAttributes {
+            issuer: missing.clone(),
+            audience: present,
+            service: missing.clone(),
+            environment: missing.clone(),
+            tenant: missing.clone(),
+            provider: missing.clone(),
+            scope: missing.clone(),
+            trust_boundary: missing,
+        };
+
+        let artifact = Artifact {
+            id: ArtifactId("artifact_service_token".to_string()),
+            artifact_type: ArtifactType::ServiceToken,
+            display_name: Some("service_token".to_string()),
+            locations: vec![source_location()],
+            lifecycle_evidence: LifecycleEvidence::default(),
+            confidence: Confidence::High,
+            framework_hints: vec!["test".to_string()],
+            cookie_attributes: None,
+            jwt_attributes: None,
+            token_boundary_attributes: Some(attributes.clone()),
+        };
+
+        let serialized = serde_json::to_string(&artifact).expect("artifact should serialize");
+        let deserialized: Artifact =
+            serde_json::from_str(&serialized).expect("artifact should deserialize");
+
+        assert_eq!(deserialized.token_boundary_attributes, Some(attributes));
+        assert!(serialized.contains("\"token_boundary_attributes\""));
+        assert!(serialized.contains("\"audience\""));
     }
 
     #[test]

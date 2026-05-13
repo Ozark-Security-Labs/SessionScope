@@ -58,8 +58,9 @@ types are:
 
 Artifacts include a stable ID, type, optional safe display name, source
 locations, confidence, framework hints, lifecycle evidence references, optional
-cookie attributes for cookie artifacts, and optional JWT attributes for JWT
-artifacts.
+cookie attributes for cookie artifacts, optional JWT attributes for JWT
+artifacts, and optional token boundary attributes for JWT, bearer, API-key, and
+service-token artifacts.
 
 Lifecycle evidence is grouped by stage:
 
@@ -141,6 +142,34 @@ validate, expire, and revoke signals when visible. Dynamic provider-managed or
 wrapper-heavy evidence must be represented as review-required context rather
 than definitive unsafe behavior.
 
+Token artifacts may include a `token_boundary_attributes` object when static
+source evidence exposes issuer, audience, service, environment, tenant,
+provider, scope, or trust-boundary context. Each observation includes:
+
+- `state`: `present`, `missing`, `dynamic`, `framework_default`, or
+  `unknown`
+- optional sanitized `value`
+- related `evidence_ids`
+- `confidence`
+
+Supported boundary observations are:
+
+- `issuer`
+- `audience`
+- `service`
+- `environment`
+- `tenant`
+- `provider`
+- `scope`
+- `trust_boundary`
+
+Boundary observations are conservative static hints for reuse analysis and
+future provider adapters. They may be populated from JWT issuer/audience/claim
+evidence, bearer/API-key config names, provider wrapper calls, service-token
+names, environment-specific config references, or frontend/backend source
+context. They must never contain runtime token values, bearer strings, private
+keys, signing secrets, or raw JWT contents.
+
 JWT artifacts may include a `jwt_attributes` object with structured
 observations for:
 
@@ -192,6 +221,10 @@ IDs, workspace IDs, roles, scopes, groups, email addresses, and auth method
 strings, must be redacted or summarized as placeholders. Boolean
 `email_verified` literals may be retained because they do not identify a
 principal.
+
+JWT issuer, audience, tenant, workspace, and scope observations may also be
+mirrored into `token_boundary_attributes` so trust-boundary reuse findings can
+reference the same evidence without changing JWT-specific validation findings.
 
 Example JWT attributes:
 

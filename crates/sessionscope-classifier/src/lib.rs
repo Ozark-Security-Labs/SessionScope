@@ -13,6 +13,7 @@ pub fn classify(mut report: ScanReport) -> ScanReport {
     report.findings = cookies::classify(&report);
     report.findings.extend(jwt::classify(&report));
     report.findings.extend(bearer::classify(&report));
+    report.findings.extend(trust_boundary::classify(&report));
     report.findings.extend(query_params::classify(&report));
     report.findings.extend(session_fixation::classify(&report));
     report.findings.extend(lifecycle::classify(&report));

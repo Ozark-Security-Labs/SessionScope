@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use sessionscope_model::{
     Artifact, ArtifactId, ArtifactType, Confidence, CookieAttributeState, Evidence, EvidenceId,
     Finding, FindingCategory, JwtAttributeState, LifecycleEvidence, LifecyclePath, LifecycleStage,
-    ScanReport, Severity, SkippedReason, SourceLocation,
+    ScanReport, Severity, SkippedReason, SourceLocation, TokenBoundaryAttributeState,
 };
 
 pub fn render(report: &ScanReport) -> String {
@@ -242,6 +242,9 @@ fn render_artifact(
     if let Some(attributes) = &artifact.jwt_attributes {
         render_jwt_attributes(output, attributes);
     }
+    if let Some(attributes) = &artifact.token_boundary_attributes {
+        render_token_boundary_attributes(output, attributes);
+    }
 }
 
 fn render_lifecycle_evidence(
@@ -369,6 +372,33 @@ fn render_jwt_attributes(output: &mut String, attributes: &sessionscope_model::J
     }
 }
 
+fn render_token_boundary_attributes(
+    output: &mut String,
+    attributes: &sessionscope_model::TokenBoundaryAttributes,
+) {
+    output.push_str("| Token boundary field | State | Value | Confidence | Evidence |\n");
+    output.push_str("| --- | --- | --- | --- | ---: |\n");
+    for (label, observation) in [
+        ("Issuer", &attributes.issuer),
+        ("Audience", &attributes.audience),
+        ("Service", &attributes.service),
+        ("Environment", &attributes.environment),
+        ("Tenant", &attributes.tenant),
+        ("Provider", &attributes.provider),
+        ("Scope", &attributes.scope),
+        ("Trust boundary", &attributes.trust_boundary),
+    ] {
+        output.push_str(&format!(
+            "| {label} | {} | {} | {} | {} |\n",
+            code_span(format_token_boundary_state(observation.state)),
+            table_cell(observation.value.as_deref().unwrap_or("-")),
+            code_span(format_confidence(observation.confidence)),
+            observation.evidence_ids.len()
+        ));
+    }
+    output.push('\n');
+}
+
 fn lifecycle_rows(lifecycle_evidence: &LifecycleEvidence) -> Vec<(LifecycleStage, &EvidenceId)> {
     let mut rows = Vec::new();
     for (stage, evidence_ids) in [
@@ -488,6 +518,16 @@ fn format_jwt_state(state: JwtAttributeState) -> &'static str {
         JwtAttributeState::Dynamic => "dynamic",
         JwtAttributeState::FrameworkDefault => "framework_default",
         JwtAttributeState::Unknown => "unknown",
+    }
+}
+
+fn format_token_boundary_state(state: TokenBoundaryAttributeState) -> &'static str {
+    match state {
+        TokenBoundaryAttributeState::Present => "present",
+        TokenBoundaryAttributeState::Missing => "missing",
+        TokenBoundaryAttributeState::Dynamic => "dynamic",
+        TokenBoundaryAttributeState::FrameworkDefault => "framework_default",
+        TokenBoundaryAttributeState::Unknown => "unknown",
     }
 }
 
@@ -764,6 +804,7 @@ mod tests {
                 framework_hints: vec!["jsonwebtoken".to_string()],
                 cookie_attributes: None,
                 jwt_attributes: Some(jwt_attributes(evidence_id.clone())),
+                token_boundary_attributes: None,
             }],
             evidence: vec![Evidence {
                 id: evidence_id.clone(),
@@ -935,6 +976,7 @@ mod tests {
             framework_hints: vec!["express".to_string()],
             cookie_attributes: Some(attributes()),
             jwt_attributes: None,
+            token_boundary_attributes: None,
         }
     }
 

@@ -113,6 +113,37 @@ pub struct JwtAttributes {
     pub identity_claims: Option<JwtIdentityClaims>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TokenBoundaryAttributeState {
+    Present,
+    Missing,
+    Dynamic,
+    FrameworkDefault,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TokenBoundaryObservation {
+    pub state: TokenBoundaryAttributeState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    pub evidence_ids: Vec<EvidenceId>,
+    pub confidence: Confidence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TokenBoundaryAttributes {
+    pub issuer: TokenBoundaryObservation,
+    pub audience: TokenBoundaryObservation,
+    pub service: TokenBoundaryObservation,
+    pub environment: TokenBoundaryObservation,
+    pub tenant: TokenBoundaryObservation,
+    pub provider: TokenBoundaryObservation,
+    pub scope: TokenBoundaryObservation,
+    pub trust_boundary: TokenBoundaryObservation,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Artifact {
     pub id: ArtifactId,
@@ -126,4 +157,6 @@ pub struct Artifact {
     pub cookie_attributes: Option<CookieAttributes>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub jwt_attributes: Option<JwtAttributes>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_boundary_attributes: Option<TokenBoundaryAttributes>,
 }

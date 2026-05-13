@@ -423,6 +423,7 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
             framework_hints: vec![signal.framework_hint.to_string()],
             cookie_attributes: None,
             jwt_attributes: None,
+            token_boundary_attributes: None,
         });
         output.evidence.push(Evidence {
             id: evidence_id,

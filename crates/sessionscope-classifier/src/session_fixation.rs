@@ -309,6 +309,7 @@ mod tests {
             framework_hints: vec![framework.to_string()],
             cookie_attributes: None,
             jwt_attributes: None,
+            token_boundary_attributes: None,
         }
     }
 

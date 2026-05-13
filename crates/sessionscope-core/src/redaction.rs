@@ -297,6 +297,22 @@ fn sanitize_artifact(artifact: &mut Artifact) {
             }
         }
     }
+    if let Some(attributes) = &mut artifact.token_boundary_attributes {
+        for observation in [
+            &mut attributes.issuer,
+            &mut attributes.audience,
+            &mut attributes.service,
+            &mut attributes.environment,
+            &mut attributes.tenant,
+            &mut attributes.provider,
+            &mut attributes.scope,
+            &mut attributes.trust_boundary,
+        ] {
+            if let Some(value) = &mut observation.value {
+                *value = redact_sensitive_values(value);
+            }
+        }
+    }
 }
 
 fn sanitize_evidence(evidence: &mut Evidence) {
@@ -611,6 +627,7 @@ mod tests {
                 framework_hints: Vec::new(),
                 cookie_attributes: Some(cookie_attributes_with_value(secret)),
                 jwt_attributes: None,
+                token_boundary_attributes: None,
             }],
             evidence: Vec::new(),
             diagnostics: Vec::new(),
@@ -640,6 +657,7 @@ mod tests {
                 framework_hints: Vec::new(),
                 cookie_attributes: None,
                 jwt_attributes: Some(jwt_attributes_with_identity_value("person@example.com")),
+                token_boundary_attributes: None,
             }],
             evidence: Vec::new(),
             diagnostics: Vec::new(),

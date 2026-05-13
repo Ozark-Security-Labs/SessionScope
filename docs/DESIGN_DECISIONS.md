@@ -215,3 +215,27 @@ Rules:
   not a high-confidence misconfiguration.
 - Logout-only handlers and cookie deletion evidence should not create session
   fixation findings.
+
+## SS-DEC-008: Trust-Boundary Reuse Is Review-Required
+
+Token reuse across services, audiences, environments, or frontend/backend
+boundaries depends on deployment configuration and provider policy. Static
+source evidence should preserve boundary hints and ask targeted reviewer
+questions when reuse is plausible, but it should not turn ambiguous reuse into a
+definitive exploit finding.
+
+Rules:
+
+- Boundary evidence may include issuer, audience, service, environment, tenant,
+  provider, scope, and frontend/backend trust-boundary hints when visible.
+- JWT missing issuer or audience validation remains a JWT validation finding;
+  trust-boundary reuse findings ask whether a token is reused outside its
+  intended boundary.
+- Inbound bearer/API-key evidence forwarded outbound without visible
+  audience/service/scope evidence should be `dynamic_review_required`.
+- Same token names spanning frontend/backend paths or multiple environment
+  hints should be review-required unless source-bound evidence proves
+  separation.
+- Provider and wrapper-managed token handling should remain review-required
+  unless local source or config shows the effective audience, service, tenant,
+  and scope policy.

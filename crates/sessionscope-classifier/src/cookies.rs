@@ -397,6 +397,7 @@ mod tests {
             framework_hints: vec!["express".to_string()],
             cookie_attributes: Some(attributes),
             jwt_attributes: None,
+            token_boundary_attributes: None,
         }
     }
 

@@ -901,6 +901,74 @@ mod tests {
     }
 
     #[test]
+    fn trust_boundary_fixtures_emit_boundary_inventory_and_reviews() {
+        let cases = [
+            fixture_root()
+                .join("generic-ts")
+                .join("trust-boundary-token-reuse"),
+            fixture_root()
+                .join("generic-python")
+                .join("trust-boundary-token-reuse"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            assert!(report.artifacts.iter().any(|artifact| {
+                artifact
+                    .token_boundary_attributes
+                    .as_ref()
+                    .is_some_and(|attributes| {
+                        attributes.audience.evidence_ids.len()
+                            + attributes.service.evidence_ids.len()
+                            + attributes.environment.evidence_ids.len()
+                            + attributes.provider.evidence_ids.len()
+                            + attributes.trust_boundary.evidence_ids.len()
+                            > 0
+                    })
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id.starts_with("bearer.boundary.")
+                    && evidence.lifecycle_stage == LifecycleStage::Introspect
+            }));
+            for title_part in [
+                "inbound and outbound trust boundaries",
+                "frontend and backend contexts",
+                "multiple environment boundaries",
+                "Provider-managed token",
+            ] {
+                assert!(
+                    report.findings.iter().any(|finding| {
+                        finding.category == FindingCategory::DynamicReviewRequired
+                            && finding.title.contains(title_part)
+                            && finding.reviewer_question.is_some()
+                    }),
+                    "{} should include trust-boundary finding containing {title_part:?}",
+                    root.display()
+                );
+            }
+
+            for format in [
+                ReportFormat::Json,
+                ReportFormat::Markdown,
+                ReportFormat::Sarif,
+            ] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("PLACEHOLDER_SERVICE_TOKEN_DO_NOT_USE"));
+                assert!(!rendered.contains("PLACEHOLDER_RESET_TOKEN"));
+                assert!(!rendered.contains("Bearer PLACEHOLDER"));
+                assert!(rendered.contains("trust"));
+            }
+        }
+    }
+
+    #[test]
     fn express_cookie_fixture_renders_deterministic_json_inventory() {
         let root = fixture_root()
             .join("express")

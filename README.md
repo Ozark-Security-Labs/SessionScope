@@ -112,6 +112,7 @@ SessionScope classifies:
 - password-reset tokens
 - email-verification tokens
 - device/session records
+- token scope and trust-boundary evidence
 
 ### Evidence-bound findings
 
@@ -317,6 +318,7 @@ such as env files and private-key material before source loading.
 - Password reset tokens without expiry or single-use evidence
 - Session fixation risk signals
 - Token accepted from query parameters
+- Review-required token reuse across services, environments, or trust boundaries
 
 ## Non-goals
 

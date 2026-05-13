@@ -1188,6 +1188,7 @@ mod tests {
             framework_hints: Vec::new(),
             cookie_attributes: None,
             jwt_attributes: None,
+            token_boundary_attributes: None,
         }
     }
 

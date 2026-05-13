@@ -294,6 +294,7 @@ fn calls_to_output(
             framework_hints: vec![call.framework_hint.to_string()],
             cookie_attributes: Some(cookie_attributes),
             jwt_attributes: None,
+            token_boundary_attributes: None,
         });
 
         output.evidence.push(Evidence {

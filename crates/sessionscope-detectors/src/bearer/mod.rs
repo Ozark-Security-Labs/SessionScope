@@ -3,8 +3,9 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 use sessionscope_model::{
-    Artifact, ArtifactType, Confidence, Evidence, Language, LifecycleEvidence, LifecycleStage,
-    SanitizedExcerpt, SourceLocation, stable_artifact_id, stable_evidence_id,
+    Artifact, ArtifactType, Confidence, Evidence, EvidenceId, Language, LifecycleEvidence,
+    LifecycleStage, SanitizedExcerpt, SourceLocation, TokenBoundaryAttributeState,
+    TokenBoundaryAttributes, TokenBoundaryObservation, stable_artifact_id, stable_evidence_id,
 };
 use tree_sitter::{Node, Parser, Tree};
 
@@ -77,6 +78,7 @@ struct Signal {
     column: usize,
     confidence: Confidence,
     dynamic: bool,
+    boundary_value: Option<String>,
     excerpt: SanitizedExcerpt,
 }
 
@@ -129,14 +131,24 @@ fn detect_config(input: &DetectorInput<'_>) -> DetectionOutput {
             },
             stage,
             artifact_type,
-            display_name,
+            display_name: display_name.clone(),
             framework_hint: config_framework_hint(input.language),
             line: index + 1,
             column: 1,
             confidence: Confidence::High,
             dynamic: false,
+            boundary_value: None,
             excerpt: SanitizedExcerpt(sanitize_excerpt(line)),
         });
+        collect_config_boundary_signals(
+            line,
+            &normalized,
+            artifact_type,
+            display_name,
+            input.language,
+            index + 1,
+            &mut signals,
+        );
     }
     signals_to_output(input, signals)
 }
@@ -323,7 +335,7 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, path: &str, signals: &mu
             "bearer.dynamic_provider",
             LifecycleStage::Transmit,
             artifact_type,
-            display_name,
+            display_name.clone(),
             "provider",
             Confidence::Medium,
             true,
@@ -331,6 +343,15 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, path: &str, signals: &mu
             source,
         ));
     }
+    collect_boundary_signals(
+        context,
+        artifact_type,
+        display_name,
+        js_framework_hint(&normalized),
+        node,
+        source,
+        signals,
+    );
 }
 
 fn collect_python_call_signal(node: Node<'_>, source: &str, path: &str, signals: &mut Vec<Signal>) {
@@ -479,7 +500,7 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, path: &str, signals:
             "bearer.dynamic_provider",
             LifecycleStage::Transmit,
             artifact_type,
-            display_name,
+            display_name.clone(),
             "provider",
             Confidence::Medium,
             true,
@@ -487,6 +508,15 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, path: &str, signals:
             source,
         ));
     }
+    collect_boundary_signals(
+        context,
+        artifact_type,
+        display_name,
+        python_framework_hint(&normalized),
+        node,
+        source,
+        signals,
+    );
 }
 
 fn collect_assignment_signal(
@@ -557,7 +587,7 @@ fn collect_assignment_signal(
                 LifecycleStage::Validate
             },
             artifact_type,
-            display_name,
+            display_name.clone(),
             framework_hint,
             Confidence::High,
             false,
@@ -565,6 +595,15 @@ fn collect_assignment_signal(
             source,
         ));
     }
+    collect_boundary_signals(
+        context,
+        artifact_type,
+        display_name,
+        framework_hint,
+        node,
+        source,
+        signals,
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -590,7 +629,249 @@ fn signal(
         column,
         confidence,
         dynamic,
+        boundary_value: None,
         excerpt: SanitizedExcerpt(sanitize_excerpt(&node_text(node, source))),
+    }
+}
+
+fn boundary_signal(
+    detector_id: &'static str,
+    boundary_value: Option<String>,
+    artifact_type: ArtifactType,
+    display_name: String,
+    framework_hint: &'static str,
+    node: Node<'_>,
+    source: &str,
+) -> Signal {
+    let mut signal = signal(
+        detector_id,
+        LifecycleStage::Introspect,
+        artifact_type,
+        display_name,
+        framework_hint,
+        Confidence::High,
+        false,
+        node,
+        source,
+    );
+    signal.boundary_value = boundary_value.map(|value| normalize_boundary_value(&value));
+    signal
+}
+
+fn collect_boundary_signals(
+    context: &str,
+    artifact_type: ArtifactType,
+    display_name: String,
+    framework_hint: &'static str,
+    node: Node<'_>,
+    source: &str,
+    signals: &mut Vec<Signal>,
+) {
+    for (detector_id, value) in boundary_kinds_for_context(context) {
+        signals.push(boundary_signal(
+            detector_id,
+            value,
+            artifact_type,
+            display_name.clone(),
+            framework_hint,
+            node,
+            source,
+        ));
+    }
+}
+
+fn collect_config_boundary_signals(
+    line: &str,
+    normalized: &str,
+    artifact_type: ArtifactType,
+    display_name: String,
+    language: Language,
+    line_number: usize,
+    signals: &mut Vec<Signal>,
+) {
+    for (detector_id, value) in boundary_kinds_for_context(normalized) {
+        signals.push(Signal {
+            detector_id,
+            stage: LifecycleStage::Introspect,
+            artifact_type,
+            display_name: display_name.clone(),
+            framework_hint: config_framework_hint(language),
+            line: line_number,
+            column: 1,
+            confidence: Confidence::High,
+            dynamic: false,
+            boundary_value: value.map(|value| normalize_boundary_value(&value)),
+            excerpt: SanitizedExcerpt(sanitize_excerpt(line)),
+        });
+    }
+}
+
+fn boundary_kinds_for_context(context: &str) -> Vec<(&'static str, Option<String>)> {
+    let mut kinds = Vec::new();
+    if context.contains("issuer") || context.contains("iss") {
+        kinds.push((
+            "bearer.boundary.issuer",
+            boundary_value(context, ISSUER_BOUNDARY_TERMS),
+        ));
+    }
+    if context.contains("audience")
+        || context.contains("resource")
+        || context.contains("aud")
+        || context.contains("scope")
+        || context.contains("permission")
+    {
+        kinds.push((
+            "bearer.boundary.audience",
+            boundary_value(context, AUDIENCE_BOUNDARY_TERMS),
+        ));
+    }
+    if context.contains("service")
+        || context.contains("internal")
+        || context.contains("server")
+        || context.contains("machine")
+    {
+        kinds.push((
+            "bearer.boundary.service",
+            boundary_value(context, SERVICE_BOUNDARY_TERMS),
+        ));
+    }
+    if context.contains("prod")
+        || context.contains("production")
+        || context.contains("staging")
+        || context.contains("stage")
+        || context.contains("dev")
+        || context.contains("development")
+        || context.contains("test")
+    {
+        kinds.push((
+            "bearer.boundary.environment",
+            boundary_value(context, ENVIRONMENT_BOUNDARY_TERMS),
+        ));
+    }
+    if context.contains("tenant")
+        || context.contains("organization")
+        || context.contains("workspace")
+    {
+        kinds.push((
+            "bearer.boundary.tenant",
+            boundary_value(context, TENANT_BOUNDARY_TERMS),
+        ));
+    }
+    if context.contains("provider")
+        || context.contains("auth0")
+        || context.contains("okta")
+        || context.contains("oauth")
+        || context.contains("supabase")
+        || context.contains("clerk")
+    {
+        kinds.push((
+            "bearer.boundary.provider",
+            boundary_value(context, PROVIDER_BOUNDARY_TERMS),
+        ));
+    }
+    if is_public_config_context(context)
+        || is_frontend_context(context)
+        || context.contains("backend")
+        || context.contains("server")
+    {
+        kinds.push((
+            "bearer.boundary.trust_boundary",
+            boundary_value(context, TRUST_BOUNDARY_TERMS),
+        ));
+    }
+    kinds
+}
+
+const ISSUER_BOUNDARY_TERMS: &[&str] = &["issuer", "auth0", "okta", "oauth", "provider"];
+const AUDIENCE_BOUNDARY_TERMS: &[&str] = &["audience", "resource", "internal", "public", "scope"];
+const SERVICE_BOUNDARY_TERMS: &[&str] = &["service", "internal", "backend", "server", "machine"];
+const ENVIRONMENT_BOUNDARY_TERMS: &[&str] = &[
+    "production",
+    "prod",
+    "staging",
+    "stage",
+    "development",
+    "dev",
+    "test",
+];
+const TENANT_BOUNDARY_TERMS: &[&str] = &["tenant", "organization", "org", "workspace"];
+const PROVIDER_BOUNDARY_TERMS: &[&str] =
+    &["provider", "auth0", "okta", "oauth", "supabase", "clerk"];
+const TRUST_BOUNDARY_TERMS: &[&str] = &[
+    "frontend", "client", "backend", "server", "public", "internal",
+];
+
+fn boundary_value(context: &str, terms: &[&str]) -> Option<String> {
+    terms
+        .iter()
+        .find(|term| context.contains(**term))
+        .map(|term| (*term).to_string())
+}
+
+fn normalize_boundary_value(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .split('_')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("_")
+}
+
+fn is_frontend_context(context: &str) -> bool {
+    context.contains("frontend")
+        || context.contains("client")
+        || context.contains("browser")
+        || context.contains("public")
+}
+
+fn boundary_attributes_for_signal(
+    signal: &Signal,
+    evidence_id: EvidenceId,
+) -> Option<TokenBoundaryAttributes> {
+    let mut attributes = empty_boundary_attributes();
+    let target = match signal.detector_id {
+        "bearer.boundary.issuer" => Some(&mut attributes.issuer),
+        "bearer.boundary.audience" => Some(&mut attributes.audience),
+        "bearer.boundary.service" => Some(&mut attributes.service),
+        "bearer.boundary.environment" => Some(&mut attributes.environment),
+        "bearer.boundary.tenant" => Some(&mut attributes.tenant),
+        "bearer.boundary.provider" => Some(&mut attributes.provider),
+        "bearer.scope" => Some(&mut attributes.scope),
+        "bearer.boundary.trust_boundary" => Some(&mut attributes.trust_boundary),
+        _ => None,
+    }?;
+
+    target.state = TokenBoundaryAttributeState::Present;
+    target.value = signal.boundary_value.clone();
+    target.evidence_ids.push(evidence_id);
+    target.confidence = signal.confidence;
+    Some(attributes)
+}
+
+fn empty_boundary_attributes() -> TokenBoundaryAttributes {
+    let observation = TokenBoundaryObservation {
+        state: TokenBoundaryAttributeState::Unknown,
+        value: None,
+        evidence_ids: Vec::new(),
+        confidence: Confidence::Low,
+    };
+    TokenBoundaryAttributes {
+        issuer: observation.clone(),
+        audience: observation.clone(),
+        service: observation.clone(),
+        environment: observation.clone(),
+        tenant: observation.clone(),
+        provider: observation.clone(),
+        scope: observation.clone(),
+        trust_boundary: observation,
     }
 }
 
@@ -631,13 +912,14 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
         output.artifacts.push(Artifact {
             id: artifact_id,
             artifact_type: signal.artifact_type,
-            display_name: Some(signal.display_name),
+            display_name: Some(signal.display_name.clone()),
             locations: vec![location.clone()],
             lifecycle_evidence,
             confidence: signal.confidence,
             framework_hints: vec![signal.framework_hint.to_string()],
             cookie_attributes: None,
             jwt_attributes: None,
+            token_boundary_attributes: boundary_attributes_for_signal(&signal, evidence_id.clone()),
         });
         output.evidence.push(Evidence {
             id: evidence_id,
@@ -703,7 +985,8 @@ fn contains_token_context(normalized: &str) -> bool {
                 || normalized.contains("sessionstorage")
                 || normalized.contains("scope")
                 || normalized.contains("audience")
-                || normalized.contains("permission")))
+                || normalized.contains("permission")
+                || normalized.contains("provider")))
 }
 
 fn is_token_config_line(normalized: &str) -> bool {
@@ -1245,6 +1528,79 @@ await rotateServiceToken(token);
         assert_detector(&output, "bearer.scope", LifecycleStage::Issue);
         assert_detector(&output, "bearer.scope", LifecycleStage::Validate);
         assert_detector(&output, "bearer.rotate", LifecycleStage::Refresh);
+    }
+
+    #[test]
+    fn detects_boundary_evidence_for_service_environment_provider_and_tenant() {
+        let js_output = detect(
+            Language::TypeScript,
+            r#"
+const serviceToken = process.env.PRODUCTION_SERVICE_TOKEN;
+await fetch("https://orders.example.invalid", {
+  headers: { "X-Service-Token": serviceToken, audience: "orders_api", tenant: tenantId },
+});
+const providerToken = auth0Provider.clientCredentialsToken({ token: serviceToken });
+"#,
+        );
+
+        assert_detector(
+            &js_output,
+            "bearer.boundary.service",
+            LifecycleStage::Introspect,
+        );
+        assert_detector(
+            &js_output,
+            "bearer.boundary.environment",
+            LifecycleStage::Introspect,
+        );
+        assert_detector(
+            &js_output,
+            "bearer.boundary.audience",
+            LifecycleStage::Introspect,
+        );
+        assert_detector(
+            &js_output,
+            "bearer.boundary.tenant",
+            LifecycleStage::Introspect,
+        );
+        assert_detector(
+            &js_output,
+            "bearer.boundary.provider",
+            LifecycleStage::Introspect,
+        );
+        assert!(js_output.artifacts.iter().any(|artifact| {
+            artifact
+                .token_boundary_attributes
+                .as_ref()
+                .is_some_and(|attributes| {
+                    !attributes.service.evidence_ids.is_empty()
+                        || !attributes.environment.evidence_ids.is_empty()
+                        || !attributes.provider.evidence_ids.is_empty()
+                })
+        }));
+    }
+
+    #[test]
+    fn detects_config_boundary_evidence() {
+        let output = detect(
+            Language::Yaml,
+            r#"
+production_service_token_env: PROD_SERVICE_TOKEN
+staging_service_token_env: STAGING_SERVICE_TOKEN
+"#,
+        );
+
+        assert_detector(
+            &output,
+            "bearer.boundary.environment",
+            LifecycleStage::Introspect,
+        );
+        assert_detector(
+            &output,
+            "bearer.boundary.service",
+            LifecycleStage::Introspect,
+        );
+        assert!(!detected_text(&output).contains("PLACEHOLDER"));
     }
 
     #[test]
