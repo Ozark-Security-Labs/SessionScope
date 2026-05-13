@@ -1787,19 +1787,23 @@ fn node_text(node: Node<'_>, source: &str) -> String {
 }
 
 fn redact_set_cookie_header_values(input: &str) -> String {
-    let mut output = input.to_string();
-    for captures in SET_COOKIE_PAIR_RE.captures_iter(input) {
-        let Some(full) = captures.get(0) else {
-            continue;
-        };
-        let Some(name) = captures.get(1) else {
-            continue;
-        };
-        output = output.replace(
-            full.as_str(),
-            &format!("{}={REDACTION}", name.as_str().trim()),
-        );
-    }
+    let output = if let Some(captures) = SET_COOKIE_PAIR_RE.captures(input) {
+        let full = captures.get(0).expect("full set-cookie pair capture");
+        let name = captures
+            .get(1)
+            .expect("set-cookie name capture")
+            .as_str()
+            .trim();
+        format!(
+            "{}{}={}{}",
+            &input[..full.start()],
+            name,
+            REDACTION,
+            &input[full.end()..]
+        )
+    } else {
+        input.to_string()
+    };
     redact_detector_excerpt(&output)
 }
 

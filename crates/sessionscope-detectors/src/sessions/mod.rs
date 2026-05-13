@@ -81,6 +81,7 @@ struct Signal {
     confidence: Confidence,
     dynamic: bool,
     framework_default: bool,
+    scope_hint: Option<String>,
     excerpt: SanitizedExcerpt,
 }
 
@@ -1101,11 +1102,11 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
         output.artifacts.push(Artifact {
             id: artifact_id,
             artifact_type,
-            display_name: Some(signal.display_name),
+            display_name: Some(signal.display_name.clone()),
             locations: vec![location.clone()],
             lifecycle_evidence: lifecycle_evidence_for_stage(signal.stage, evidence_id.clone()),
             confidence: signal.confidence,
-            framework_hints: vec![signal.framework_hint.to_string()],
+            framework_hints: framework_hints_for_signal(&signal),
             cookie_attributes: None,
             jwt_attributes: None,
             token_boundary_attributes: None,
@@ -1137,8 +1138,49 @@ fn signal(spec: SignalSpec, node: Node<'_>, source: &str) -> Signal {
         confidence: spec.confidence,
         dynamic: spec.dynamic,
         framework_default: spec.framework_default,
+        scope_hint: None,
         excerpt: SanitizedExcerpt(sanitize_excerpt(&node_text(node, source))),
     }
+}
+
+fn framework_hints_for_signal(signal: &Signal) -> Vec<String> {
+    let mut hints = vec![signal.framework_hint.to_string()];
+    if let Some(scope_hint) = &signal.scope_hint {
+        hints.push(scope_hint.clone());
+    }
+    hints
+}
+
+fn handler_scope_hint(node: Node<'_>, source: &str) -> Option<String> {
+    let mut current = Some(node);
+    let mut depth = 0usize;
+    let mut function_scope = None;
+    while let Some(candidate) = current {
+        let normalized = normalize_symbol(&node_text(candidate, source));
+        if candidate.kind() == "call_expression"
+            && (is_js_route_call(&normalized)
+                || is_auth_transition_context(&normalized)
+                || is_privilege_transition_context(&normalized))
+        {
+            return Some(format!("scope:{}", candidate.start_byte()));
+        }
+        if matches!(
+            candidate.kind(),
+            "function_declaration"
+                | "function"
+                | "arrow_function"
+                | "method_definition"
+                | "function_definition"
+        ) {
+            function_scope.get_or_insert_with(|| format!("scope:{}", candidate.start_byte()));
+        }
+        current = candidate.parent();
+        depth += 1;
+        if depth > 16 {
+            break;
+        }
+    }
+    function_scope
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1166,7 +1208,9 @@ fn session_fixation_signal(
     } else {
         spec
     };
-    signal(spec, node, source)
+    let mut signal = signal(spec, node, source);
+    signal.scope_hint = handler_scope_hint(node, source);
+    signal
 }
 
 fn refresh_signal(
@@ -1271,7 +1315,6 @@ fn is_auth_transition_context(normalized: &str) -> bool {
             || normalized.contains("sign_in")
             || normalized.contains("authcallback")
             || normalized.contains("auth/callback")
-            || normalized.contains("callback")
             || normalized.contains("authenticate")
             || normalized.contains("authentication")
             || normalized.contains("password_verify")
@@ -1285,7 +1328,6 @@ fn is_auth_handler_context(normalized: &str) -> bool {
             || normalized.contains("sign_in")
             || normalized.contains("authcallback")
             || normalized.contains("auth/callback")
-            || normalized.contains("callback")
             || normalized.contains("password_verify")
             || normalized.contains("passwordverify"))
 }
@@ -2194,6 +2236,33 @@ app.post("/legacy-login", async (request, response) => {
                 .evidence
                 .iter()
                 .any(|evidence| evidence.detector_id == "session.regenerate")
+        );
+    }
+
+    #[test]
+    fn non_auth_callbacks_do_not_emit_fixation_transition_evidence() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+function paymentCallback(request) {
+  request.session.paymentStatus = "complete";
+}
+function webhookCallback(request) {
+  request.session.webhookSeen = true;
+}
+function imageUploadCallback(request) {
+  request.session.lastUpload = "ok";
+}
+"#,
+        );
+
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "session.auth_transition"),
+            "{:?}",
+            output.evidence
         );
     }
 

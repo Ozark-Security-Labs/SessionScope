@@ -21,7 +21,7 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
     let mut seen = BTreeSet::new();
 
     for transition in &transitions {
-        if has_nearby_regeneration(transition.evidence, &regenerations, &transitions) {
+        if has_nearby_regeneration(transition, &regenerations, &transitions) {
             continue;
         }
 
@@ -107,17 +107,19 @@ fn is_regeneration_evidence(evidence: &Evidence) -> bool {
 }
 
 fn has_nearby_regeneration(
-    transition: &Evidence,
+    transition: &FixationRecord<'_>,
     regenerations: &[&FixationRecord<'_>],
     transitions: &[&FixationRecord<'_>],
 ) -> bool {
-    let Some(transition_line) = transition.location.line else {
+    let Some(transition_line) = transition.evidence.location.line else {
         return false;
     };
     let next_transition_line = transitions
         .iter()
         .filter_map(|record| {
-            if record.evidence.location.path == transition.location.path {
+            if record.evidence.location.path == transition.evidence.location.path
+                && same_scope(transition, record)
+            {
                 record.evidence.location.line
             } else {
                 None
@@ -132,24 +134,46 @@ fn has_nearby_regeneration(
 
     regenerations
         .iter()
-        .any(|record| regeneration_in_transition_range(transition, record.evidence, max_line))
+        .any(|record| regeneration_in_transition_range(transition, record, max_line))
 }
 
 fn regeneration_in_transition_range(
-    transition: &Evidence,
-    regeneration: &Evidence,
+    transition: &FixationRecord<'_>,
+    regeneration: &FixationRecord<'_>,
     max_line: usize,
 ) -> bool {
-    if transition.location.path != regeneration.location.path {
+    if transition.evidence.location.path != regeneration.evidence.location.path
+        || !same_scope(transition, regeneration)
+    {
         return false;
     }
-    let Some(transition_line) = transition.location.line else {
+    if transition.evidence.detector_id == "session.privilege_transition"
+        && regeneration.evidence.framework_default
+    {
+        return false;
+    }
+    let Some(transition_line) = transition.evidence.location.line else {
         return false;
     };
-    let Some(regeneration_line) = regeneration.location.line else {
+    let Some(regeneration_line) = regeneration.evidence.location.line else {
         return false;
     };
-    regeneration_line >= transition_line && regeneration_line <= max_line
+    regeneration_line <= max_line && transition_line.abs_diff(regeneration_line) <= LINK_DISTANCE
+}
+
+fn same_scope(left: &FixationRecord<'_>, right: &FixationRecord<'_>) -> bool {
+    match (scope_hint(left.artifact), scope_hint(right.artifact)) {
+        (Some(left), Some(right)) => left == right,
+        (Some(_), None) | (None, Some(_)) => false,
+        (None, None) => true,
+    }
+}
+
+fn scope_hint(artifact: &Artifact) -> Option<&str> {
+    artifact
+        .framework_hints
+        .iter()
+        .find_map(|hint| hint.strip_prefix("scope:"))
 }
 
 fn nearby(left: &Evidence, right: &Evidence) -> bool {
@@ -200,9 +224,11 @@ fn fixation_finding(
     };
 
     let evidence_part = evidence_ids
-        .first()
+        .iter()
         .map(|id| id.0.as_str())
-        .unwrap_or("no_evidence");
+        .collect::<Vec<_>>()
+        .join("|");
+    let detector_part = transition.evidence.detector_id.as_str();
     let path_part = transition.evidence.location.path.as_str();
     let line_part = transition
         .evidence
@@ -217,7 +243,13 @@ fn fixation_finding(
     };
 
     Finding {
-        id: stable_finding_id(&[rule_id, path_part, line_part.as_str(), evidence_part]),
+        id: stable_finding_id(&[
+            rule_id,
+            path_part,
+            line_part.as_str(),
+            evidence_part.as_str(),
+            detector_part,
+        ]),
         category: FindingCategory::DynamicReviewRequired,
         severity: Severity::Medium,
         artifact_ids,
@@ -313,6 +345,19 @@ mod tests {
         }
     }
 
+    fn scoped_artifact(
+        id: &str,
+        framework: &str,
+        scope: &str,
+        issue: &[&str],
+        store: &[&str],
+        refresh: &[&str],
+    ) -> Artifact {
+        let mut artifact = artifact(id, framework, issue, store, refresh);
+        artifact.framework_hints.push(format!("scope:{scope}"));
+        artifact
+    }
+
     fn ids(values: &[&str]) -> Vec<EvidenceId> {
         values
             .iter()
@@ -394,6 +439,71 @@ mod tests {
         );
 
         assert!(findings.is_empty(), "{findings:?}");
+    }
+
+    #[test]
+    fn regeneration_before_store_suppresses_review_in_same_scope() {
+        let findings = classify_artifacts(
+            vec![
+                scoped_artifact("artifact_login", "express", "login", &["e1"], &["e3"], &[]),
+                scoped_artifact("artifact_refresh", "express", "login", &[], &[], &["e2"]),
+            ],
+            vec![
+                evidence("e1", "session.auth_transition", LifecycleStage::Issue, 10),
+                evidence("e2", "session.regenerate", LifecycleStage::Refresh, 8),
+                evidence("e3", "session.store_after_auth", LifecycleStage::Store, 12),
+            ],
+        );
+
+        assert!(findings.is_empty(), "{findings:?}");
+    }
+
+    #[test]
+    fn sibling_handler_regeneration_does_not_suppress_review() {
+        let findings = classify_artifacts(
+            vec![
+                scoped_artifact("artifact_login", "django", "login", &["e1"], &[], &[]),
+                scoped_artifact("artifact_refresh", "django", "other", &[], &[], &["e2"]),
+            ],
+            vec![
+                evidence("e1", "session.auth_transition", LifecycleStage::Issue, 40),
+                evidence(
+                    "e2",
+                    "session.framework_default_regenerate",
+                    LifecycleStage::Refresh,
+                    45,
+                ),
+            ],
+        );
+
+        assert_eq!(findings.len(), 1, "{findings:?}");
+    }
+
+    #[test]
+    fn framework_default_does_not_suppress_privilege_transition() {
+        let findings = classify_artifacts(
+            vec![
+                scoped_artifact("artifact_priv", "django", "admin", &["e1"], &[], &[]),
+                scoped_artifact("artifact_default", "django", "admin", &[], &[], &["e2"]),
+            ],
+            vec![
+                evidence(
+                    "e1",
+                    "session.privilege_transition",
+                    LifecycleStage::Issue,
+                    20,
+                ),
+                evidence(
+                    "e2",
+                    "session.framework_default_regenerate",
+                    LifecycleStage::Refresh,
+                    21,
+                ),
+            ],
+        );
+
+        assert_eq!(findings.len(), 1, "{findings:?}");
+        assert!(findings[0].title.contains("privilege"));
     }
 
     #[test]

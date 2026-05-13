@@ -133,6 +133,38 @@ mod tests {
     }
 
     #[test]
+    fn omits_all_unknown_token_boundary_inventory() {
+        let artifact = Artifact {
+            id: ArtifactId("artifact_service_token".to_string()),
+            artifact_type: ArtifactType::ServiceToken,
+            display_name: Some("service_token".to_string()),
+            locations: vec![source_location()],
+            lifecycle_evidence: LifecycleEvidence::default(),
+            confidence: Confidence::High,
+            framework_hints: vec!["test".to_string()],
+            cookie_attributes: None,
+            jwt_attributes: None,
+            token_boundary_attributes: Some(TokenBoundaryAttributes {
+                issuer: TokenBoundaryObservation::default(),
+                audience: TokenBoundaryObservation::default(),
+                service: TokenBoundaryObservation::default(),
+                environment: TokenBoundaryObservation::default(),
+                tenant: TokenBoundaryObservation::default(),
+                provider: TokenBoundaryObservation::default(),
+                scope: TokenBoundaryObservation::default(),
+                trust_boundary: TokenBoundaryObservation::default(),
+            }),
+        };
+
+        let serialized = serde_json::to_string(&artifact).expect("artifact should serialize");
+        assert!(!serialized.contains("\"token_boundary_attributes\""));
+
+        let minimal_observation: TokenBoundaryObservation =
+            serde_json::from_str("{}").expect("minimal observation should deserialize");
+        assert_eq!(minimal_observation, TokenBoundaryObservation::default());
+    }
+
+    #[test]
     fn round_trips_evidence_bound_finding() {
         let finding = Finding {
             id: FindingId("finding_missing_audience".to_string()),

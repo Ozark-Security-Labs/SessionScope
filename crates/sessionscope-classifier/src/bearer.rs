@@ -494,7 +494,36 @@ fn is_related_token_artifact(left: &Artifact, right: &Artifact) -> bool {
         return false;
     }
 
-    left.id == right.id || (left.display_name.is_some() && left.display_name == right.display_name)
+    left.id == right.id
+        || (left.display_name.is_some()
+            && left.display_name == right.display_name
+            && related_artifact_context(left, right))
+}
+
+fn related_artifact_context(left: &Artifact, right: &Artifact) -> bool {
+    let same_framework = left
+        .framework_hints
+        .iter()
+        .any(|hint| right.framework_hints.contains(hint));
+    if same_framework {
+        return true;
+    }
+
+    match (first_path_prefix(left), first_path_prefix(right)) {
+        (Some(left), Some(right)) => left == right,
+        _ => false,
+    }
+}
+
+fn first_path_prefix(artifact: &Artifact) -> Option<String> {
+    let path = artifact.locations.first()?.path.replace('\\', "/");
+    let mut parts = path.split('/').filter(|part| !part.is_empty());
+    let first = parts.next()?;
+    let second = parts.next();
+    Some(match second {
+        Some(second) => format!("{first}/{second}"),
+        None => first.to_string(),
+    })
 }
 
 fn lifecycle_ids_for_stage(

@@ -168,6 +168,11 @@ Supported boundary observations are:
 - `scope`
 - `trust_boundary`
 
+Unknown boundary observations are omitted from JSON output, and an artifact
+whose boundary inventory is entirely unknown omits `token_boundary_attributes`.
+Missing fields deserialize as unknown observations so older compact reports
+round-trip without changing schema version.
+
 Boundary observations are conservative static hints for reuse analysis and
 future provider adapters. They may be populated from JWT issuer/audience/claim
 evidence, bearer/API-key config names, provider wrapper calls, service-token

@@ -13,6 +13,7 @@ use crate::{DetectionOutput, Detector, DetectorInput};
 
 const DETECTOR_ID: &str = "bearer.token";
 const REDACTION: &str = "[REDACTED]";
+const TREE_SITTER_MAX_DEPTH: usize = 256;
 
 static QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'"#)
@@ -88,8 +89,20 @@ fn detect_javascript_like(input: &DetectorInput<'_>) -> DetectionOutput {
     };
 
     let mut signals = Vec::new();
-    collect_js_signals(tree.root_node(), input.source, input.path, &mut signals);
-    signals_to_output(input, signals)
+    let mut depth_skipped = false;
+    collect_js_signals(
+        tree.root_node(),
+        input.source,
+        input.path,
+        &mut signals,
+        0,
+        &mut depth_skipped,
+    );
+    let mut output = signals_to_output(input, signals);
+    if depth_skipped {
+        output.evidence.push(depth_limit_evidence(input));
+    }
+    output
 }
 
 fn detect_python(input: &DetectorInput<'_>) -> DetectionOutput {
@@ -98,8 +111,20 @@ fn detect_python(input: &DetectorInput<'_>) -> DetectionOutput {
     };
 
     let mut signals = Vec::new();
-    collect_python_signals(tree.root_node(), input.source, input.path, &mut signals);
-    signals_to_output(input, signals)
+    let mut depth_skipped = false;
+    collect_python_signals(
+        tree.root_node(),
+        input.source,
+        input.path,
+        &mut signals,
+        0,
+        &mut depth_skipped,
+    );
+    let mut output = signals_to_output(input, signals);
+    if depth_skipped {
+        output.evidence.push(depth_limit_evidence(input));
+    }
+    output
 }
 
 fn detect_config(input: &DetectorInput<'_>) -> DetectionOutput {
@@ -153,7 +178,18 @@ fn detect_config(input: &DetectorInput<'_>) -> DetectionOutput {
     signals_to_output(input, signals)
 }
 
-fn collect_js_signals(node: Node<'_>, source: &str, path: &str, signals: &mut Vec<Signal>) {
+fn collect_js_signals(
+    node: Node<'_>,
+    source: &str,
+    path: &str,
+    signals: &mut Vec<Signal>,
+    depth: usize,
+    depth_skipped: &mut bool,
+) {
+    if depth > TREE_SITTER_MAX_DEPTH {
+        *depth_skipped = true;
+        return;
+    }
     match node.kind() {
         "call_expression" => collect_js_call_signal(node, source, path, signals),
         "variable_declarator" | "assignment_expression" | "pair" => {
@@ -164,11 +200,22 @@ fn collect_js_signals(node: Node<'_>, source: &str, path: &str, signals: &mut Ve
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_js_signals(child, source, path, signals);
+        collect_js_signals(child, source, path, signals, depth + 1, depth_skipped);
     }
 }
 
-fn collect_python_signals(node: Node<'_>, source: &str, path: &str, signals: &mut Vec<Signal>) {
+fn collect_python_signals(
+    node: Node<'_>,
+    source: &str,
+    path: &str,
+    signals: &mut Vec<Signal>,
+    depth: usize,
+    depth_skipped: &mut bool,
+) {
+    if depth > TREE_SITTER_MAX_DEPTH {
+        *depth_skipped = true;
+        return;
+    }
     match node.kind() {
         "call" => collect_python_call_signal(node, source, path, signals),
         "assignment" | "keyword_argument" | "pair" => {
@@ -179,7 +226,7 @@ fn collect_python_signals(node: Node<'_>, source: &str, path: &str, signals: &mu
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_python_signals(child, source, path, signals);
+        collect_python_signals(child, source, path, signals, depth + 1, depth_skipped);
     }
 }
 
@@ -915,7 +962,7 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
             column: Some(signal.column),
         };
 
-        output.artifacts.push(Artifact {
+        let artifact = Artifact {
             id: artifact_id,
             artifact_type: signal.artifact_type,
             display_name: Some(signal.display_name.clone()),
@@ -926,7 +973,8 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
             cookie_attributes: None,
             jwt_attributes: None,
             token_boundary_attributes: boundary_attributes_for_signal(&signal, evidence_id.clone()),
-        });
+        };
+        merge_artifact(&mut output.artifacts, artifact);
         output.evidence.push(Evidence {
             id: evidence_id,
             lifecycle_stage: signal.stage,
@@ -940,6 +988,129 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
     }
 
     output
+}
+
+fn depth_limit_evidence(input: &DetectorInput<'_>) -> Evidence {
+    let depth_part = TREE_SITTER_MAX_DEPTH.to_string();
+    Evidence {
+        id: stable_evidence_id(&[
+            DETECTOR_ID,
+            "detector.depth_limit_skipped",
+            input.path,
+            depth_part.as_str(),
+        ]),
+        lifecycle_stage: LifecycleStage::Introspect,
+        location: SourceLocation {
+            path: input.path.to_string(),
+            line: None,
+            column: None,
+        },
+        detector_id: "detector.depth_limit_skipped".to_string(),
+        confidence: Confidence::Low,
+        excerpt: Some(SanitizedExcerpt(
+            "tree-sitter traversal depth limit reached".to_string(),
+        )),
+        dynamic: true,
+        framework_default: false,
+    }
+}
+
+fn merge_artifact(artifacts: &mut Vec<Artifact>, artifact: Artifact) {
+    let Some(existing) = artifacts
+        .iter_mut()
+        .find(|existing| existing.id == artifact.id)
+    else {
+        artifacts.push(artifact);
+        return;
+    };
+
+    existing.locations.extend(artifact.locations);
+    existing.locations.sort();
+    existing.locations.dedup();
+    merge_lifecycle_evidence(
+        &mut existing.lifecycle_evidence,
+        artifact.lifecycle_evidence,
+    );
+    existing.framework_hints.extend(artifact.framework_hints);
+    existing.framework_hints.sort();
+    existing.framework_hints.dedup();
+    if artifact.confidence > existing.confidence {
+        existing.confidence = artifact.confidence;
+    }
+    merge_token_boundary_attributes(
+        &mut existing.token_boundary_attributes,
+        artifact.token_boundary_attributes,
+    );
+}
+
+fn merge_lifecycle_evidence(existing: &mut LifecycleEvidence, incoming: LifecycleEvidence) {
+    merge_evidence_ids(&mut existing.issue, incoming.issue);
+    merge_evidence_ids(&mut existing.store, incoming.store);
+    merge_evidence_ids(&mut existing.transmit, incoming.transmit);
+    merge_evidence_ids(&mut existing.validate, incoming.validate);
+    merge_evidence_ids(&mut existing.refresh, incoming.refresh);
+    merge_evidence_ids(&mut existing.revoke, incoming.revoke);
+    merge_evidence_ids(&mut existing.expire, incoming.expire);
+    merge_evidence_ids(&mut existing.introspect, incoming.introspect);
+}
+
+fn merge_evidence_ids(
+    existing: &mut Vec<sessionscope_model::EvidenceId>,
+    incoming: Vec<sessionscope_model::EvidenceId>,
+) {
+    existing.extend(incoming);
+    existing.sort();
+    existing.dedup();
+}
+
+fn merge_token_boundary_attributes(
+    existing: &mut Option<TokenBoundaryAttributes>,
+    incoming: Option<TokenBoundaryAttributes>,
+) {
+    let Some(incoming) = incoming else {
+        return;
+    };
+    if incoming.is_all_unknown() {
+        return;
+    }
+    let Some(existing) = existing else {
+        *existing = Some(incoming);
+        return;
+    };
+
+    merge_boundary_observation(&mut existing.issuer, incoming.issuer);
+    merge_boundary_observation(&mut existing.audience, incoming.audience);
+    merge_boundary_observation(&mut existing.service, incoming.service);
+    merge_boundary_observation(&mut existing.environment, incoming.environment);
+    merge_boundary_observation(&mut existing.tenant, incoming.tenant);
+    merge_boundary_observation(&mut existing.provider, incoming.provider);
+    merge_boundary_observation(&mut existing.scope, incoming.scope);
+    merge_boundary_observation(&mut existing.trust_boundary, incoming.trust_boundary);
+}
+
+fn merge_boundary_observation(
+    existing: &mut TokenBoundaryObservation,
+    incoming: TokenBoundaryObservation,
+) {
+    if incoming.is_unknown() {
+        return;
+    }
+    if existing.is_unknown() {
+        *existing = incoming;
+        return;
+    }
+    if existing.value.is_none() {
+        existing.value = incoming.value;
+    }
+    existing.evidence_ids.extend(incoming.evidence_ids);
+    existing.evidence_ids.sort();
+    existing.evidence_ids.dedup();
+    if incoming.confidence > existing.confidence {
+        existing.confidence = incoming.confidence;
+    }
+    if existing.state != TokenBoundaryAttributeState::Present {
+        existing.state = incoming.state;
+    }
 }
 
 fn parse_javascript_like(input: &DetectorInput<'_>, source: &str) -> Option<Tree> {
@@ -1070,6 +1241,12 @@ fn is_issue_call(normalized: &str) -> bool {
 }
 
 fn is_store_call(normalized: &str) -> bool {
+    if normalized.contains("headers.set")
+        || normalized.contains("headers.append")
+        || normalized.contains("headers.authorization")
+    {
+        return false;
+    }
     normalized.contains("localstorage.setitem")
         || normalized.contains("sessionstorage.setitem")
         || normalized.contains("localstorage.")
@@ -1094,8 +1271,7 @@ fn is_transmit_call(normalized: &str, raw: &str) -> bool {
         || normalized.contains("xapikey")
         || normalized.contains("x_api_key")
         || normalized.contains("headers")
-        || URL_PARAM_RE.is_match(raw)
-        || normalized.contains("params")
+        || is_url_query_transmit(normalized, raw)
 }
 
 fn is_url_query_transmit(normalized: &str, raw: &str) -> bool {
@@ -1455,6 +1631,80 @@ await revokeServiceToken(serviceToken);
         assert_detector(&output, "bearer.expire", LifecycleStage::Expire);
         assert_detector(&output, "bearer.revoke", LifecycleStage::Revoke);
         assert!(!detected_text(&output).contains("PLACEHOLDER_API_KEY"));
+    }
+
+    #[test]
+    fn merges_multistage_bearer_artifacts_by_id() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+const API_KEY = "PLACEHOLDER_API_KEY";
+const apiKey = generateApiKey({ scopes: ["read"] });
+localStorage.setItem("api_key", apiKey);
+await fetch("/orders", { headers: { "X-API-Key": apiKey } });
+"#,
+        );
+
+        let api_key_artifacts = output
+            .artifacts
+            .iter()
+            .filter(|artifact| artifact.display_name.as_deref() == Some("api_key"))
+            .collect::<Vec<_>>();
+        assert_eq!(api_key_artifacts.len(), 1, "{:?}", output.artifacts);
+        let artifact = api_key_artifacts[0];
+        assert!(!artifact.lifecycle_evidence.issue.is_empty());
+        assert!(!artifact.lifecycle_evidence.store.is_empty());
+        assert!(!artifact.lifecycle_evidence.transmit.is_empty());
+        assert!(
+            artifact
+                .token_boundary_attributes
+                .as_ref()
+                .is_some_and(|attributes| !attributes.scope.evidence_ids.is_empty())
+        );
+    }
+
+    #[test]
+    fn authorization_headers_set_is_transmit_not_store() {
+        let output = detect(
+            Language::TypeScript,
+            r#"headers.set("Authorization", `Bearer ${accessToken}`);"#,
+        );
+
+        assert_detector(&output, "bearer.transmit", LifecycleStage::Transmit);
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "bearer.store")
+        );
+    }
+
+    #[test]
+    fn bare_params_without_token_context_are_not_transmit() {
+        let output = detect(
+            Language::TypeScript,
+            r#"axios.get("/orders", { params: { page: 1, sort: "created" } });"#,
+        );
+
+        assert!(output.artifacts.is_empty(), "{:?}", output.artifacts);
+        assert!(output.evidence.is_empty(), "{:?}", output.evidence);
+    }
+
+    #[test]
+    fn emits_depth_limit_evidence_for_deep_trees() {
+        let source = format!(
+            "{}localStorage.setItem(\"api_key\", apiKey){}",
+            "(".repeat(270),
+            ")".repeat(270)
+        );
+        let output = detect(Language::TypeScript, &source);
+
+        assert!(
+            output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "detector.depth_limit_skipped")
+        );
     }
 
     #[test]

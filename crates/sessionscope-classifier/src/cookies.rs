@@ -654,42 +654,101 @@ fn named_number_argument(value: &str, name: &str) -> Option<i64> {
 }
 
 fn eval_numeric_expression(value: &str) -> Option<i64> {
-    let sanitized = value
-        .chars()
-        .filter(|ch| !ch.is_whitespace() && *ch != '_' && *ch != ')')
-        .collect::<String>();
-    if sanitized.is_empty()
-        || sanitized
-            .chars()
-            .any(|ch| !ch.is_ascii_digit() && !matches!(ch, '+' | '*' | '/'))
-    {
-        return None;
+    let mut parser = NumericExpressionParser::new(value);
+    let parsed = parser.parse_expression()?;
+    parser.finished().then_some(parsed)
+}
+
+struct NumericExpressionParser<'a> {
+    chars: std::iter::Peekable<std::str::Chars<'a>>,
+}
+
+impl<'a> NumericExpressionParser<'a> {
+    fn new(value: &'a str) -> Self {
+        Self {
+            chars: value.chars().peekable(),
+        }
     }
 
-    let mut total = 0i64;
-    for sum_part in sanitized.split('+') {
-        if sum_part.is_empty() {
-            continue;
-        }
-        let mut product = 1i64;
-        for product_part in sum_part.split('*') {
-            if product_part.is_empty() {
-                return None;
+    fn parse_expression(&mut self) -> Option<i64> {
+        let mut value = self.parse_term()?;
+        loop {
+            self.skip_ignored();
+            if self.consume('+') {
+                value = value.checked_add(self.parse_term()?)?;
+            } else {
+                return Some(value);
             }
-            let mut division_parts = product_part.split('/');
-            let mut value = division_parts.next()?.parse::<i64>().ok()?;
-            for divisor in division_parts {
-                let divisor = divisor.parse::<i64>().ok()?;
+        }
+    }
+
+    fn parse_term(&mut self) -> Option<i64> {
+        let mut value = self.parse_factor()?;
+        loop {
+            self.skip_ignored();
+            if self.consume('*') {
+                value = value.checked_mul(self.parse_factor()?)?;
+            } else if self.consume('/') {
+                let divisor = self.parse_factor()?;
                 if divisor == 0 {
                     return None;
                 }
                 value /= divisor;
+            } else {
+                return Some(value);
             }
-            product = product.checked_mul(value)?;
         }
-        total = total.checked_add(product)?;
     }
-    Some(total)
+
+    fn parse_factor(&mut self) -> Option<i64> {
+        self.skip_ignored();
+        if self.consume('(') {
+            let value = self.parse_expression()?;
+            self.skip_ignored();
+            return self.consume(')').then_some(value);
+        }
+        self.parse_number()
+    }
+
+    fn parse_number(&mut self) -> Option<i64> {
+        self.skip_ignored();
+        let mut number = String::new();
+        while let Some(ch) = self.chars.peek().copied() {
+            if ch.is_ascii_digit() {
+                number.push(ch);
+                self.chars.next();
+            } else {
+                break;
+            }
+        }
+        (!number.is_empty())
+            .then(|| number.parse::<i64>().ok())
+            .flatten()
+    }
+
+    fn consume(&mut self, expected: char) -> bool {
+        if self.chars.peek().copied() == Some(expected) {
+            self.chars.next();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn skip_ignored(&mut self) {
+        while self
+            .chars
+            .peek()
+            .is_some_and(|ch| ch.is_whitespace() || *ch == '_')
+        {
+            self.chars.next();
+        }
+    }
+
+    fn finished(&mut self) -> bool {
+        self.skip_ignored();
+        self.chars.peek().is_none()
+    }
 }
 
 fn is_broad_cookie_domain(value: &str) -> bool {
@@ -1180,5 +1239,17 @@ mod tests {
         ));
 
         assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn numeric_cookie_lifetime_parser_is_strict_and_parentheses_aware() {
+        assert_eq!(
+            eval_numeric_expression("(30 + 1) * 24 * 60 * 60"),
+            Some(2_678_400)
+        );
+        assert_eq!(eval_numeric_expression("60 * (60 + 30) / 3"), Some(1_800));
+        assert_eq!(eval_numeric_expression("Date.now() + 60 * 60"), None);
+        assert_eq!(eval_numeric_expression("60 - 30"), None);
+        assert_eq!(eval_numeric_expression("60 / 0"), None);
     }
 }

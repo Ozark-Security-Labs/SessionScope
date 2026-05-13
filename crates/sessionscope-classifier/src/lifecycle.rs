@@ -6,16 +6,7 @@ use sessionscope_model::{
     ScanReport, Severity, SourceLocation, stable_finding_id, stable_lifecycle_path_id,
 };
 
-const STAGES: [LifecycleStage; 8] = [
-    LifecycleStage::Issue,
-    LifecycleStage::Store,
-    LifecycleStage::Transmit,
-    LifecycleStage::Validate,
-    LifecycleStage::Refresh,
-    LifecycleStage::Revoke,
-    LifecycleStage::Expire,
-    LifecycleStage::Introspect,
-];
+const STAGES: [LifecycleStage; 8] = LifecycleStage::ORDERED;
 const REFRESH_LINK_MAX_LINE_DISTANCE: usize = 80;
 
 pub fn link(report: &ScanReport) -> Vec<LifecyclePath> {

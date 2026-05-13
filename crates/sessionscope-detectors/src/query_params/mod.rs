@@ -12,6 +12,7 @@ use crate::{DetectionOutput, Detector, DetectorInput};
 
 const DETECTOR_ID: &str = "query_param.token";
 const REDACTION: &str = "[REDACTED]";
+const TREE_SITTER_MAX_DEPTH: usize = 256;
 
 static QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'"#)
@@ -114,8 +115,19 @@ fn detect_javascript_like(input: &DetectorInput<'_>) -> DetectionOutput {
     };
 
     let mut signals = Vec::new();
-    collect_js_signals(tree.root_node(), input.source, &mut signals);
-    signals_to_output(input, signals)
+    let mut depth_skipped = false;
+    collect_js_signals(
+        tree.root_node(),
+        input.source,
+        &mut signals,
+        0,
+        &mut depth_skipped,
+    );
+    let mut output = signals_to_output(input, signals);
+    if depth_skipped {
+        output.evidence.push(depth_limit_evidence(input));
+    }
+    output
 }
 
 fn detect_python(input: &DetectorInput<'_>) -> DetectionOutput {
@@ -124,11 +136,32 @@ fn detect_python(input: &DetectorInput<'_>) -> DetectionOutput {
     };
 
     let mut signals = Vec::new();
-    collect_python_signals(tree.root_node(), input.source, &mut signals);
-    signals_to_output(input, signals)
+    let mut depth_skipped = false;
+    collect_python_signals(
+        tree.root_node(),
+        input.source,
+        &mut signals,
+        0,
+        &mut depth_skipped,
+    );
+    let mut output = signals_to_output(input, signals);
+    if depth_skipped {
+        output.evidence.push(depth_limit_evidence(input));
+    }
+    output
 }
 
-fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+fn collect_js_signals(
+    node: Node<'_>,
+    source: &str,
+    signals: &mut Vec<Signal>,
+    depth: usize,
+    depth_skipped: &mut bool,
+) {
+    if depth > TREE_SITTER_MAX_DEPTH {
+        *depth_skipped = true;
+        return;
+    }
     match node.kind() {
         "call_expression"
         | "member_expression"
@@ -141,11 +174,21 @@ fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_js_signals(child, source, signals);
+        collect_js_signals(child, source, signals, depth + 1, depth_skipped);
     }
 }
 
-fn collect_python_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
+fn collect_python_signals(
+    node: Node<'_>,
+    source: &str,
+    signals: &mut Vec<Signal>,
+    depth: usize,
+    depth_skipped: &mut bool,
+) {
+    if depth > TREE_SITTER_MAX_DEPTH {
+        *depth_skipped = true;
+        return;
+    }
     match node.kind() {
         "call"
         | "subscript"
@@ -159,7 +202,7 @@ fn collect_python_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_python_signals(child, source, signals);
+        collect_python_signals(child, source, signals, depth + 1, depth_skipped);
     }
 }
 
@@ -320,23 +363,68 @@ fn js_destructured_query_names(text: &str) -> Vec<String> {
     let Some(open) = text.find('{') else {
         return Vec::new();
     };
-    let Some(close) = text[open + 1..].find('}') else {
+    let Some(close) = matching_brace(text, open) else {
         return Vec::new();
     };
 
-    text[open + 1..open + 1 + close]
-        .split(',')
-        .filter_map(|part| {
-            let name = part
-                .split(':')
-                .next()
-                .unwrap_or(part)
-                .trim()
-                .trim_start_matches("...")
-                .trim();
-            (!name.is_empty()).then(|| name.to_string())
-        })
-        .collect()
+    destructured_names(&text[open + 1..close])
+}
+
+fn matching_brace(text: &str, open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (offset, ch) in text[open..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(open + offset);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn destructured_names(text: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    for part in split_top_level_commas(text) {
+        let trimmed = part.trim().trim_start_matches("...").trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some(open) = trimmed.find('{') {
+            names.extend(destructured_names(
+                &trimmed[open + 1..trimmed.len().saturating_sub(1)],
+            ));
+            continue;
+        }
+        let name = trimmed.split(':').next().unwrap_or(trimmed).trim();
+        if !name.is_empty() {
+            names.push(name.to_string());
+        }
+    }
+    names
+}
+
+fn split_top_level_commas(text: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (index, ch) in text.char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                parts.push(&text[start..index]);
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parts.push(&text[start..]);
+    parts
 }
 
 fn static_python_query_names(text: &str) -> Vec<String> {
@@ -384,7 +472,6 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
 
     for signal in signals {
         let line_part = signal.line.to_string();
-        let column_part = signal.column.to_string();
         let artifact_part = artifact_type_part(signal.artifact_type);
         let evidence_id = stable_evidence_id(&[
             DETECTOR_ID,
@@ -392,7 +479,6 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
             "transmit",
             input.path,
             &line_part,
-            &column_part,
             signal.display_name.as_str(),
         ]);
         if !seen.insert(evidence_id.0.clone()) {
@@ -413,7 +499,7 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
             column: Some(signal.column),
         };
 
-        output.artifacts.push(Artifact {
+        let artifact = Artifact {
             id: artifact_id,
             artifact_type: signal.artifact_type,
             display_name: Some(signal.display_name),
@@ -424,7 +510,8 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
             cookie_attributes: None,
             jwt_attributes: None,
             token_boundary_attributes: None,
-        });
+        };
+        merge_artifact(&mut output.artifacts, artifact);
         output.evidence.push(Evidence {
             id: evidence_id,
             lifecycle_stage: LifecycleStage::Transmit,
@@ -438,6 +525,79 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
     }
 
     output
+}
+
+fn depth_limit_evidence(input: &DetectorInput<'_>) -> Evidence {
+    let depth_part = TREE_SITTER_MAX_DEPTH.to_string();
+    Evidence {
+        id: stable_evidence_id(&[
+            DETECTOR_ID,
+            "detector.depth_limit_skipped",
+            input.path,
+            depth_part.as_str(),
+        ]),
+        lifecycle_stage: LifecycleStage::Introspect,
+        location: SourceLocation {
+            path: input.path.to_string(),
+            line: None,
+            column: None,
+        },
+        detector_id: "detector.depth_limit_skipped".to_string(),
+        confidence: Confidence::Low,
+        excerpt: Some(SanitizedExcerpt(
+            "tree-sitter traversal depth limit reached".to_string(),
+        )),
+        dynamic: true,
+        framework_default: false,
+    }
+}
+
+fn merge_artifact(artifacts: &mut Vec<Artifact>, artifact: Artifact) {
+    let Some(existing) = artifacts
+        .iter_mut()
+        .find(|existing| existing.id == artifact.id)
+    else {
+        artifacts.push(artifact);
+        return;
+    };
+
+    existing.locations.extend(artifact.locations);
+    existing.locations.sort();
+    existing.locations.dedup();
+    merge_lifecycle_evidence(
+        &mut existing.lifecycle_evidence,
+        artifact.lifecycle_evidence,
+    );
+    existing.framework_hints.extend(artifact.framework_hints);
+    existing.framework_hints.sort();
+    existing.framework_hints.dedup();
+    if artifact.confidence > existing.confidence {
+        existing.confidence = artifact.confidence;
+    }
+}
+
+fn merge_lifecycle_evidence(existing: &mut LifecycleEvidence, incoming: LifecycleEvidence) {
+    existing.issue.extend(incoming.issue);
+    existing.store.extend(incoming.store);
+    existing.transmit.extend(incoming.transmit);
+    existing.validate.extend(incoming.validate);
+    existing.refresh.extend(incoming.refresh);
+    existing.revoke.extend(incoming.revoke);
+    existing.expire.extend(incoming.expire);
+    existing.introspect.extend(incoming.introspect);
+    for ids in [
+        &mut existing.issue,
+        &mut existing.store,
+        &mut existing.transmit,
+        &mut existing.validate,
+        &mut existing.refresh,
+        &mut existing.revoke,
+        &mut existing.expire,
+        &mut existing.introspect,
+    ] {
+        ids.sort();
+        ids.dedup();
+    }
 }
 
 fn parse_javascript_like(input: &DetectorInput<'_>, source: &str) -> Option<Tree> {
@@ -502,6 +662,7 @@ fn is_relevant_query_token_name(parameter: &str) -> bool {
 
 fn is_dynamic_query_name_relevant(parameter: &str, context: &str) -> bool {
     !is_ignored_query_name(parameter)
+        && !is_ignored_dynamic_query_name(parameter)
         && (is_token_like_query_name(parameter)
             || normalize_symbol_without_literals(context).contains("token"))
 }
@@ -536,8 +697,22 @@ fn is_ignored_query_name(parameter: &str) -> bool {
         parameter,
         "page_token"
             | "next_token"
+            | "previous_token"
+            | "prev_token"
             | "continuation_token"
             | "pagination_token"
+            | "cursor_token"
+            | "offset_token"
+            | "limit_token"
+            | "filter_token"
+            | "sort_token"
+            | "search_token"
+            | "idempotency_key"
+            | "dedupe_key"
+            | "request_key"
+            | "page_key"
+            | "cursor_key"
+            | "filter_key"
             | "csrf_token"
             | "xsrf_token"
             | "state"
@@ -548,6 +723,32 @@ fn is_ignored_query_name(parameter: &str) -> bool {
             | "cursor"
             | "next"
     )
+}
+
+fn is_ignored_dynamic_query_name(parameter: &str) -> bool {
+    [
+        "page",
+        "pagination",
+        "cursor",
+        "offset",
+        "limit",
+        "filter",
+        "sort",
+        "search",
+        "previous",
+        "prev",
+        "next",
+        "continuation",
+        "idempotency",
+        "dedupe",
+        "request",
+        "csrf",
+        "xsrf",
+        "state",
+        "code",
+    ]
+    .iter()
+    .any(|ignored| parameter.contains(ignored))
 }
 
 fn reset_context(parameter: &str, normalized_context: &str) -> bool {
@@ -838,6 +1039,76 @@ const code = req.query.code;
 
         assert!(output.artifacts.is_empty(), "{:?}", output.artifacts);
         assert!(output.evidence.is_empty(), "{:?}", output.evidence);
+    }
+
+    #[test]
+    fn ignores_pagination_idempotency_and_dynamic_ignored_names() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+const page = req.query.page_token;
+const idem = req.query.idempotency_key;
+const cursorName = "cursor_token";
+const cursor = req.query[cursorName];
+"#,
+        );
+
+        assert!(output.artifacts.is_empty(), "{:?}", output.artifacts);
+        assert!(output.evidence.is_empty(), "{:?}", output.evidence);
+    }
+
+    #[test]
+    fn detects_nested_destructured_query_token_names() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+const { paging: { page_token }, auth: { access_token } } = req.query;
+"#,
+        );
+
+        assert_artifact(&output, ArtifactType::AccessJwt, "access_token");
+        assert!(
+            !output
+                .artifacts
+                .iter()
+                .any(|artifact| artifact.display_name.as_deref() == Some("page_token"))
+        );
+    }
+
+    #[test]
+    fn merges_duplicate_query_artifacts() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+const one = req.query.access_token;
+const two = req.query["access_token"];
+"#,
+        );
+
+        let access_artifacts = output
+            .artifacts
+            .iter()
+            .filter(|artifact| artifact.display_name.as_deref() == Some("access_token"))
+            .collect::<Vec<_>>();
+        assert_eq!(access_artifacts.len(), 1, "{:?}", output.artifacts);
+        assert_eq!(access_artifacts[0].lifecycle_evidence.transmit.len(), 2);
+    }
+
+    #[test]
+    fn emits_depth_limit_evidence_for_deep_trees() {
+        let source = format!(
+            "{}req.query.access_token{}",
+            "(".repeat(270),
+            ")".repeat(270)
+        );
+        let output = detect(Language::TypeScript, &source);
+
+        assert!(
+            output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "detector.depth_limit_skipped")
+        );
     }
 
     #[test]

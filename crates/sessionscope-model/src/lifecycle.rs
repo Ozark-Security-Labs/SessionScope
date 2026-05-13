@@ -18,6 +18,19 @@ pub enum LifecycleStage {
     Introspect,
 }
 
+impl LifecycleStage {
+    pub const ORDERED: [Self; 8] = [
+        Self::Issue,
+        Self::Store,
+        Self::Transmit,
+        Self::Validate,
+        Self::Refresh,
+        Self::Revoke,
+        Self::Expire,
+        Self::Introspect,
+    ];
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LifecyclePathStep {
     pub stage: LifecycleStage,

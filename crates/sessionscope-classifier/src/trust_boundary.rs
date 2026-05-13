@@ -29,6 +29,9 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
         if let Some(finding) = classify_provider_boundary_review(group, &mut seen) {
             findings.push(finding);
         }
+        if let Some(finding) = classify_boundary_metadata_review(group, &mut seen) {
+            findings.push(finding);
+        }
     }
 
     findings
@@ -99,7 +102,10 @@ fn classify_inbound_outbound_reuse(
         })
         .copied()
         .collect::<Vec<_>>();
-    if inbound.is_empty() || outbound.is_empty() || has_boundary_constraint(group) {
+    if inbound.is_empty()
+        || outbound.is_empty()
+        || has_scoped_boundary_constraint(group, &inbound, &outbound)
+    {
         return None;
     }
 
@@ -126,7 +132,7 @@ fn classify_frontend_backend_reuse(
     group: &BoundaryGroup<'_>,
     seen: &mut BTreeSet<(String, String)>,
 ) -> Option<Finding> {
-    if !has_frontend_context(group) || !has_backend_context(group) {
+    if group.artifacts.len() < 2 || !has_frontend_context(group) || !has_backend_context(group) {
         return None;
     }
 
@@ -191,7 +197,7 @@ fn classify_provider_boundary_review(
         .filter(|evidence| evidence.detector_id == "bearer.dynamic_provider")
         .map(|evidence| evidence.id.clone())
         .collect::<Vec<_>>();
-    if provider_ids.is_empty() || has_boundary_constraint(group) {
+    if provider_ids.is_empty() || has_scoped_boundary_constraint_ids(group, &provider_ids) {
         return None;
     }
 
@@ -210,6 +216,46 @@ fn classify_provider_boundary_review(
         "Document the provider configuration that binds this token to the intended audience, service, tenant, and scopes."
             .to_string(),
         "Which provider setting prevents this token from being reused outside the intended boundary?"
+            .to_string(),
+    )
+}
+
+fn classify_boundary_metadata_review(
+    group: &BoundaryGroup<'_>,
+    seen: &mut BTreeSet<(String, String)>,
+) -> Option<Finding> {
+    let metadata_ids = group
+        .evidence
+        .iter()
+        .filter(|evidence| {
+            matches!(
+                evidence.detector_id.as_str(),
+                "bearer.boundary.issuer"
+                    | "bearer.boundary.provider"
+                    | "bearer.boundary.trust_boundary"
+            )
+        })
+        .map(|evidence| evidence.id.clone())
+        .collect::<Vec<_>>();
+    if metadata_ids.is_empty() || has_scoped_boundary_constraint_ids(group, &metadata_ids) {
+        return None;
+    }
+
+    finding(
+        group,
+        seen,
+        "trust_boundary_metadata_review",
+        Severity::Low,
+        metadata_ids,
+        format!(
+            "Token `{}` has boundary metadata without visible constraints",
+            display_name(group)
+        ),
+        "Issuer, provider, or trust-boundary context was detected without nearby audience, service, tenant, or scope constraint evidence."
+            .to_string(),
+        "Document or expose the concrete audience, service, tenant, or scope policy that constrains this token."
+            .to_string(),
+        "Which local or provider policy prevents this token from being reused outside the intended boundary?"
             .to_string(),
     )
 }
@@ -234,12 +280,13 @@ fn finding(
         return None;
     }
     let evidence_part = evidence_ids
-        .first()
+        .iter()
         .map(|id| id.0.as_str())
-        .unwrap_or("no_evidence");
+        .collect::<Vec<_>>()
+        .join("|");
 
     Some(Finding {
-        id: stable_finding_id(&[rule_id, group.key.as_str(), evidence_part]),
+        id: stable_finding_id(&[rule_id, group.key.as_str(), evidence_part.as_str()]),
         category: FindingCategory::DynamicReviewRequired,
         severity,
         artifact_ids,
@@ -274,26 +321,62 @@ fn lifecycle_evidence_ids(artifact: &Artifact) -> Vec<&EvidenceId> {
     ids
 }
 
-fn has_boundary_constraint(group: &BoundaryGroup<'_>) -> bool {
-    group.artifacts.iter().any(|artifact| {
-        artifact
-            .token_boundary_attributes
-            .as_ref()
-            .is_some_and(|attributes| {
-                is_present(&attributes.audience)
-                    || is_present(&attributes.service)
-                    || is_present(&attributes.scope)
-                    || is_present(&attributes.tenant)
-            })
-    }) || group.evidence.iter().any(|evidence| {
-        matches!(
-            evidence.detector_id.as_str(),
-            "bearer.boundary.audience"
-                | "bearer.boundary.service"
-                | "bearer.boundary.tenant"
-                | "bearer.scope"
-        )
-    })
+fn has_scoped_boundary_constraint(
+    group: &BoundaryGroup<'_>,
+    left: &[&Evidence],
+    right: &[&Evidence],
+) -> bool {
+    let ids = left
+        .iter()
+        .chain(right.iter())
+        .map(|evidence| evidence.id.clone())
+        .collect::<Vec<_>>();
+    has_scoped_boundary_constraint_ids(group, &ids)
+}
+
+fn has_scoped_boundary_constraint_ids(
+    group: &BoundaryGroup<'_>,
+    target_ids: &[EvidenceId],
+) -> bool {
+    let target_evidence = group
+        .evidence
+        .iter()
+        .filter(|evidence| target_ids.contains(&evidence.id))
+        .copied()
+        .collect::<Vec<_>>();
+    if target_evidence.is_empty() {
+        return false;
+    }
+
+    group
+        .evidence
+        .iter()
+        .filter(|evidence| is_boundary_constraint_evidence(evidence))
+        .any(|constraint| {
+            target_evidence
+                .iter()
+                .any(|target| nearby_evidence(target, constraint))
+        })
+}
+
+fn is_boundary_constraint_evidence(evidence: &Evidence) -> bool {
+    matches!(
+        evidence.detector_id.as_str(),
+        "bearer.boundary.audience"
+            | "bearer.boundary.service"
+            | "bearer.boundary.tenant"
+            | "bearer.scope"
+    )
+}
+
+fn nearby_evidence(left: &Evidence, right: &Evidence) -> bool {
+    if left.location.path != right.location.path {
+        return false;
+    }
+    match (left.location.line, right.location.line) {
+        (Some(left), Some(right)) => left.abs_diff(right) <= 12,
+        _ => false,
+    }
 }
 
 fn boundary_values(
@@ -338,11 +421,6 @@ fn has_backend_context(group: &BoundaryGroup<'_>) -> bool {
             let path = normalized_path(&location.path);
             path.contains("/server/") || path.contains("/backend/") || path.contains("/api/")
         })
-    }) || group.evidence.iter().any(|evidence| {
-        matches!(
-            evidence.detector_id.as_str(),
-            "bearer.read.inbound" | "bearer.transmit" | "bearer.validate"
-        )
     })
 }
 
@@ -399,7 +477,7 @@ fn boundary_group_key(artifact: &Artifact) -> String {
         let path = artifact
             .locations
             .first()
-            .map(|location| normalized_path(&location.path))
+            .map(|location| path_group(&location.path))
             .unwrap_or_default();
         format!(
             "{}:{path}:{name}",
@@ -431,7 +509,10 @@ fn normalized_artifact_name(artifact: &Artifact) -> String {
 }
 
 fn is_generic_name(name: &str) -> bool {
-    matches!(name, "token" | "unknown_token" | "opaque_bearer_token")
+    matches!(
+        name,
+        "token" | "unknown_token" | "opaque_bearer_token" | "api_key" | "x_api_key"
+    )
 }
 
 fn artifact_type_family(artifact_type: ArtifactType) -> &'static str {
@@ -459,6 +540,24 @@ fn is_boundary_token_artifact(artifact_type: ArtifactType) -> bool {
 
 fn normalized_path(path: &str) -> String {
     path.replace('\\', "/").to_ascii_lowercase()
+}
+
+fn path_group(path: &str) -> String {
+    let normalized = normalized_path(path);
+    let parts = normalized
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    if parts.is_empty() {
+        return String::new();
+    }
+    if let Some(index) = parts
+        .iter()
+        .position(|part| matches!(*part, "src" | "app" | "packages" | "services" | "config"))
+    {
+        return parts[..=index].join("/");
+    }
+    parts[0].to_string()
 }
 
 #[cfg(test)]
@@ -517,6 +616,19 @@ mod tests {
         }
     }
 
+    fn evidence_on_line(
+        id: &str,
+        detector_id: &str,
+        stage: LifecycleStage,
+        path: &str,
+        line: usize,
+    ) -> Evidence {
+        Evidence {
+            location: location(path, line),
+            ..evidence(id, detector_id, stage, path)
+        }
+    }
+
     fn lifecycle(transmit: &[&str], validate: &[&str], introspect: &[&str]) -> LifecycleEvidence {
         LifecycleEvidence {
             transmit: ids(transmit),
@@ -568,7 +680,9 @@ mod tests {
             "audience" => attributes.audience = present,
             "service" => attributes.service = present,
             "environment" => attributes.environment = present,
+            "provider" => attributes.provider = present,
             "scope" => attributes.scope = present,
+            "trust_boundary" => attributes.trust_boundary = present,
             _ => {}
         }
         attributes
@@ -678,6 +792,106 @@ mod tests {
             findings
                 .iter()
                 .any(|finding| { finding.title.contains("frontend and backend contexts") })
+        );
+    }
+
+    #[test]
+    fn client_only_authorization_header_does_not_trigger_frontend_backend_reuse() {
+        let findings = classify_artifacts(
+            vec![artifact(
+                "artifact_client",
+                ArtifactType::ApiKey,
+                "api_key",
+                "src/client/App.tsx",
+                lifecycle(&["e_out"], &[], &[]),
+                None,
+            )],
+            vec![evidence(
+                "e_out",
+                "bearer.transmit",
+                LifecycleStage::Transmit,
+                "src/client/App.tsx",
+            )],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("frontend and backend contexts")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn distant_group_boundary_does_not_suppress_inbound_outbound_review() {
+        let findings = classify_artifacts(
+            vec![artifact(
+                "artifact_token",
+                ArtifactType::OpaqueBearerToken,
+                "authorization_bearer",
+                "src/api/auth.ts",
+                lifecycle(&["e_in", "e_out"], &[], &["e_aud"]),
+                Some(boundary("audience", "internal", "e_aud")),
+            )],
+            vec![
+                evidence_on_line(
+                    "e_in",
+                    "bearer.read.inbound",
+                    LifecycleStage::Transmit,
+                    "src/api/auth.ts",
+                    10,
+                ),
+                evidence_on_line(
+                    "e_out",
+                    "bearer.transmit",
+                    LifecycleStage::Transmit,
+                    "src/api/auth.ts",
+                    20,
+                ),
+                evidence_on_line(
+                    "e_aud",
+                    "bearer.boundary.audience",
+                    LifecycleStage::Introspect,
+                    "src/api/auth.ts",
+                    200,
+                ),
+            ],
+        );
+
+        assert!(
+            findings.iter().any(|finding| {
+                finding
+                    .title
+                    .contains("inbound and outbound trust boundaries")
+            }),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn provider_boundary_metadata_without_scope_is_review_required() {
+        let findings = classify_artifacts(
+            vec![artifact(
+                "artifact_provider",
+                ArtifactType::ServiceToken,
+                "stripe_service_token",
+                "src/server/payments.ts",
+                lifecycle(&[], &[], &["e_provider"]),
+                Some(boundary("provider", "stripe", "e_provider")),
+            )],
+            vec![evidence(
+                "e_provider",
+                "bearer.boundary.provider",
+                LifecycleStage::Introspect,
+                "src/server/payments.ts",
+            )],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.title.contains("boundary metadata")),
+            "{findings:?}"
         );
     }
 

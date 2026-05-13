@@ -20,6 +20,7 @@ static BEARER_RE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("bearer regex should compile")
 });
 static API_KEY_HEADER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    // Authorization: Bearer values are handled by BEARER_RE; this covers API-key style headers.
     Regex::new(r#"(?ix)(["']?(?:x-api-key|x_api_key|api-key|api_key|apikey)["']?\s*[:=]\s*)(["']?)([^"',}\]\s]+)(["']?)"#)
         .expect("api key header regex should compile")
 });
@@ -57,7 +58,7 @@ static SENSITIVE_QUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static SENSITIVE_UNQUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?ix)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b\s*[:=]\s*)([^\s,;)\]\[}'"]+)"#,
+        r#"(?ix)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|bearer[_-]?token|service[_-]?token|authorization|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b\s*[:=]\s*)([^\s,;)\]\[}'"]+)"#,
     )
     .expect("sensitive unquoted assignment regex should compile")
 });
@@ -149,7 +150,21 @@ pub fn redact_sensitive_values(input: &str) -> String {
         .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string();
     output = SENSITIVE_UNQUOTED_ASSIGNMENT_RE
-        .replace_all(&output, format!("${{1}}{REDACTION}"))
+        .replace_all(&output, |captures: &regex::Captures<'_>| {
+            let prefix = captures.get(1).map_or("", |capture| capture.as_str());
+            let value = captures.get(2).map_or("", |capture| capture.as_str());
+            if prefix.to_ascii_lowercase().contains("authorization")
+                && value.eq_ignore_ascii_case("bearer")
+            {
+                captures
+                    .get(0)
+                    .expect("full capture should exist")
+                    .as_str()
+                    .to_string()
+            } else {
+                format!("{prefix}{REDACTION}")
+            }
+        })
         .to_string();
     output = SENSITIVE_CLAIM_RE
         .replace_all(&output, format!("${{1}}{REDACTION}${{3}}"))
@@ -523,6 +538,18 @@ mod tests {
         assert!(!output.contains("user-123"));
         assert!(!output.contains("admin"));
         assert!(!output.contains("tenant-123"));
+    }
+
+    #[test]
+    fn redacts_short_unquoted_bearer_and_service_tokens() {
+        let output = redact_sensitive_values(
+            "bearer_token=opaqueValue service_token=opaqueValue authorization=opaqueValue",
+        );
+
+        assert!(output.contains("bearer_token=[REDACTED]"));
+        assert!(output.contains("service_token=[REDACTED]"));
+        assert!(output.contains("authorization=[REDACTED]"));
+        assert!(!output.contains("opaqueValue"));
     }
 
     #[test]
