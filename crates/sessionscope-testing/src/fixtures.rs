@@ -259,6 +259,75 @@ mod tests {
     }
 
     #[test]
+    fn expanded_cookie_posture_fixtures_emit_findings_and_safe_reports() {
+        let cases = [
+            fixture_root()
+                .join("express")
+                .join("cookie-posture-expanded"),
+            fixture_root()
+                .join("fastapi")
+                .join("cookie-posture-expanded"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            for artifact_name in ["legacy_session", "cross_site_session", "header_session"] {
+                assert!(
+                    report.artifacts.iter().any(|artifact| {
+                        artifact.display_name.as_deref() == Some(artifact_name)
+                            && artifact.cookie_attributes.is_some()
+                    }),
+                    "{} should include cookie artifact {artifact_name}",
+                    root.display()
+                );
+            }
+
+            for title_part in [
+                "excessive Max-Age",
+                "broad Domain",
+                "broad Path",
+                "does not set SameSite",
+                "SameSite=None",
+                "dynamic",
+            ] {
+                assert!(
+                    report.findings.iter().any(|finding| {
+                        finding.title.contains(title_part)
+                            && finding.reviewer_question.is_some()
+                            && !finding.evidence_ids.is_empty()
+                    }),
+                    "{} should include expanded cookie finding containing {title_part:?}",
+                    root.display()
+                );
+            }
+
+            if root.to_string_lossy().contains("express") {
+                assert!(report.findings.iter().any(|finding| {
+                    finding.title.contains("browser storage")
+                        && finding.category == FindingCategory::HighConfidenceMisconfiguration
+                }));
+            }
+
+            for format in [
+                ReportFormat::Json,
+                ReportFormat::Markdown,
+                ReportFormat::Sarif,
+            ] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("PLACEHOLDER_RESET_TOKEN"));
+                assert!(rendered.contains("cookie"));
+            }
+        }
+    }
+
+    #[test]
     fn jwt_fixtures_scan_with_builtin_jwt_detector() {
         let cases = [
             (

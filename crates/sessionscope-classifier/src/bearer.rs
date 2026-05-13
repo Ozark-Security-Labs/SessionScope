@@ -95,7 +95,7 @@ fn classify_deterministic_risks(context: &TokenContext<'_>) -> Vec<Finding> {
                     "Token `{}` is stored in browser storage",
                     artifact_name(context.artifact)
                 ),
-                "Bearer/API-key token evidence is stored in localStorage or sessionStorage, where browser JavaScript can read it."
+                "Bearer/API-key or session-like token evidence is stored in localStorage or sessionStorage, where browser JavaScript can read it."
                     .to_string(),
                 "Use an HttpOnly cookie or another storage pattern that prevents direct script access when possible."
                     .to_string(),

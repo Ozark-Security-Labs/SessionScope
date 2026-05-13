@@ -32,6 +32,9 @@ static JWT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{3,}\.[A-Za-z0-9_-]{6,}\b")
         .expect("JWT regex should compile")
 });
+static SET_COOKIE_PAIR_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)^(\s*[^=;\s]+)\s*=\s*([^;]*)"#).expect("set-cookie pair regex should compile")
+});
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CookieSetDetector;
@@ -569,6 +572,9 @@ fn collect_js_cookie_calls<'tree>(
     {
         calls.push(call);
     }
+    if node.kind() == "call_expression" {
+        calls.extend(js_set_cookie_header_calls(node, source));
+    }
 
     collect_js_children(node, source, function_parameters, option_aliases, calls);
 }
@@ -606,6 +612,11 @@ fn collect_python_cookie_calls<'tree>(
         && let Some(call) = python_cookie_call(node, source, function_parameters, option_aliases)
     {
         calls.push(call);
+    }
+    if node.kind() == "call" {
+        calls.extend(python_set_cookie_header_calls(node, source));
+    } else if node.kind() == "assignment" {
+        calls.extend(python_set_cookie_header_assignments(node, source));
     }
 
     let mut cursor = node.walk();
@@ -701,6 +712,240 @@ fn python_cookie_call<'tree>(
         attributes: options.attributes,
         dynamic_options: options.dynamic,
     })
+}
+
+fn js_set_cookie_header_calls(node: Node<'_>, source: &str) -> Vec<CookieCall> {
+    let Some(function) = node.child_by_field_name("function") else {
+        return Vec::new();
+    };
+    let Some((api_name, framework_hint)) = js_supported_set_cookie_header_api(function, source)
+    else {
+        return Vec::new();
+    };
+    let Some(arguments) = node.child_by_field_name("arguments") else {
+        return Vec::new();
+    };
+    let argument_nodes = named_children(arguments);
+    if !argument_nodes
+        .first()
+        .and_then(|argument| string_literal_value(*argument, source))
+        .is_some_and(|value| value.eq_ignore_ascii_case("set-cookie"))
+    {
+        return Vec::new();
+    }
+    let Some(value_node) = argument_nodes.get(1).copied() else {
+        return Vec::new();
+    };
+
+    set_cookie_header_calls_from_value_node(
+        source,
+        value_node,
+        api_name,
+        framework_hint,
+        node_line_column(node),
+    )
+}
+
+fn python_set_cookie_header_calls(node: Node<'_>, source: &str) -> Vec<CookieCall> {
+    let Some(function) = node.child_by_field_name("function") else {
+        return Vec::new();
+    };
+    let Some((api_name, framework_hint)) = python_supported_set_cookie_header_api(function, source)
+    else {
+        return Vec::new();
+    };
+    let Some(arguments) = node.child_by_field_name("arguments") else {
+        return Vec::new();
+    };
+    let argument_nodes = named_children(arguments);
+    if !argument_nodes
+        .first()
+        .and_then(|argument| string_literal_value(*argument, source))
+        .is_some_and(|value| value.eq_ignore_ascii_case("set-cookie"))
+    {
+        return Vec::new();
+    }
+    let Some(value_node) = argument_nodes.get(1).copied() else {
+        return Vec::new();
+    };
+
+    set_cookie_header_calls_from_value_node(
+        source,
+        value_node,
+        api_name,
+        framework_hint,
+        node_line_column(node),
+    )
+}
+
+fn python_set_cookie_header_assignments(node: Node<'_>, source: &str) -> Vec<CookieCall> {
+    let children = named_children(node);
+    let (Some(left), Some(right)) = (children.first().copied(), children.get(1).copied()) else {
+        return Vec::new();
+    };
+    if !python_set_cookie_subscript(left, source) {
+        return Vec::new();
+    }
+
+    set_cookie_header_calls_from_value_node(
+        source,
+        right,
+        "set-cookie.header",
+        "set-cookie-header",
+        node_line_column(node),
+    )
+}
+
+fn set_cookie_header_calls_from_value_node(
+    source: &str,
+    value_node: Node<'_>,
+    api_name: &'static str,
+    framework_hint: &'static str,
+    fallback_location: (usize, usize),
+) -> Vec<CookieCall> {
+    let literal_values = string_literals_from_node(value_node, source);
+    if literal_values.is_empty() {
+        let (line, column) = fallback_location;
+        return vec![CookieCall {
+            api_name,
+            framework_hint,
+            line,
+            column,
+            excerpt: SanitizedExcerpt(redact_set_cookie_header_values(&node_text(
+                value_node, source,
+            ))),
+            cookie_name: None,
+            signed: false,
+            attributes: BTreeMap::new(),
+            dynamic_options: true,
+        }];
+    }
+
+    literal_values
+        .into_iter()
+        .filter_map(|(value, node)| {
+            set_cookie_call_from_header(
+                &value,
+                api_name,
+                framework_hint,
+                node_line_column(node),
+                SanitizedExcerpt(redact_set_cookie_header_values(&value)),
+            )
+        })
+        .collect()
+}
+
+fn set_cookie_call_from_header(
+    header: &str,
+    api_name: &'static str,
+    framework_hint: &'static str,
+    location: (usize, usize),
+    excerpt: SanitizedExcerpt,
+) -> Option<CookieCall> {
+    let mut segments = header.split(';');
+    let first = segments.next()?.trim();
+    let captures = SET_COOKIE_PAIR_RE.captures(first)?;
+    let cookie_name = captures.get(1)?.as_str().trim().to_string();
+    if cookie_name.is_empty() {
+        return None;
+    }
+
+    let mut attributes = BTreeMap::new();
+    for segment in segments {
+        let trimmed = segment.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let mut parts = trimmed.splitn(2, '=');
+        let key = parts.next().unwrap_or_default().trim();
+        let value = parts.next().map(str::trim);
+        if let Some((kind, attribute_value)) = header_attribute_kind_and_value(key, value) {
+            attributes.insert(
+                kind,
+                AttributeEvidence {
+                    state: CookieAttributeState::Present,
+                    value: Some(redact_detector_excerpt(&normalize_attribute_value(
+                        kind,
+                        attribute_value,
+                    ))),
+                    confidence: Confidence::High,
+                    excerpt: SanitizedExcerpt(redact_set_cookie_header_values(&format!(
+                        "{}={attribute_value}",
+                        kind.display_name()
+                    ))),
+                    line: location.0,
+                    column: location.1,
+                    framework_default: false,
+                },
+            );
+        }
+    }
+
+    Some(CookieCall {
+        api_name,
+        framework_hint,
+        line: location.0,
+        column: location.1,
+        excerpt,
+        cookie_name: Some(cookie_name),
+        signed: false,
+        attributes,
+        dynamic_options: false,
+    })
+}
+
+fn header_attribute_kind_and_value<'a>(
+    key: &str,
+    value: Option<&'a str>,
+) -> Option<(CookieAttributeKind, &'a str)> {
+    let normalized = key.to_ascii_lowercase();
+    match normalized.as_str() {
+        "httponly" => Some((CookieAttributeKind::HttpOnly, "true")),
+        "secure" => Some((CookieAttributeKind::Secure, "true")),
+        "samesite" => value.map(|value| (CookieAttributeKind::SameSite, value)),
+        "max-age" | "maxage" => value.map(|value| (CookieAttributeKind::MaxAge, value)),
+        "expires" => value.map(|value| (CookieAttributeKind::Expires, value)),
+        "path" => value.map(|value| (CookieAttributeKind::Path, value)),
+        "domain" => value.map(|value| (CookieAttributeKind::Domain, value)),
+        _ => None,
+    }
+}
+
+fn js_supported_set_cookie_header_api(
+    function: Node<'_>,
+    source: &str,
+) -> Option<(&'static str, &'static str)> {
+    if !is_member_expression(function) {
+        return None;
+    }
+    let property = function.child_by_field_name("property")?;
+    match node_text(property, source).as_str() {
+        "setHeader" | "set" | "append" => Some(("set-cookie.header", "set-cookie-header")),
+        _ => None,
+    }
+}
+
+fn python_supported_set_cookie_header_api(
+    function: Node<'_>,
+    source: &str,
+) -> Option<(&'static str, &'static str)> {
+    if function.kind() != "attribute" {
+        return None;
+    }
+    let attribute = function.child_by_field_name("attribute")?;
+    match node_text(attribute, source).as_str() {
+        "append" | "add" | "setdefault" => Some(("set-cookie.header", "set-cookie-header")),
+        _ => None,
+    }
+}
+
+fn python_set_cookie_subscript(node: Node<'_>, source: &str) -> bool {
+    if node.kind() != "subscript" {
+        return false;
+    }
+    let text = node_text(node, source);
+    text.to_ascii_lowercase().contains("headers")
+        && text.to_ascii_lowercase().contains("set-cookie")
 }
 
 fn js_supported_cookie_api(
@@ -1503,6 +1748,21 @@ fn string_literal_value(node: Node<'_>, source: &str) -> Option<String> {
     }
 }
 
+fn string_literals_from_node<'tree>(node: Node<'tree>, source: &str) -> Vec<(String, Node<'tree>)> {
+    if let Some(value) = string_literal_value(node, source) {
+        return vec![(value, node)];
+    }
+
+    if !matches!(node.kind(), "array" | "list") {
+        return Vec::new();
+    }
+
+    named_children(node)
+        .into_iter()
+        .filter_map(|child| string_literal_value(child, source).map(|value| (value, child)))
+        .collect()
+}
+
 fn parse_string_text(text: &str) -> Option<String> {
     let mut chars = text.chars();
     let quote = chars.next()?;
@@ -1524,6 +1784,23 @@ fn node_text(node: Node<'_>, source: &str) -> String {
     node.utf8_text(source.as_bytes())
         .unwrap_or_default()
         .to_string()
+}
+
+fn redact_set_cookie_header_values(input: &str) -> String {
+    let mut output = input.to_string();
+    for captures in SET_COOKIE_PAIR_RE.captures_iter(input) {
+        let Some(full) = captures.get(0) else {
+            continue;
+        };
+        let Some(name) = captures.get(1) else {
+            continue;
+        };
+        output = output.replace(
+            full.as_str(),
+            &format!("{}={REDACTION}", name.as_str().trim()),
+        );
+    }
+    redact_detector_excerpt(&output)
 }
 
 #[cfg(test)]
@@ -1609,6 +1886,87 @@ const text = "response.cookie(\"string\", token)";
         );
         assert_eq!(output.artifacts[0].display_name.as_deref(), Some("session"));
         assert_eq!(output.evidence[0].location.line, Some(1));
+    }
+
+    #[test]
+    fn detects_javascript_set_cookie_header_strings_and_arrays() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+response.setHeader("Set-Cookie", [
+  "session=PLACEHOLDER_RESET_TOKEN; HttpOnly; Secure; SameSite=Lax; Max-Age=2678401; Path=/; Domain=.example.com",
+  "prefs=light; SameSite=Strict"
+]);
+"#,
+        );
+
+        assert_eq!(output.artifacts.len(), 2);
+        let session = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("session"))
+            .expect("session cookie should be detected");
+        assert_eq!(session.artifact_type, ArtifactType::SessionCookie);
+        assert_eq!(session.framework_hints, vec!["set-cookie-header"]);
+        let attributes = session
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(attributes.http_only.state, CookieAttributeState::Present);
+        assert_eq!(attributes.secure.state, CookieAttributeState::Present);
+        assert_eq!(attributes.same_site.value.as_deref(), Some("Lax"));
+        assert_eq!(attributes.max_age.value.as_deref(), Some("2678401"));
+        assert_eq!(attributes.path.value.as_deref(), Some("/"));
+        assert_eq!(attributes.domain.value.as_deref(), Some(".example.com"));
+        assert!(!detected_text(&output).contains("PLACEHOLDER_RESET_TOKEN"));
+    }
+
+    #[test]
+    fn detects_python_set_cookie_header_assignment_and_append() {
+        let output = detect(
+            Language::Python,
+            r#"
+response.headers["Set-Cookie"] = "session=PLACEHOLDER_RESET_TOKEN; HttpOnly; Secure; SameSite=Lax; Max-Age=900"
+response.headers.append("Set-Cookie", "legacy_session=PLACEHOLDER_RESET_TOKEN; SameSite=None; Path=/")
+"#,
+        );
+
+        assert_eq!(output.artifacts.len(), 2);
+        assert!(output.artifacts.iter().any(|artifact| {
+            artifact.display_name.as_deref() == Some("session")
+                && artifact.artifact_type == ArtifactType::SessionCookie
+        }));
+        let legacy = output
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.display_name.as_deref() == Some("legacy_session"))
+            .expect("legacy session should be detected");
+        let attributes = legacy
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(attributes.secure.state, CookieAttributeState::Missing);
+        assert_eq!(attributes.same_site.value.as_deref(), Some("None"));
+        assert_eq!(attributes.path.value.as_deref(), Some("/"));
+        assert!(!detected_text(&output).contains("PLACEHOLDER_RESET_TOKEN"));
+    }
+
+    #[test]
+    fn dynamic_set_cookie_header_value_marks_attributes_dynamic() {
+        let output = detect(
+            Language::TypeScript,
+            r#"response.setHeader("Set-Cookie", buildSessionCookie());"#,
+        );
+
+        assert_eq!(output.artifacts.len(), 1);
+        assert_eq!(output.artifacts[0].display_name, None);
+        let attributes = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(attributes.http_only.state, CookieAttributeState::Dynamic);
+        assert_eq!(attributes.secure.state, CookieAttributeState::Dynamic);
+        assert!(output.evidence[0].dynamic);
     }
 
     #[test]

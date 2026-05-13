@@ -21,11 +21,13 @@ Placeholder values intentionally look fake:
 | Family | Case | Purpose |
 | --- | --- | --- |
 | `express/` | `cookie-session-lifecycle` | Express cookie attributes, refresh rotation signals, and logout/revocation evidence. |
+| `express/` | `cookie-posture-expanded` | Expanded cookie posture checks, Set-Cookie headers, dynamic options, and browser storage session signals. |
 | `express/` | `clear-cookie-only-logout` | Logout path that only clears a client cookie and should produce a lifecycle review finding. |
 | `express/` | `refresh-rotation` | Refresh-token handler with lookup, old-token invalidation, new-token storage, and expiry evidence. |
 | `express/` | `refresh-without-rotation` | Refresh-token handler/use evidence without linked rotation or revocation evidence. |
 | `nextjs/` | `route-handler-auth` | Next.js-style route handlers for cookies, JWT validation, refresh, and logout. |
 | `fastapi/` | `dependency-auth-lifecycle` | FastAPI dependency patterns for cookies, JWT claims, logout, and reset-token expiry. |
+| `fastapi/` | `cookie-posture-expanded` | Expanded FastAPI cookie posture checks and Set-Cookie header parsing. |
 | `django/` | `session-and-reset-flow` | Django settings/views for secure cookies, session logout, signing, and reset-token expiry. |
 | `django/` | `password-change-refresh-revoke` | Password-change-triggered refresh-token revocation evidence. |
 | `generic-ts/` | `jwt-validation` | Generic TypeScript JWT issue/verify cases for issuer, audience, expiry, and missing validation evidence. |

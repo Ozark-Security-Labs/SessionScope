@@ -239,3 +239,24 @@ Rules:
 - Provider and wrapper-managed token handling should remain review-required
   unless local source or config shows the effective audience, service, tenant,
   and scope policy.
+
+## SS-DEC-009: Expanded Cookie Posture Classification
+
+Cookie posture findings should distinguish deterministic unsafe settings from
+runtime policy questions.
+
+Rules:
+
+- Explicit cookie lifetime greater than 30 days is a high-confidence posture
+  finding when Max-Age or a relative Expires duration is statically derivable.
+- Absolute far-future Expires values are review-required unless the local source
+  also exposes a derivable relative duration.
+- Explicit broad Domain scope and explicit `Path=/` on session-like or signed
+  cookies are high-confidence findings when the values are directly visible.
+- `SameSite=None` without Secure remains high-confidence. `SameSite=None` with
+  Secure is review-required because cross-site cookie delivery may be
+  intentional.
+- Dynamic cookie options and framework-default behavior should remain
+  `dynamic_review_required` or `framework_default_assumed`.
+- Browser storage of session-like tokens should reuse token storage evidence and
+  must not introduce raw token or cookie values into reports.

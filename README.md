@@ -12,7 +12,7 @@ SessionScope is intended for product-security teams and developers who need evid
 
 Session and token bugs are high-impact and common. Teams often rely on framework defaults, scattered middleware, or third-party libraries, but still accidentally introduce issues such as:
 
-- cookies missing `HttpOnly`, `Secure`, or `SameSite`
+- cookies missing `HttpOnly`, `Secure`, scoped lifetime, or `SameSite`
 - JWTs accepted without issuer or audience validation
 - refresh tokens that are never rotated
 - logout paths that do not revoke server-side state
@@ -309,7 +309,7 @@ such as env files and private-key material before source loading.
 
 - Cookie missing `HttpOnly`
 - Cookie missing `Secure`
-- Unsafe `SameSite=None` without `Secure`
+- Unsafe or review-required cookie posture, including excessive lifetime, broad Domain/Path scope, and `SameSite=None` handling
 - JWT verification without issuer validation
 - JWT verification without audience validation
 - Tokens issued without explicit expiry

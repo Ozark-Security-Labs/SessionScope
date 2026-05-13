@@ -1,7 +1,11 @@
+use std::net::IpAddr;
+
 use sessionscope_model::{
     Artifact, ArtifactType, Confidence, CookieAttributeObservation, CookieAttributeState,
     EvidenceId, Finding, FindingCategory, ScanReport, Severity, stable_finding_id,
 };
+
+const EXCESSIVE_COOKIE_LIFETIME_SECONDS: i64 = 30 * 24 * 60 * 60;
 
 pub fn classify(report: &ScanReport) -> Vec<Finding> {
     let mut findings = Vec::new();
@@ -32,6 +36,26 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
             cookie_name,
             &attributes.same_site,
             &attributes.secure,
+        ));
+        findings.extend(classify_same_site_posture(
+            artifact,
+            cookie_name,
+            &attributes.same_site,
+            &attributes.secure,
+            session_like,
+        ));
+        findings.extend(classify_lifetime_posture(
+            artifact,
+            cookie_name,
+            &attributes.max_age,
+            &attributes.expires,
+        ));
+        findings.extend(classify_scope_posture(
+            artifact,
+            cookie_name,
+            &attributes.path,
+            &attributes.domain,
+            session_like,
         ));
 
         if session_like || artifact.artifact_type == ArtifactType::SignedCookie {
@@ -113,6 +137,227 @@ fn classify_http_only(
         )),
         _ => None,
     }
+}
+
+fn classify_same_site_posture(
+    artifact: &Artifact,
+    cookie_name: &str,
+    same_site: &CookieAttributeObservation,
+    secure: &CookieAttributeObservation,
+    session_like: bool,
+) -> Vec<Finding> {
+    let mut findings = Vec::new();
+
+    if same_site_is_none(same_site) && secure.state == CookieAttributeState::Present {
+        findings.push(finding(
+            "cookie_samesite_none_cross_site_review",
+            FindingCategory::DynamicReviewRequired,
+            Severity::Low,
+            artifact,
+            combined_evidence_ids(same_site, secure),
+            format!("Cookie `{cookie_name}` allows cross-site requests with SameSite=None"),
+            "SameSite=None was detected with Secure evidence. This may be intentional for cross-site flows, but it broadens browser send behavior."
+                .to_string(),
+            "Confirm the cross-site requirement and use the narrowest SameSite value compatible with the flow."
+                .to_string(),
+            "Which cross-site flow requires this cookie to use SameSite=None?".to_string(),
+        ));
+    }
+
+    if !session_like && artifact.artifact_type != ArtifactType::SignedCookie {
+        return findings;
+    }
+
+    match same_site.state {
+        CookieAttributeState::Missing if same_site.confidence == Confidence::High => {
+            findings.push(finding(
+                "cookie_missing_samesite",
+                FindingCategory::HighConfidenceMisconfiguration,
+                Severity::Medium,
+                artifact,
+                same_site.evidence_ids.clone(),
+                format!("Session-like cookie `{cookie_name}` does not set SameSite"),
+                "No SameSite attribute evidence was detected for this cookie-setting call."
+                    .to_string(),
+                "Set SameSite=Lax or SameSite=Strict unless a documented cross-site flow requires SameSite=None."
+                    .to_string(),
+                "Should this session-like cookie be sent on cross-site requests?".to_string(),
+            ));
+        }
+        CookieAttributeState::Dynamic => findings.push(finding(
+            "cookie_dynamic_samesite",
+            FindingCategory::DynamicReviewRequired,
+            Severity::Medium,
+            artifact,
+            same_site.evidence_ids.clone(),
+            format!("Session-like cookie `{cookie_name}` has dynamic SameSite evidence"),
+            "The SameSite attribute appears to depend on a non-literal expression.".to_string(),
+            "Confirm the effective production SameSite value and set it explicitly when possible."
+                .to_string(),
+            "Can production guarantee an appropriate SameSite value for this cookie?".to_string(),
+        )),
+        CookieAttributeState::FrameworkDefault => findings.push(finding(
+            "cookie_default_samesite",
+            FindingCategory::FrameworkDefaultAssumed,
+            Severity::Low,
+            artifact,
+            same_site.evidence_ids.clone(),
+            format!("Session-like cookie `{cookie_name}` relies on SameSite framework default"),
+            "The local code does not set SameSite directly; behavior appears to depend on a framework default."
+                .to_string(),
+            "Set SameSite explicitly or document the framework version and active default.".to_string(),
+            "Which framework version and deployment settings determine SameSite here?".to_string(),
+        )),
+        _ => {}
+    }
+
+    findings
+}
+
+fn classify_lifetime_posture(
+    artifact: &Artifact,
+    cookie_name: &str,
+    max_age: &CookieAttributeObservation,
+    expires: &CookieAttributeObservation,
+) -> Vec<Finding> {
+    let mut findings = Vec::new();
+
+    if max_age.state == CookieAttributeState::Present
+        && max_age.confidence == Confidence::High
+        && let Some(seconds) = max_age_seconds(artifact, max_age.value.as_deref())
+        && seconds > EXCESSIVE_COOKIE_LIFETIME_SECONDS
+    {
+        findings.push(finding(
+            "cookie_excessive_max_age",
+            FindingCategory::HighConfidenceMisconfiguration,
+            Severity::High,
+            artifact,
+            max_age.evidence_ids.clone(),
+            format!("Cookie `{cookie_name}` has excessive Max-Age"),
+            "Static Max-Age evidence exceeds the 30-day posture threshold for explicit cookie lifetime."
+                .to_string(),
+            "Use the shortest cookie lifetime compatible with the session or remember-me flow."
+                .to_string(),
+            "Why does this cookie need to remain valid for more than 30 days?".to_string(),
+        ));
+    }
+
+    if expires.state == CookieAttributeState::Present && expires.confidence == Confidence::High {
+        if let Some(seconds) = relative_expires_seconds(expires.value.as_deref()) {
+            if seconds > EXCESSIVE_COOKIE_LIFETIME_SECONDS {
+                findings.push(finding(
+                    "cookie_excessive_expires",
+                    FindingCategory::HighConfidenceMisconfiguration,
+                    Severity::High,
+                    artifact,
+                    expires.evidence_ids.clone(),
+                    format!("Cookie `{cookie_name}` has excessive Expires lifetime"),
+                    "Static relative Expires evidence exceeds the 30-day posture threshold for explicit cookie lifetime."
+                        .to_string(),
+                    "Use the shortest cookie lifetime compatible with the session or remember-me flow."
+                        .to_string(),
+                    "Why does this cookie need to remain valid for more than 30 days?".to_string(),
+                ));
+            }
+        } else if looks_like_far_future_expires(expires.value.as_deref()) {
+            findings.push(finding(
+                "cookie_absolute_expires_review",
+                FindingCategory::DynamicReviewRequired,
+                Severity::Low,
+                artifact,
+                expires.evidence_ids.clone(),
+                format!("Cookie `{cookie_name}` uses an absolute far-future Expires value"),
+                "An absolute Expires value appears long-lived, but static analysis cannot derive the effective duration from local source evidence."
+                    .to_string(),
+                "Confirm the effective lifetime and prefer a bounded Max-Age or locally derivable Expires duration."
+                    .to_string(),
+                "What effective lifetime does this absolute Expires value create in production?".to_string(),
+            ));
+        }
+    }
+
+    findings
+}
+
+fn classify_scope_posture(
+    artifact: &Artifact,
+    cookie_name: &str,
+    path: &CookieAttributeObservation,
+    domain: &CookieAttributeObservation,
+    session_like: bool,
+) -> Vec<Finding> {
+    if !session_like && artifact.artifact_type != ArtifactType::SignedCookie {
+        return Vec::new();
+    }
+
+    let mut findings = Vec::new();
+    if domain.state == CookieAttributeState::Present
+        && domain.confidence == Confidence::High
+        && domain.value.as_deref().is_some_and(is_broad_cookie_domain)
+    {
+        findings.push(finding(
+            "cookie_broad_domain_scope",
+            FindingCategory::HighConfidenceMisconfiguration,
+            Severity::High,
+            artifact,
+            domain.evidence_ids.clone(),
+            format!("Session-like cookie `{cookie_name}` uses broad Domain scope"),
+            "Static Domain evidence broadens where the browser can send this session-like cookie."
+                .to_string(),
+            "Omit Domain for host-only cookies unless subdomain sharing is explicitly required."
+                .to_string(),
+            "Which hosts are intended to receive this cookie?".to_string(),
+        ));
+    } else if domain.state == CookieAttributeState::Dynamic {
+        findings.push(finding(
+            "cookie_dynamic_domain_scope",
+            FindingCategory::DynamicReviewRequired,
+            Severity::Low,
+            artifact,
+            domain.evidence_ids.clone(),
+            format!("Session-like cookie `{cookie_name}` has dynamic Domain scope"),
+            "The Domain attribute appears to depend on runtime configuration.".to_string(),
+            "Confirm the effective production Domain value and document the intended host scope."
+                .to_string(),
+            "Which hosts can receive this cookie in production?".to_string(),
+        ));
+    }
+
+    if path.state == CookieAttributeState::Present
+        && path.confidence == Confidence::High
+        && path
+            .value
+            .as_deref()
+            .is_some_and(|value| value.trim() == "/")
+    {
+        findings.push(finding(
+            "cookie_broad_path_scope",
+            FindingCategory::HighConfidenceMisconfiguration,
+            Severity::High,
+            artifact,
+            path.evidence_ids.clone(),
+            format!("Session-like cookie `{cookie_name}` uses broad Path scope"),
+            "Static Path=/ evidence allows the browser to send this session-like cookie to every path on the host."
+                .to_string(),
+            "Use the narrowest Path compatible with the application flow.".to_string(),
+            "Which application paths are intended to receive this cookie?".to_string(),
+        ));
+    } else if path.state == CookieAttributeState::Dynamic {
+        findings.push(finding(
+            "cookie_dynamic_path_scope",
+            FindingCategory::DynamicReviewRequired,
+            Severity::Low,
+            artifact,
+            path.evidence_ids.clone(),
+            format!("Session-like cookie `{cookie_name}` has dynamic Path scope"),
+            "The Path attribute appears to depend on runtime configuration.".to_string(),
+            "Confirm the effective production Path value and document the intended route scope."
+                .to_string(),
+            "Which application paths can receive this cookie in production?".to_string(),
+        ));
+    }
+
+    findings
 }
 
 fn classify_secure(
@@ -350,6 +595,120 @@ fn is_expiry_absent(observation: &CookieAttributeObservation) -> bool {
                 .is_some_and(|value| value.eq_ignore_ascii_case("none")))
 }
 
+fn max_age_seconds(artifact: &Artifact, value: Option<&str>) -> Option<i64> {
+    let raw = value?;
+    let amount = eval_numeric_expression(raw)?;
+    if artifact
+        .framework_hints
+        .iter()
+        .any(|hint| hint == "express")
+    {
+        Some(amount / 1000)
+    } else {
+        Some(amount)
+    }
+}
+
+fn relative_expires_seconds(value: Option<&str>) -> Option<i64> {
+    let raw = value?;
+    let normalized = raw.to_ascii_lowercase();
+    if normalized.contains("timedelta") {
+        let days = named_number_argument(&normalized, "days").unwrap_or(0);
+        let hours = named_number_argument(&normalized, "hours").unwrap_or(0);
+        let minutes = named_number_argument(&normalized, "minutes").unwrap_or(0);
+        let seconds = named_number_argument(&normalized, "seconds").unwrap_or(0);
+        let total = days * 24 * 60 * 60 + hours * 60 * 60 + minutes * 60 + seconds;
+        return (total > 0).then_some(total);
+    }
+
+    if let Some(index) = normalized.find("date.now") {
+        let tail = &normalized[index..];
+        let expression = tail
+            .split_once('+')
+            .map(|(_, expression)| expression)
+            .unwrap_or_default();
+        let milliseconds = eval_numeric_expression(expression)?;
+        return Some(milliseconds / 1000);
+    }
+
+    None
+}
+
+fn looks_like_far_future_expires(value: Option<&str>) -> bool {
+    let Some(value) = value else {
+        return false;
+    };
+    ["2038", "2099", "9999"]
+        .iter()
+        .any(|year| value.contains(year))
+}
+
+fn named_number_argument(value: &str, name: &str) -> Option<i64> {
+    let start = value.find(&format!("{name}="))? + name.len() + 1;
+    let tail = &value[start..];
+    let number = tail
+        .chars()
+        .take_while(|ch| ch.is_ascii_digit())
+        .collect::<String>();
+    number.parse().ok()
+}
+
+fn eval_numeric_expression(value: &str) -> Option<i64> {
+    let sanitized = value
+        .chars()
+        .filter(|ch| !ch.is_whitespace() && *ch != '_' && *ch != ')')
+        .collect::<String>();
+    if sanitized.is_empty()
+        || sanitized
+            .chars()
+            .any(|ch| !ch.is_ascii_digit() && !matches!(ch, '+' | '*' | '/'))
+    {
+        return None;
+    }
+
+    let mut total = 0i64;
+    for sum_part in sanitized.split('+') {
+        if sum_part.is_empty() {
+            continue;
+        }
+        let mut product = 1i64;
+        for product_part in sum_part.split('*') {
+            if product_part.is_empty() {
+                return None;
+            }
+            let mut division_parts = product_part.split('/');
+            let mut value = division_parts.next()?.parse::<i64>().ok()?;
+            for divisor in division_parts {
+                let divisor = divisor.parse::<i64>().ok()?;
+                if divisor == 0 {
+                    return None;
+                }
+                value /= divisor;
+            }
+            product = product.checked_mul(value)?;
+        }
+        total = total.checked_add(product)?;
+    }
+    Some(total)
+}
+
+fn is_broad_cookie_domain(value: &str) -> bool {
+    let domain = value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim_start_matches('.')
+        .to_ascii_lowercase();
+    if domain.is_empty()
+        || domain == "localhost"
+        || domain.ends_with(".localhost")
+        || domain.parse::<IpAddr>().is_ok()
+    {
+        return false;
+    }
+    domain.contains('.')
+}
+
 fn combined_evidence_ids(
     left: &CookieAttributeObservation,
     right: &CookieAttributeObservation,
@@ -414,7 +773,7 @@ mod tests {
             same_site,
             max_age,
             expires,
-            path: present("path", "/"),
+            path: present("path", "/auth"),
             domain: missing("domain"),
         }
     }
@@ -466,6 +825,26 @@ mod tests {
             value: value.map(str::to_string),
             evidence_ids: vec![EvidenceId(format!("evidence_{attribute}"))],
             confidence,
+        }
+    }
+
+    fn attributes_with_scope(
+        http_only: CookieAttributeObservation,
+        secure: CookieAttributeObservation,
+        same_site: CookieAttributeObservation,
+        max_age: CookieAttributeObservation,
+        expires: CookieAttributeObservation,
+        path: CookieAttributeObservation,
+        domain: CookieAttributeObservation,
+    ) -> CookieAttributes {
+        CookieAttributes {
+            http_only,
+            secure,
+            same_site,
+            max_age,
+            expires,
+            path,
+            domain,
         }
     }
 
@@ -626,6 +1005,165 @@ mod tests {
             .expect("expiry lifecycle finding should exist");
         assert_eq!(finding.severity, Severity::Low);
         assert!(finding.reviewer_question.is_some());
+    }
+
+    #[test]
+    fn excessive_max_age_uses_framework_units() {
+        let mut exact_express = artifact(
+            "session",
+            attributes(
+                present("http_only", "true"),
+                present("secure", "true"),
+                present("same_site", "lax"),
+                present("max_age", "2592000000"),
+                missing("expires"),
+            ),
+        );
+        exact_express.framework_hints = vec!["express".to_string()];
+        assert!(
+            !classify_artifact(exact_express)
+                .iter()
+                .any(|finding| finding.title.contains("Max-Age"))
+        );
+
+        let mut long_python = artifact(
+            "session",
+            attributes(
+                present("http_only", "true"),
+                present("secure", "true"),
+                present("same_site", "lax"),
+                present("max_age", "2678401"),
+                missing("expires"),
+            ),
+        );
+        long_python.framework_hints = vec!["python".to_string()];
+        assert!(classify_artifact(long_python).iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.severity == Severity::High
+                && finding.title.contains("Max-Age")
+        }));
+    }
+
+    #[test]
+    fn relative_and_far_future_expires_are_classified() {
+        let relative = classify_artifact(artifact(
+            "session",
+            attributes(
+                present("http_only", "true"),
+                present("secure", "true"),
+                present("same_site", "lax"),
+                missing("max_age"),
+                present("expires", "timedelta(days=45)"),
+            ),
+        ));
+        assert!(relative.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.title.contains("Expires")
+        }));
+
+        let absolute = classify_artifact(artifact(
+            "session",
+            attributes(
+                present("http_only", "true"),
+                present("secure", "true"),
+                present("same_site", "lax"),
+                missing("max_age"),
+                present("expires", "Wed, 31 Dec 2099 23:59:59 GMT"),
+            ),
+        ));
+        assert!(absolute.iter().any(|finding| {
+            finding.category == FindingCategory::DynamicReviewRequired
+                && finding.title.contains("absolute")
+        }));
+    }
+
+    #[test]
+    fn broad_domain_and_path_scope_are_high_confidence() {
+        let findings = classify_artifact(artifact(
+            "session",
+            attributes_with_scope(
+                present("http_only", "true"),
+                present("secure", "true"),
+                present("same_site", "lax"),
+                present("max_age", "900"),
+                missing("expires"),
+                present("path", "/"),
+                present("domain", ".example.com"),
+            ),
+        ));
+
+        assert!(findings.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.title.contains("Domain")
+        }));
+        assert!(findings.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.title.contains("Path")
+        }));
+    }
+
+    #[test]
+    fn samesite_posture_distinguishes_missing_none_dynamic_and_default() {
+        let missing_findings = classify_artifact(artifact(
+            "session",
+            attributes(
+                present("http_only", "true"),
+                present("secure", "true"),
+                missing("same_site"),
+                present("max_age", "900"),
+                missing("expires"),
+            ),
+        ));
+        assert!(missing_findings.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.severity == Severity::Medium
+                && finding.title.contains("SameSite")
+        }));
+
+        let none_findings = classify_artifact(artifact(
+            "session",
+            attributes(
+                present("http_only", "true"),
+                present("secure", "true"),
+                present("same_site", "none"),
+                present("max_age", "900"),
+                missing("expires"),
+            ),
+        ));
+        assert!(none_findings.iter().any(|finding| {
+            finding.category == FindingCategory::DynamicReviewRequired
+                && finding.title.contains("SameSite=None")
+        }));
+
+        let dynamic_findings = classify_artifact(artifact(
+            "session",
+            attributes(
+                present("http_only", "true"),
+                present("secure", "true"),
+                dynamic("same_site"),
+                present("max_age", "900"),
+                missing("expires"),
+            ),
+        ));
+        assert!(dynamic_findings.iter().any(|finding| {
+            finding.category == FindingCategory::DynamicReviewRequired
+                && finding.title.contains("dynamic SameSite")
+        }));
+
+        let default_findings = classify_artifact(artifact(
+            "session",
+            attributes(
+                present("http_only", "true"),
+                present("secure", "true"),
+                default("same_site", "lax"),
+                present("max_age", "900"),
+                missing("expires"),
+            ),
+        ));
+        assert!(default_findings.iter().any(|finding| {
+            finding.category == FindingCategory::FrameworkDefaultAssumed
+                && finding.title.contains("SameSite framework default")
+        }));
     }
 
     #[test]

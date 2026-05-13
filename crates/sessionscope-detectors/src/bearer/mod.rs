@@ -189,6 +189,8 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, path: &str, signals: &mu
     let raw_normalized = normalize_symbol(&text);
     let has_token_context = URL_PARAM_RE.is_match(&text)
         || contains_token_context(&normalized)
+        || (is_browser_storage_call(&raw_normalized)
+            && contains_browser_session_context(&raw_normalized))
         || (normalized.contains("headers") && contains_token_context(&raw_normalized));
     if !has_token_context {
         return;
@@ -360,6 +362,8 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, path: &str, signals:
     let raw_normalized = normalize_symbol(&text);
     let has_token_context = URL_PARAM_RE.is_match(&text)
         || contains_token_context(&normalized)
+        || (is_browser_storage_call(&raw_normalized)
+            && contains_browser_session_context(&raw_normalized))
         || (normalized.contains("headers") && contains_token_context(&raw_normalized));
     if !has_token_context {
         return;
@@ -530,6 +534,8 @@ fn collect_assignment_signal(
     let normalized = normalize_symbol_without_literals(&text);
     let raw_normalized = normalize_symbol(&text);
     let has_token_context = contains_token_context(&normalized)
+        || (is_browser_storage_call(&raw_normalized)
+            && contains_browser_session_context(&raw_normalized))
         || (normalized.contains("headers") && contains_token_context(&raw_normalized));
     if !has_token_context || is_jwt_library_call(&normalized) {
         return;
@@ -960,6 +966,10 @@ fn parse_python(source: &str) -> Option<Tree> {
 fn contains_token_context(normalized: &str) -> bool {
     normalized.contains("authorization")
         || normalized.contains("bearer")
+        || normalized.contains("session_token")
+        || normalized.contains("sessiontoken")
+        || normalized.contains("session_id")
+        || normalized.contains("sessionid")
         || normalized.contains("apikey")
         || normalized.contains("api_key")
         || normalized.contains("xapikey")
@@ -987,6 +997,17 @@ fn contains_token_context(normalized: &str) -> bool {
                 || normalized.contains("audience")
                 || normalized.contains("permission")
                 || normalized.contains("provider")))
+        || ((normalized.contains("localstorage") || normalized.contains("sessionstorage"))
+            && contains_browser_session_context(normalized))
+}
+
+fn contains_browser_session_context(normalized: &str) -> bool {
+    normalized.contains("session_token")
+        || normalized.contains("sessiontoken")
+        || normalized.contains("session_id")
+        || normalized.contains("sessionid")
+        || normalized.contains("session")
+        || normalized.contains("sid")
 }
 
 fn is_token_config_line(normalized: &str) -> bool {
@@ -1051,6 +1072,8 @@ fn is_issue_call(normalized: &str) -> bool {
 fn is_store_call(normalized: &str) -> bool {
     normalized.contains("localstorage.setitem")
         || normalized.contains("sessionstorage.setitem")
+        || normalized.contains("localstorage.")
+        || normalized.contains("sessionstorage.")
         || normalized.contains(".create")
         || normalized.contains(".insert")
         || normalized.contains(".save")
@@ -1062,7 +1085,7 @@ fn is_store_call(normalized: &str) -> bool {
 }
 
 fn is_browser_storage_call(normalized: &str) -> bool {
-    normalized.contains("localstorage.setitem") || normalized.contains("sessionstorage.setitem")
+    normalized.contains("localstorage") || normalized.contains("sessionstorage")
 }
 
 fn is_transmit_call(normalized: &str, raw: &str) -> bool {
@@ -1180,6 +1203,12 @@ fn artifact_type_for_context(normalized: &str) -> ArtifactType {
         || normalized.contains("authorization")
         || normalized.contains("access_token")
         || normalized.contains("accesstoken")
+        || normalized.contains("session_token")
+        || normalized.contains("sessiontoken")
+        || normalized.contains("session_id")
+        || normalized.contains("sessionid")
+        || ((normalized.contains("localstorage") || normalized.contains("sessionstorage"))
+            && (normalized.contains("session") || normalized.contains("sid")))
     {
         ArtifactType::OpaqueBearerToken
     } else {
@@ -1198,6 +1227,14 @@ fn display_name_for_context(normalized: &str, artifact_type: ArtifactType) -> St
         "authorization_bearer".to_string()
     } else if normalized.contains("access_token") || normalized.contains("accesstoken") {
         "access_token".to_string()
+    } else if normalized.contains("session_token") || normalized.contains("sessiontoken") {
+        "session_token".to_string()
+    } else if normalized.contains("session_id") || normalized.contains("sessionid") {
+        "session_id".to_string()
+    } else if normalized.contains("session") {
+        "session".to_string()
+    } else if normalized.contains("sid") {
+        "sid".to_string()
     } else {
         artifact_type_part(artifact_type).to_string()
     }
@@ -1512,6 +1549,22 @@ const csrfTokenLabel = "not auth storage";
             "bearer.store.frontend_bundle",
             LifecycleStage::Store,
         );
+    }
+
+    #[test]
+    fn detects_session_like_browser_storage_forms() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+localStorage.setItem("session", sessionValue);
+sessionStorage.session_id = sessionId;
+localStorage["session_token"] = sessionToken;
+"#,
+        );
+
+        assert_detector(&output, "bearer.store.browser", LifecycleStage::Store);
+        assert_artifact(&output, ArtifactType::OpaqueBearerToken, "session_id");
+        assert_artifact(&output, ArtifactType::OpaqueBearerToken, "session_token");
     }
 
     #[test]

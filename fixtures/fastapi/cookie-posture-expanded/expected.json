@@ -1,0 +1,22 @@
+{
+  "fixture_id": "fastapi.cookie-posture-expanded",
+  "framework": "fastapi",
+  "source_files": ["app.py"],
+  "expected_artifacts": [
+    "session_cookie:session",
+    "session_cookie:legacy_session",
+    "session_cookie:cross_site_session",
+    "session_cookie:dynamic_session",
+    "session_cookie:header_session"
+  ],
+  "expected_lifecycle_stages": ["store", "transmit", "expire"],
+  "expected_findings": [
+    "cookie_excessive_lifetime",
+    "cookie_broad_domain_scope",
+    "cookie_broad_path_scope",
+    "cookie_missing_samesite",
+    "cookie_samesite_none_review",
+    "cookie_dynamic_review"
+  ],
+  "notes": "Covers expanded FastAPI cookie posture checks, Set-Cookie header parsing, dynamic cookie options, and secure no-finding examples."
+}

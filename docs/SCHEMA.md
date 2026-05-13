@@ -135,6 +135,11 @@ Cookie attribute observations are evidence inventory, not findings. Dynamic or
 framework-default values must not be treated as proof of insecurity until a
 classifier evaluates them.
 
+Cookie evidence may come from framework cookie APIs or representative static
+`Set-Cookie` header writes. Header-derived cookie values must be redacted before
+entering evidence excerpts, IDs, or rendered reports. Expanded posture findings
+use the same attribute inventory and do not add schema fields.
+
 Bearer/API-key token artifacts are evidence inventory for opaque token flows.
 `opaque_bearer_token`, `api_key`, `service_token`, and `unknown_token` use
 artifact-local lifecycle evidence to represent static issue, store, transmit,
