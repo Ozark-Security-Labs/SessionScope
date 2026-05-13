@@ -1,0 +1,23 @@
+{
+  "fixture_id": "generic-ts.query-param-token-acceptance",
+  "framework": "generic-typescript",
+  "source_files": ["app.ts"],
+  "expected_artifacts": [
+    "access_token",
+    "api_key",
+    "refresh_token",
+    "password_reset_token",
+    "email_verification_token",
+    "dynamic_query_token"
+  ],
+  "expected_lifecycle_stages": ["transmit"],
+  "expected_findings": [
+    "query_param_auth_token_acceptance:access_token",
+    "query_param_auth_token_acceptance:api_key",
+    "query_param_auth_token_acceptance:refresh_token",
+    "query_param_reset_or_verification_review:password_reset_token",
+    "query_param_reset_or_verification_review:email_verification_token",
+    "query_param_token_acceptance_review:dynamic_query_token"
+  ],
+  "notes": "Covers inbound TypeScript query-parameter token acceptance for Express-style request query reads, Next.js searchParams, reset and verification routes, dynamic parameter names, and ignored non-auth query names."
+}

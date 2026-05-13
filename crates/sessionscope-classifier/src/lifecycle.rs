@@ -26,6 +26,7 @@ pub fn link(report: &ScanReport) -> Vec<LifecyclePath> {
         .filter_map(|artifact| path_for_artifact(artifact, &evidence_by_id))
         .collect::<Vec<_>>();
     merge_revoke_only_paths(report, &evidence_by_id, &mut paths);
+    merge_query_param_paths(report, &evidence_by_id, &mut paths);
     merge_refresh_paths(report, &evidence_by_id, &mut paths);
     sort_paths(&mut paths);
     paths
@@ -173,6 +174,62 @@ fn merge_refresh_paths(
         }
 
         refresh_path_metadata(&artifact_by_id, evidence_by_id, &mut paths[target_index]);
+    }
+
+    if !absorbed.is_empty() {
+        let mut index = 0usize;
+        paths.retain(|_| {
+            let keep = !absorbed.contains(&index);
+            index += 1;
+            keep
+        });
+    }
+}
+
+fn merge_query_param_paths(
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+    paths: &mut Vec<LifecyclePath>,
+) {
+    let artifact_by_id = artifact_by_id(report);
+    let mut absorbed = BTreeSet::new();
+
+    for source_index in 0..paths.len() {
+        if absorbed.contains(&source_index)
+            || !is_query_param_transmit_path(&paths[source_index], evidence_by_id)
+        {
+            continue;
+        }
+
+        let Some(source_artifact) =
+            artifact_for_path_with_lookup(&artifact_by_id, &paths[source_index])
+        else {
+            continue;
+        };
+
+        let target_index = (0..paths.len()).find(|target_index| {
+            *target_index != source_index
+                && !absorbed.contains(target_index)
+                && !is_query_param_transmit_path(&paths[*target_index], evidence_by_id)
+                && artifact_for_path_with_lookup(&artifact_by_id, &paths[*target_index])
+                    .is_some_and(|target_artifact| {
+                        compatible_query_param_artifacts(source_artifact, target_artifact)
+                            && paths_have_linkable_source_context(
+                                &paths[source_index],
+                                &paths[*target_index],
+                                evidence_by_id,
+                            )
+                    })
+        });
+
+        let Some(target_index) = target_index else {
+            continue;
+        };
+
+        let source_path = paths[source_index].clone();
+        merge_path(&source_path, &mut paths[target_index]);
+        refresh_path_metadata(&artifact_by_id, evidence_by_id, &mut paths[target_index]);
+        absorbed.insert(source_index);
     }
 
     if !absorbed.is_empty() {
@@ -720,6 +777,26 @@ fn is_revoke_only_path(path: &LifecyclePath) -> bool {
     path.stages.len() == 1 && has_stage(path, LifecycleStage::Revoke)
 }
 
+fn is_query_param_transmit_path(
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    path.stages.len() == 1
+        && has_stage(path, LifecycleStage::Transmit)
+        && evidence_ids_for_stage(path, LifecycleStage::Transmit)
+            .iter()
+            .any(|evidence_id| {
+                evidence_by_id
+                    .get(evidence_id.0.as_str())
+                    .is_some_and(|evidence| {
+                        matches!(
+                            evidence.detector_id.as_str(),
+                            "query_param.read" | "query_param.read.dynamic"
+                        )
+                    })
+            })
+}
+
 fn artifact_has_only_revoke_evidence(artifact: &Artifact) -> bool {
     !artifact.lifecycle_evidence.revoke.is_empty()
         && artifact.lifecycle_evidence.issue.is_empty()
@@ -835,6 +912,23 @@ fn compatible_refresh_artifacts(source: &Artifact, target: &Artifact) -> bool {
             || source.artifact_type == ArtifactType::Unknown
             || target.artifact_type == ArtifactType::Unknown
             || compatible_token_types(source.artifact_type, target.artifact_type))
+}
+
+fn compatible_query_param_artifacts(source: &Artifact, target: &Artifact) -> bool {
+    let names_match = normalized_artifact_name(source) == normalized_artifact_name(target);
+    let exact_type_match = source.artifact_type == target.artifact_type;
+    let jwt_alias_match = matches!(
+        (source.artifact_type, target.artifact_type),
+        (ArtifactType::AccessJwt, ArtifactType::OpaqueBearerToken)
+            | (ArtifactType::OpaqueBearerToken, ArtifactType::AccessJwt)
+    ) && names_match;
+
+    (exact_type_match || jwt_alias_match)
+        && names_match
+        && !matches!(
+            source.artifact_type,
+            ArtifactType::UnknownToken | ArtifactType::Unknown
+        )
 }
 
 fn normalized_refresh_name(artifact: &Artifact) -> Option<&'static str> {
@@ -1797,6 +1891,49 @@ mod tests {
         assert!(has_stage(&paths[0], LifecycleStage::Store));
         assert!(has_stage(&paths[0], LifecycleStage::Refresh));
         assert!(has_stage(&paths[0], LifecycleStage::Revoke));
+    }
+
+    #[test]
+    fn query_param_transmit_path_merges_with_compatible_local_token_path() {
+        let report = report_with_artifacts(
+            vec![
+                artifact(
+                    "artifact_query_access",
+                    ArtifactType::AccessJwt,
+                    "access_token",
+                    LifecycleEvidence {
+                        transmit: vec![EvidenceId("evidence_query".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+                artifact(
+                    "artifact_access_validate",
+                    ArtifactType::AccessJwt,
+                    "access_token",
+                    LifecycleEvidence {
+                        validate: vec![EvidenceId("evidence_validate".to_string())],
+                        ..LifecycleEvidence::default()
+                    },
+                ),
+            ],
+            vec![
+                evidence_with_detector(
+                    "evidence_query",
+                    LifecycleStage::Transmit,
+                    "query_param.read",
+                    10,
+                    false,
+                ),
+                evidence("evidence_validate", LifecycleStage::Validate, 12, false),
+            ],
+        );
+
+        let paths = link(&report);
+
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0].artifact_ids.len(), 2);
+        assert!(has_stage(&paths[0], LifecycleStage::Transmit));
+        assert!(has_stage(&paths[0], LifecycleStage::Validate));
     }
 
     #[test]

@@ -759,6 +759,85 @@ mod tests {
     }
 
     #[test]
+    fn query_param_token_fixtures_classify_acceptance_findings() {
+        let cases = [
+            fixture_root()
+                .join("generic-ts")
+                .join("query-param-token-acceptance"),
+            fixture_root()
+                .join("generic-python")
+                .join("query-param-token-acceptance"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            for (display_name, artifact_type) in [
+                (Some("access_token"), ArtifactType::AccessJwt),
+                (Some("api_key"), ArtifactType::ApiKey),
+                (Some("refresh_token"), ArtifactType::RefreshJwt),
+                (
+                    Some("password_reset_token"),
+                    ArtifactType::PasswordResetToken,
+                ),
+                (
+                    Some("email_verification_token"),
+                    ArtifactType::EmailVerificationToken,
+                ),
+                (Some("dynamic_query_token"), ArtifactType::UnknownToken),
+            ] {
+                assert!(
+                    report.artifacts.iter().any(|artifact| {
+                        artifact.display_name.as_deref() == display_name
+                            && artifact.artifact_type == artifact_type
+                            && !artifact.lifecycle_evidence.transmit.is_empty()
+                    }),
+                    "{} should include {artifact_type:?} named {display_name:?}",
+                    root.display()
+                );
+            }
+
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "query_param.read"
+                    && evidence.lifecycle_stage == LifecycleStage::Transmit
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "query_param.read.dynamic"
+                    && evidence.dynamic
+                    && evidence.lifecycle_stage == LifecycleStage::Transmit
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::HighConfidenceMisconfiguration
+                    && finding.title.contains("URL query parameter")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::DynamicReviewRequired
+                    && finding.title.contains("reset or verification")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::DynamicReviewRequired
+                    && finding.title.contains("needs review")
+            }));
+
+            for format in [
+                ReportFormat::Json,
+                ReportFormat::Markdown,
+                ReportFormat::Sarif,
+            ] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("PLACEHOLDER"));
+                assert!(!rendered.contains("configured-token-value"));
+            }
+        }
+    }
+
+    #[test]
     fn express_cookie_fixture_renders_deterministic_json_inventory() {
         let root = fixture_root()
             .join("express")
