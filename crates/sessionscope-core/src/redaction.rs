@@ -19,6 +19,11 @@ static BEARER_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(authorization\s*:\s*bearer\s+)([A-Za-z0-9._~+/=-]{8,})")
         .expect("bearer regex should compile")
 });
+static API_KEY_HEADER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    // Authorization: Bearer values are handled by BEARER_RE; this covers API-key style headers.
+    Regex::new(r#"(?ix)(["']?(?:x-api-key|x_api_key|api-key|api_key|apikey)["']?\s*[:=]\s*)(["']?)([^"',}\]\s]+)(["']?)"#)
+        .expect("api key header regex should compile")
+});
 static URL_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?i)([?&](?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|api[_-]?key|apikey|secret|session|jwt|code)=)([^&#\s"']+)"#,
@@ -53,7 +58,7 @@ static SENSITIVE_QUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static SENSITIVE_UNQUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?ix)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b\s*[:=]\s*)([^\s,;)\]\[}'"]+)"#,
+        r#"(?ix)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|bearer[_-]?token|service[_-]?token|authorization|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b\s*[:=]\s*)([^\s,;)\]\[}'"]+)"#,
     )
     .expect("sensitive unquoted assignment regex should compile")
 });
@@ -78,7 +83,7 @@ static EMAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("email regex should compile")
 });
 static PLACEHOLDER_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\bPLACEHOLDER[A-Z0-9_]*(?:TOKEN|SECRET|JWT)[A-Z0-9_]*\b")
+    Regex::new(r"\bPLACEHOLDER[A-Z0-9_]*(?:TOKEN|SECRET|JWT|KEY)[A-Z0-9_]*\b")
         .expect("placeholder secret regex should compile")
 });
 static LONG_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -129,6 +134,9 @@ pub fn redact_sensitive_values(input: &str) -> String {
     output = BEARER_RE
         .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string();
+    output = API_KEY_HEADER_RE
+        .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
     output = URL_PARAM_RE
         .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string();
@@ -142,7 +150,21 @@ pub fn redact_sensitive_values(input: &str) -> String {
         .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string();
     output = SENSITIVE_UNQUOTED_ASSIGNMENT_RE
-        .replace_all(&output, format!("${{1}}{REDACTION}"))
+        .replace_all(&output, |captures: &regex::Captures<'_>| {
+            let prefix = captures.get(1).map_or("", |capture| capture.as_str());
+            let value = captures.get(2).map_or("", |capture| capture.as_str());
+            if prefix.to_ascii_lowercase().contains("authorization")
+                && value.eq_ignore_ascii_case("bearer")
+            {
+                captures
+                    .get(0)
+                    .expect("full capture should exist")
+                    .as_str()
+                    .to_string()
+            } else {
+                format!("{prefix}{REDACTION}")
+            }
+        })
         .to_string();
     output = SENSITIVE_CLAIM_RE
         .replace_all(&output, format!("${{1}}{REDACTION}${{3}}"))
@@ -287,6 +309,22 @@ fn sanitize_artifact(artifact: &mut Artifact) {
                 if let Some(value) = &mut observation.value {
                     *value = redact_sensitive_values(value);
                 }
+            }
+        }
+    }
+    if let Some(attributes) = &mut artifact.token_boundary_attributes {
+        for observation in [
+            &mut attributes.issuer,
+            &mut attributes.audience,
+            &mut attributes.service,
+            &mut attributes.environment,
+            &mut attributes.tenant,
+            &mut attributes.provider,
+            &mut attributes.scope,
+            &mut attributes.trust_boundary,
+        ] {
+            if let Some(value) = &mut observation.value {
+                *value = redact_sensitive_values(value);
             }
         }
     }
@@ -503,6 +541,18 @@ mod tests {
     }
 
     #[test]
+    fn redacts_short_unquoted_bearer_and_service_tokens() {
+        let output = redact_sensitive_values(
+            "bearer_token=opaqueValue service_token=opaqueValue authorization=opaqueValue",
+        );
+
+        assert!(output.contains("bearer_token=[REDACTED]"));
+        assert!(output.contains("service_token=[REDACTED]"));
+        assert!(output.contains("authorization=[REDACTED]"));
+        assert!(!output.contains("opaqueValue"));
+    }
+
+    #[test]
     fn redacts_full_quoted_sensitive_assignments_with_punctuation() {
         let output = redact_sensitive_values(
             "\"client_secret\": \"prod-secret:tenant@example.com with spaces\"; api_key='key$with:symbols@example.com'",
@@ -548,12 +598,13 @@ mod tests {
     #[test]
     fn redacts_placeholder_secret_values() {
         let output = redact_sensitive_values(
-            "const rotatedRefreshToken = \"PLACEHOLDER_RESET_TOKEN_ROTATED\"; const signingSecret = \"PLACEHOLDER_SECRET_DO_NOT_USE\";",
+            "const rotatedRefreshToken = \"PLACEHOLDER_RESET_TOKEN_ROTATED\"; const signingSecret = \"PLACEHOLDER_SECRET_DO_NOT_USE\"; const apiKey = \"PLACEHOLDER_API_KEY_DO_NOT_USE\";",
         );
 
         assert!(output.contains("[REDACTED]"));
         assert!(!output.contains("PLACEHOLDER_RESET_TOKEN_ROTATED"));
         assert!(!output.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+        assert!(!output.contains("PLACEHOLDER_API_KEY_DO_NOT_USE"));
     }
 
     #[test]
@@ -603,6 +654,7 @@ mod tests {
                 framework_hints: Vec::new(),
                 cookie_attributes: Some(cookie_attributes_with_value(secret)),
                 jwt_attributes: None,
+                token_boundary_attributes: None,
             }],
             evidence: Vec::new(),
             diagnostics: Vec::new(),
@@ -632,6 +684,7 @@ mod tests {
                 framework_hints: Vec::new(),
                 cookie_attributes: None,
                 jwt_attributes: Some(jwt_attributes_with_identity_value("person@example.com")),
+                token_boundary_attributes: None,
             }],
             evidence: Vec::new(),
             diagnostics: Vec::new(),

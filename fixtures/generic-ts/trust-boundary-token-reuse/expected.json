@@ -1,0 +1,23 @@
+{
+  "fixture_id": "generic-ts.trust-boundary-token-reuse",
+  "framework": "generic-ts",
+  "source_files": [
+    "src/server/reuse.ts",
+    "src/client/app.ts",
+    "src/server/backend.ts",
+    "config/tokens.json"
+  ],
+  "expected_artifacts": [
+    "opaque_bearer_token:authorization_bearer",
+    "api_key:api_key",
+    "service_token:service_token"
+  ],
+  "expected_lifecycle_stages": ["transmit", "introspect"],
+  "expected_findings": [
+    "trust_boundary_inbound_outbound_reuse_review",
+    "trust_boundary_frontend_backend_reuse_review",
+    "trust_boundary_environment_reuse_review",
+    "trust_boundary_provider_scope_review"
+  ],
+  "notes": "Covers TypeScript same-token forwarding, frontend/backend API-key naming, cross-environment service-token config, separated service-token audience evidence, and provider-wrapper review."
+}

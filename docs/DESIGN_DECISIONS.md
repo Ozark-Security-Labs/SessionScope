@@ -190,3 +190,73 @@ Rules:
   refresh tokens.
 - Clearing a refresh cookie remains client-side evidence only; it does not
   satisfy refresh-token rotation or revocation checks.
+
+## SS-DEC-007: Session Fixation Signals Are Review-Required
+
+Session fixation review depends on framework behavior, middleware ordering, and
+the exact point where an authenticated or elevated identity is bound to a
+session. Static evidence should identify likely transition points and visible
+rotation, but it should not claim exploitability from missing local evidence
+alone.
+
+Rules:
+
+- Login, sign-in, auth callback, impersonation, role elevation, admin
+  promotion, and permission-change handlers may emit session transition
+  evidence.
+- Explicit session regeneration, session-key cycling, and clear-and-reissue
+  cookie-session patterns may satisfy nearby transition review when linked by
+  local source context.
+- Recognized Django `login(request, user)`, `auth_login(request, user)`, and
+  `request.session.cycle_key()` calls are acceptable framework/default
+  regeneration evidence when visible in source.
+- Missing regeneration near a login or privilege transition should produce a
+  medium-severity `dynamic_review_required` finding with a reviewer question,
+  not a high-confidence misconfiguration.
+- Logout-only handlers and cookie deletion evidence should not create session
+  fixation findings.
+
+## SS-DEC-008: Trust-Boundary Reuse Is Review-Required
+
+Token reuse across services, audiences, environments, or frontend/backend
+boundaries depends on deployment configuration and provider policy. Static
+source evidence should preserve boundary hints and ask targeted reviewer
+questions when reuse is plausible, but it should not turn ambiguous reuse into a
+definitive exploit finding.
+
+Rules:
+
+- Boundary evidence may include issuer, audience, service, environment, tenant,
+  provider, scope, and frontend/backend trust-boundary hints when visible.
+- JWT missing issuer or audience validation remains a JWT validation finding;
+  trust-boundary reuse findings ask whether a token is reused outside its
+  intended boundary.
+- Inbound bearer/API-key evidence forwarded outbound without visible
+  audience/service/scope evidence should be `dynamic_review_required`.
+- Same token names spanning frontend/backend paths or multiple environment
+  hints should be review-required unless source-bound evidence proves
+  separation.
+- Provider and wrapper-managed token handling should remain review-required
+  unless local source or config shows the effective audience, service, tenant,
+  and scope policy.
+
+## SS-DEC-009: Expanded Cookie Posture Classification
+
+Cookie posture findings should distinguish deterministic unsafe settings from
+runtime policy questions.
+
+Rules:
+
+- Explicit cookie lifetime greater than 30 days is a high-confidence posture
+  finding when Max-Age or a relative Expires duration is statically derivable.
+- Absolute far-future Expires values are review-required unless the local source
+  also exposes a derivable relative duration.
+- Explicit broad Domain scope and explicit `Path=/` on session-like or signed
+  cookies are high-confidence findings when the values are directly visible.
+- `SameSite=None` without Secure remains high-confidence. `SameSite=None` with
+  Secure is review-required because cross-site cookie delivery may be
+  intentional.
+- Dynamic cookie options and framework-default behavior should remain
+  `dynamic_review_required` or `framework_default_assumed`.
+- Browser storage of session-like tokens should reuse token storage evidence and
+  must not introduce raw token or cookie values into reports.

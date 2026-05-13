@@ -107,6 +107,8 @@ mod tests {
         "PLACEHOLDER_SECRET_DO_NOT_USE",
         "PLACEHOLDER_RESET_TOKEN",
         "PLACEHOLDER_RESET_TOKEN_ROTATED",
+        "PLACEHOLDER_API_KEY_DO_NOT_USE",
+        "PLACEHOLDER_SERVICE_TOKEN_DO_NOT_USE",
     ];
 
     #[test]
@@ -254,6 +256,75 @@ mod tests {
                 && finding.title.contains("legacy_session")
                 && finding.title.contains("Secure")
         }));
+    }
+
+    #[test]
+    fn expanded_cookie_posture_fixtures_emit_findings_and_safe_reports() {
+        let cases = [
+            fixture_root()
+                .join("express")
+                .join("cookie-posture-expanded"),
+            fixture_root()
+                .join("fastapi")
+                .join("cookie-posture-expanded"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            for artifact_name in ["legacy_session", "cross_site_session", "header_session"] {
+                assert!(
+                    report.artifacts.iter().any(|artifact| {
+                        artifact.display_name.as_deref() == Some(artifact_name)
+                            && artifact.cookie_attributes.is_some()
+                    }),
+                    "{} should include cookie artifact {artifact_name}",
+                    root.display()
+                );
+            }
+
+            for title_part in [
+                "excessive Max-Age",
+                "broad Domain",
+                "broad Path",
+                "does not set SameSite",
+                "SameSite=None",
+                "dynamic",
+            ] {
+                assert!(
+                    report.findings.iter().any(|finding| {
+                        finding.title.contains(title_part)
+                            && finding.reviewer_question.is_some()
+                            && !finding.evidence_ids.is_empty()
+                    }),
+                    "{} should include expanded cookie finding containing {title_part:?}",
+                    root.display()
+                );
+            }
+
+            if root.to_string_lossy().contains("express") {
+                assert!(report.findings.iter().any(|finding| {
+                    finding.title.contains("browser storage")
+                        && finding.category == FindingCategory::HighConfidenceMisconfiguration
+                }));
+            }
+
+            for format in [
+                ReportFormat::Json,
+                ReportFormat::Markdown,
+                ReportFormat::Sarif,
+            ] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("PLACEHOLDER_RESET_TOKEN"));
+                assert!(rendered.contains("cookie"));
+            }
+        }
     }
 
     #[test]
@@ -636,6 +707,333 @@ mod tests {
             assert!(!rendered.contains("urn:mfa"));
             assert!(!rendered.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
             assert!(!rendered.contains(PLACEHOLDER_JWT));
+        }
+    }
+
+    #[test]
+    fn bearer_api_key_fixtures_emit_lifecycle_evidence_and_findings() {
+        let cases = [
+            fixture_root()
+                .join("generic-ts")
+                .join("bearer-api-key-lifecycle"),
+            fixture_root()
+                .join("generic-python")
+                .join("bearer-api-key-lifecycle"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            for (display_name, artifact_type) in [
+                (Some("api_key"), ArtifactType::ApiKey),
+                (Some("service_token"), ArtifactType::ServiceToken),
+                (
+                    Some("authorization_bearer"),
+                    ArtifactType::OpaqueBearerToken,
+                ),
+            ] {
+                assert!(
+                    report.artifacts.iter().any(|artifact| {
+                        artifact.display_name.as_deref() == display_name
+                            && artifact.artifact_type == artifact_type
+                    }),
+                    "{} should include {artifact_type:?} named {display_name:?}",
+                    root.display()
+                );
+            }
+
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "bearer.transmit"
+                    && evidence.lifecycle_stage == LifecycleStage::Transmit
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "bearer.validate"
+                    && evidence.lifecycle_stage == LifecycleStage::Validate
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::HighConfidenceMisconfiguration
+                    && finding.title.contains("URL query")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::DynamicReviewRequired
+                    && finding.title.contains("provider-managed")
+            }));
+
+            let rendered = render(&report, ReportFormat::Json);
+            assert!(!rendered.contains("PLACEHOLDER_API_KEY_DO_NOT_USE"));
+            assert!(!rendered.contains("internal-api"));
+        }
+    }
+
+    #[test]
+    fn unsafe_bearer_fixtures_classify_reviewable_findings() {
+        let cases = [
+            fixture_root()
+                .join("generic-ts")
+                .join("unsafe-bearer-handling"),
+            fixture_root()
+                .join("generic-python")
+                .join("unsafe-bearer-handling"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::HighConfidenceMisconfiguration
+                    && (finding.title.contains("URL query")
+                        || finding.title.contains("public runtime config")
+                        || finding.title.contains("frontend bundle")
+                        || finding.title.contains("browser storage"))
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::LifecycleGap
+                    && finding.title.contains("expiry")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::LifecycleGap
+                    && finding.title.contains("rotation or revocation")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::MissingValidationEvidence
+                    && finding.title.contains("scope")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::DynamicReviewRequired
+                    && finding.reviewer_question.is_some()
+            }));
+
+            for format in [
+                ReportFormat::Json,
+                ReportFormat::Markdown,
+                ReportFormat::Sarif,
+            ] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("PLACEHOLDER_API_KEY_DO_NOT_USE"));
+                assert!(!rendered.contains("internal-api"));
+            }
+        }
+    }
+
+    #[test]
+    fn query_param_token_fixtures_classify_acceptance_findings() {
+        let cases = [
+            fixture_root()
+                .join("generic-ts")
+                .join("query-param-token-acceptance"),
+            fixture_root()
+                .join("generic-python")
+                .join("query-param-token-acceptance"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            for (display_name, artifact_type) in [
+                (Some("access_token"), ArtifactType::AccessJwt),
+                (Some("api_key"), ArtifactType::ApiKey),
+                (Some("refresh_token"), ArtifactType::RefreshJwt),
+                (
+                    Some("password_reset_token"),
+                    ArtifactType::PasswordResetToken,
+                ),
+                (
+                    Some("email_verification_token"),
+                    ArtifactType::EmailVerificationToken,
+                ),
+                (Some("dynamic_query_token"), ArtifactType::UnknownToken),
+            ] {
+                assert!(
+                    report.artifacts.iter().any(|artifact| {
+                        artifact.display_name.as_deref() == display_name
+                            && artifact.artifact_type == artifact_type
+                            && !artifact.lifecycle_evidence.transmit.is_empty()
+                    }),
+                    "{} should include {artifact_type:?} named {display_name:?}",
+                    root.display()
+                );
+            }
+
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "query_param.read"
+                    && evidence.lifecycle_stage == LifecycleStage::Transmit
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "query_param.read.dynamic"
+                    && evidence.dynamic
+                    && evidence.lifecycle_stage == LifecycleStage::Transmit
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::HighConfidenceMisconfiguration
+                    && finding.title.contains("URL query parameter")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::DynamicReviewRequired
+                    && finding.title.contains("reset or verification")
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::DynamicReviewRequired
+                    && finding.title.contains("needs review")
+            }));
+
+            for format in [
+                ReportFormat::Json,
+                ReportFormat::Markdown,
+                ReportFormat::Sarif,
+            ] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("PLACEHOLDER"));
+                assert!(!rendered.contains("configured-token-value"));
+            }
+        }
+    }
+
+    #[test]
+    fn session_fixation_fixtures_emit_review_required_findings() {
+        let cases = [
+            fixture_root()
+                .join("express")
+                .join("session-fixation-signals"),
+            fixture_root()
+                .join("django")
+                .join("session-fixation-signals"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "session.auth_transition"
+                    && evidence.lifecycle_stage == LifecycleStage::Issue
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "session.store_after_auth"
+                    && evidence.lifecycle_stage == LifecycleStage::Store
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                matches!(
+                    evidence.detector_id.as_str(),
+                    "session.regenerate"
+                        | "session.reissue"
+                        | "session.framework_default_regenerate"
+                ) && evidence.lifecycle_stage == LifecycleStage::Refresh
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id == "session.privilege_transition"
+                    && evidence.lifecycle_stage == LifecycleStage::Issue
+            }));
+            assert!(report.findings.iter().any(|finding| {
+                finding.category == FindingCategory::DynamicReviewRequired
+                    && finding.title.contains("Session regeneration evidence")
+                    && finding.reviewer_question.is_some()
+            }));
+            assert!(
+                report.findings.iter().any(|finding| {
+                    finding.category == FindingCategory::DynamicReviewRequired
+                        && finding.title.contains("privilege transition")
+                        && finding.reviewer_question.is_some()
+                }),
+                "{} should include privilege transition review",
+                root.display()
+            );
+
+            for format in [ReportFormat::Json, ReportFormat::Markdown] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("password\":"));
+                assert!(!rendered.contains("PLACEHOLDER"));
+            }
+        }
+    }
+
+    #[test]
+    fn trust_boundary_fixtures_emit_boundary_inventory_and_reviews() {
+        let cases = [
+            fixture_root()
+                .join("generic-ts")
+                .join("trust-boundary-token-reuse"),
+            fixture_root()
+                .join("generic-python")
+                .join("trust-boundary-token-reuse"),
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            assert!(report.artifacts.iter().any(|artifact| {
+                artifact
+                    .token_boundary_attributes
+                    .as_ref()
+                    .is_some_and(|attributes| {
+                        attributes.audience.evidence_ids.len()
+                            + attributes.service.evidence_ids.len()
+                            + attributes.environment.evidence_ids.len()
+                            + attributes.provider.evidence_ids.len()
+                            + attributes.trust_boundary.evidence_ids.len()
+                            > 0
+                    })
+            }));
+            assert!(report.evidence.iter().any(|evidence| {
+                evidence.detector_id.starts_with("bearer.boundary.")
+                    && evidence.lifecycle_stage == LifecycleStage::Introspect
+            }));
+            for title_part in [
+                "inbound and outbound trust boundaries",
+                "frontend and backend contexts",
+                "multiple environment boundaries",
+                "Provider-managed token",
+            ] {
+                assert!(
+                    report.findings.iter().any(|finding| {
+                        finding.category == FindingCategory::DynamicReviewRequired
+                            && finding.title.contains(title_part)
+                            && finding.reviewer_question.is_some()
+                    }),
+                    "{} should include trust-boundary finding containing {title_part:?}",
+                    root.display()
+                );
+            }
+
+            for format in [
+                ReportFormat::Json,
+                ReportFormat::Markdown,
+                ReportFormat::Sarif,
+            ] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("PLACEHOLDER_SERVICE_TOKEN_DO_NOT_USE"));
+                assert!(!rendered.contains("PLACEHOLDER_RESET_TOKEN"));
+                assert!(!rendered.contains("Bearer PLACEHOLDER"));
+                assert!(rendered.contains("trust"));
+            }
         }
     }
 

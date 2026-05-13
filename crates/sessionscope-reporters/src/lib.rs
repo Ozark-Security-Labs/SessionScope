@@ -9,7 +9,7 @@ use sessionscope_core::redaction::sanitized_report;
 use sessionscope_model::{
     Artifact, CookieAttributeObservation, CookieAttributes, Evidence, EvidenceId,
     JwtAttributeObservation, JwtAttributes, JwtIdentityClaims, LifecycleEvidence, LifecyclePath,
-    ScanReport, SourceLocation,
+    ScanReport, SourceLocation, TokenBoundaryAttributes, TokenBoundaryObservation,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,6 +85,9 @@ fn sort_artifacts(artifacts: &mut [Artifact]) {
         }
         if let Some(attributes) = &mut artifact.jwt_attributes {
             sort_jwt_attribute_evidence_ids(attributes);
+        }
+        if let Some(attributes) = &mut artifact.token_boundary_attributes {
+            sort_token_boundary_attribute_evidence_ids(attributes);
         }
     }
 
@@ -198,6 +201,21 @@ fn sort_jwt_observation_evidence_ids(observation: &mut JwtAttributeObservation) 
     sort_evidence_ids(&mut observation.evidence_ids);
 }
 
+fn sort_token_boundary_attribute_evidence_ids(attributes: &mut TokenBoundaryAttributes) {
+    sort_token_boundary_observation_evidence_ids(&mut attributes.issuer);
+    sort_token_boundary_observation_evidence_ids(&mut attributes.audience);
+    sort_token_boundary_observation_evidence_ids(&mut attributes.service);
+    sort_token_boundary_observation_evidence_ids(&mut attributes.environment);
+    sort_token_boundary_observation_evidence_ids(&mut attributes.tenant);
+    sort_token_boundary_observation_evidence_ids(&mut attributes.provider);
+    sort_token_boundary_observation_evidence_ids(&mut attributes.scope);
+    sort_token_boundary_observation_evidence_ids(&mut attributes.trust_boundary);
+}
+
+fn sort_token_boundary_observation_evidence_ids(observation: &mut TokenBoundaryObservation) {
+    sort_evidence_ids(&mut observation.evidence_ids);
+}
+
 fn sort_evidence_ids(evidence_ids: &mut [EvidenceId]) {
     evidence_ids.sort();
 }
@@ -236,6 +254,7 @@ mod tests {
                 framework_hints: Vec::new(),
                 cookie_attributes: Some(cookie_attributes_with_value(SECRET)),
                 jwt_attributes: None,
+                token_boundary_attributes: None,
             }],
             evidence: vec![Evidence {
                 id: evidence_id.clone(),

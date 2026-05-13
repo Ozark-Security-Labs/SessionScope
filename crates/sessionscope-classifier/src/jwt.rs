@@ -324,6 +324,7 @@ mod tests {
             framework_hints: vec!["jsonwebtoken".to_string()],
             cookie_attributes: None,
             jwt_attributes: Some(attributes),
+            token_boundary_attributes: None,
         }
     }
 

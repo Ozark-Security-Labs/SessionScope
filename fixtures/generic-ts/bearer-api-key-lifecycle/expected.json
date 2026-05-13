@@ -1,0 +1,14 @@
+{
+  "fixture_id": "generic-ts.bearer-api-key-lifecycle",
+  "framework": "generic-typescript",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["api_key", "service_token", "authorization_bearer", "access_token"],
+  "expected_lifecycle_stages": ["issue", "store", "transmit", "validate", "expire"],
+  "expected_findings": [
+    "static_secret_literal:API_KEY",
+    "browser_storage:api_key",
+    "url_query:access_token",
+    "dynamic_provider:providerManagedToken"
+  ],
+  "notes": "Covers TypeScript bearer token and API key issue, storage, transmission, validation, expiry, unsafe browser storage, URL query transmission, and provider-managed review context."
+}

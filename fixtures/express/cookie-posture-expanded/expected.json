@@ -1,0 +1,24 @@
+{
+  "fixture_id": "express.cookie-posture-expanded",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": [
+    "session_cookie:session",
+    "session_cookie:legacy_session",
+    "session_cookie:cross_site_session",
+    "session_cookie:dynamic_session",
+    "session_cookie:header_session",
+    "opaque_bearer_token:session"
+  ],
+  "expected_lifecycle_stages": ["store", "transmit", "expire"],
+  "expected_findings": [
+    "cookie_excessive_lifetime",
+    "cookie_broad_domain_scope",
+    "cookie_broad_path_scope",
+    "cookie_missing_samesite",
+    "cookie_samesite_none_review",
+    "cookie_dynamic_review",
+    "browser_storage_session_token"
+  ],
+  "notes": "Covers expanded Express cookie posture checks, Set-Cookie header parsing, dynamic cookie options, and browser storage session signals."
+}

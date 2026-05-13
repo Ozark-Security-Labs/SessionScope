@@ -1,0 +1,12 @@
+{
+  "fixture_id": "django.session-fixation-signals",
+  "framework": "django",
+  "source_files": ["views.py"],
+  "expected_artifacts": ["session_record:session"],
+  "expected_lifecycle_stages": ["issue", "store", "refresh", "revoke"],
+  "expected_findings": [
+    "session_fixation_login_regeneration_review",
+    "session_fixation_privilege_regeneration_review"
+  ],
+  "notes": "Covers Django cycle_key and login framework-default regeneration, legacy login missing regeneration, privilege transition review, and logout-only suppression."
+}

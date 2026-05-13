@@ -1,0 +1,12 @@
+{
+  "fixture_id": "express.session-fixation-signals",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["session_record:session"],
+  "expected_lifecycle_stages": ["issue", "store", "refresh", "revoke"],
+  "expected_findings": [
+    "session_fixation_login_regeneration_review",
+    "session_fixation_privilege_regeneration_review"
+  ],
+  "notes": "Covers login and privilege-transition session fixation signals, explicit regeneration, cookie-session reissue, and logout-only suppression."
+}

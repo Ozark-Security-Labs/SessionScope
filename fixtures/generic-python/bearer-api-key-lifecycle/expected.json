@@ -1,0 +1,13 @@
+{
+  "fixture_id": "generic-python.bearer-api-key-lifecycle",
+  "framework": "generic-python",
+  "source_files": ["app.py"],
+  "expected_artifacts": ["api_key", "service_token", "authorization_bearer", "access_token"],
+  "expected_lifecycle_stages": ["issue", "store", "transmit", "validate", "expire", "revoke"],
+  "expected_findings": [
+    "static_secret_literal:API_KEY",
+    "url_query:access_token",
+    "dynamic_provider:provider_managed_token"
+  ],
+  "notes": "Covers Python bearer token and API key issue, storage, transmission, validation, expiry, revocation, URL query transmission, and provider-managed review context."
+}

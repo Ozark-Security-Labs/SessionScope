@@ -5,7 +5,8 @@ use regex::Regex;
 use sessionscope_model::{
     Artifact, ArtifactType, Confidence, Evidence, JwtAttributeObservation, JwtAttributeState,
     JwtAttributes, JwtIdentityClaims, Language, LifecycleEvidence, LifecycleStage,
-    SanitizedExcerpt, SourceLocation, stable_artifact_id, stable_evidence_id,
+    SanitizedExcerpt, SourceLocation, TokenBoundaryAttributeState, TokenBoundaryAttributes,
+    TokenBoundaryObservation, stable_artifact_id, stable_evidence_id,
 };
 use tree_sitter::{Node, Parser, Tree};
 
@@ -482,6 +483,7 @@ fn calls_to_output(
             confidence,
             framework_hints: framework_hints.into_iter().collect(),
             cookie_attributes: None,
+            token_boundary_attributes: Some(boundary_attributes_from_jwt(&jwt_attributes)),
             jwt_attributes: Some(jwt_attributes),
         });
     }
@@ -539,6 +541,93 @@ fn apply_field_evidence_ids(
         identity_claims.auth_class.evidence_ids = evidence_ids
             .remove(&JwtField::AuthClass)
             .unwrap_or_default();
+    }
+}
+
+fn boundary_attributes_from_jwt(attributes: &JwtAttributes) -> TokenBoundaryAttributes {
+    let identity_claims = attributes.identity_claims.as_ref();
+    let unknown = TokenBoundaryObservation {
+        state: TokenBoundaryAttributeState::Unknown,
+        value: None,
+        evidence_ids: Vec::new(),
+        confidence: Confidence::Low,
+    };
+    TokenBoundaryAttributes {
+        issuer: boundary_observation_from_jwt(&attributes.issuer),
+        audience: boundary_observation_from_jwt(&attributes.audience),
+        service: identity_claims
+            .map(|claims| boundary_observation_from_jwt(&claims.workspace_id))
+            .unwrap_or_else(|| unknown.clone()),
+        environment: unknown.clone(),
+        tenant: identity_claims
+            .map(|claims| {
+                merge_boundary_observations(
+                    boundary_observation_from_jwt(&claims.tenant_id),
+                    boundary_observation_from_jwt(&claims.org_id),
+                )
+            })
+            .unwrap_or_else(|| unknown.clone()),
+        provider: provider_observation_from_issuer(&attributes.issuer),
+        scope: identity_claims
+            .map(|claims| boundary_observation_from_jwt(&claims.scopes))
+            .unwrap_or_else(|| unknown.clone()),
+        trust_boundary: if attributes.audience.state == JwtAttributeState::Present {
+            boundary_observation_from_jwt(&attributes.audience)
+        } else {
+            unknown
+        },
+    }
+}
+
+fn boundary_observation_from_jwt(
+    observation: &JwtAttributeObservation,
+) -> TokenBoundaryObservation {
+    TokenBoundaryObservation {
+        state: match observation.state {
+            JwtAttributeState::Present => TokenBoundaryAttributeState::Present,
+            JwtAttributeState::Missing => TokenBoundaryAttributeState::Missing,
+            JwtAttributeState::Dynamic => TokenBoundaryAttributeState::Dynamic,
+            JwtAttributeState::FrameworkDefault => TokenBoundaryAttributeState::FrameworkDefault,
+            JwtAttributeState::Unknown => TokenBoundaryAttributeState::Unknown,
+        },
+        value: observation.value.clone(),
+        evidence_ids: observation.evidence_ids.clone(),
+        confidence: observation.confidence,
+    }
+}
+
+fn provider_observation_from_issuer(
+    observation: &JwtAttributeObservation,
+) -> TokenBoundaryObservation {
+    let mut provider = boundary_observation_from_jwt(observation);
+    if provider.state == TokenBoundaryAttributeState::Present {
+        let normalized = provider.value.as_deref().unwrap_or("").to_ascii_lowercase();
+        provider.value = if normalized.contains("auth0") {
+            Some("auth0".to_string())
+        } else if normalized.contains("okta") {
+            Some("okta".to_string())
+        } else if normalized.contains("oauth") {
+            Some("oauth".to_string())
+        } else {
+            None
+        };
+        if provider.value.is_none() {
+            provider.state = TokenBoundaryAttributeState::Unknown;
+            provider.evidence_ids.clear();
+            provider.confidence = Confidence::Low;
+        }
+    }
+    provider
+}
+
+fn merge_boundary_observations(
+    left: TokenBoundaryObservation,
+    right: TokenBoundaryObservation,
+) -> TokenBoundaryObservation {
+    if left.state == TokenBoundaryAttributeState::Present {
+        left
+    } else {
+        right
     }
 }
 
@@ -2350,6 +2439,8 @@ fn artifact_type_part(artifact_type: ArtifactType) -> &'static str {
         ArtifactType::RefreshJwt => "refresh_jwt",
         ArtifactType::OpaqueBearerToken => "opaque_bearer_token",
         ArtifactType::ApiKey => "api_key",
+        ArtifactType::ServiceToken => "service_token",
+        ArtifactType::UnknownToken => "unknown_token",
         ArtifactType::PasswordResetToken => "password_reset_token",
         ArtifactType::EmailVerificationToken => "email_verification_token",
         ArtifactType::SessionRecord => "session_record",

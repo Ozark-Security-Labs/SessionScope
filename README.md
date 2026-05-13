@@ -12,7 +12,7 @@ SessionScope is intended for product-security teams and developers who need evid
 
 Session and token bugs are high-impact and common. Teams often rely on framework defaults, scattered middleware, or third-party libraries, but still accidentally introduce issues such as:
 
-- cookies missing `HttpOnly`, `Secure`, or `SameSite`
+- cookies missing `HttpOnly`, `Secure`, scoped lifetime, or `SameSite`
 - JWTs accepted without issuer or audience validation
 - refresh tokens that are never rotated
 - logout paths that do not revoke server-side state
@@ -107,9 +107,12 @@ SessionScope classifies:
 - refresh JWTs
 - opaque bearer tokens
 - API keys
+- service tokens
+- unknown token flows
 - password-reset tokens
 - email-verification tokens
 - device/session records
+- token scope and trust-boundary evidence
 
 ### Evidence-bound findings
 
@@ -138,7 +141,7 @@ version. A compact cookie audit excerpt looks like:
 
 ```json
 {
-  "schema_version": "0.4.0",
+  "schema_version": "0.5.0",
   "summary": {
     "files_discovered": 1,
     "files_scanned": 1,
@@ -306,7 +309,7 @@ such as env files and private-key material before source loading.
 
 - Cookie missing `HttpOnly`
 - Cookie missing `Secure`
-- Unsafe `SameSite=None` without `Secure`
+- Unsafe or review-required cookie posture, including excessive lifetime, broad Domain/Path scope, and `SameSite=None` handling
 - JWT verification without issuer validation
 - JWT verification without audience validation
 - Tokens issued without explicit expiry
@@ -315,6 +318,7 @@ such as env files and private-key material before source loading.
 - Password reset tokens without expiry or single-use evidence
 - Session fixation risk signals
 - Token accepted from query parameters
+- Review-required token reuse across services, environments, or trust boundaries
 
 ## Non-goals
 
