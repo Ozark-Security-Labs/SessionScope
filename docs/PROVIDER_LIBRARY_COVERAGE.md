@@ -1,9 +1,11 @@
 # Provider And Library Coverage
 
 SessionScope provider/library coverage for `#27` is evidence-bound and offline.
-Detectors emit source-bound artifacts and lifecycle evidence. Classifiers decide
-whether evidence is a finding. Provider-managed behavior is dynamic review
-context unless local source exposes deterministic lifecycle actions.
+Detectors emit source-bound artifacts and lifecycle evidence for the shared
+cookie posture, claims and validation, logout and revocation, and refresh
+lifecycle capability areas. Classifiers decide whether evidence is a finding.
+Provider-managed behavior is dynamic review context unless local source exposes
+deterministic lifecycle actions.
 
 ## Common rules
 

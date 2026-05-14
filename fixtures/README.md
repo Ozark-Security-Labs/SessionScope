@@ -16,6 +16,15 @@ Placeholder values intentionally look fake:
 - `PLACEHOLDER_API_KEY_DO_NOT_USE`
 - `PLACEHOLDER_SERVICE_TOKEN_DO_NOT_USE`
 
+## Capability Mapping
+
+| Capability area | Representative fixture families/cases |
+| --- | --- |
+| Cookie posture | `express/cookie-session-lifecycle`, `express/cookie-posture-expanded`, `fastapi/cookie-posture-expanded`, `django/settings-session-auth`, `nextjs/nextresponse-session` |
+| Claims and validation | `generic-ts/jwt-validation`, `generic-python/jwt-and-reset`, `fastapi/security-dependencies`, `django/settings-session-auth`, provider/OIDC fixtures with issuer/audience/scope evidence |
+| Logout and revocation | `express/clear-cookie-only-logout`, `express/session-middleware`, `django/session-and-reset-flow`, `generic-ts/provider-revoke`, provider/library fixtures with revoke/sign-out calls |
+| Refresh lifecycle | `express/refresh-rotation`, `express/refresh-without-rotation`, `generic-ts/refresh-reuse-detection`, `generic-ts/provider-refresh`, `django/password-change-refresh-revoke`, provider/library fixtures with refresh calls |
+
 ## Fixture Families
 
 | Family | Case | Purpose |

@@ -6,7 +6,7 @@ It answers:
 
 > How are authentication tokens issued, stored, validated, refreshed, revoked, and scoped?
 
-SessionScope is intended for product-security teams and developers who need evidence-backed review of session management risks without attacking a live system.
+SessionScope is intended for product-security teams and developers who need evidence-backed review of session management risks without attacking a live system. It is the umbrella capability model for four related review areas: cookie posture, claim and validation evidence, logout and revocation evidence, and refresh-token lifecycle evidence.
 
 ## Problem
 
@@ -86,6 +86,17 @@ Suggested fix:
 The versioned inventory and finding schema is documented in
 [`docs/SCHEMA.md`](docs/SCHEMA.md).
 
+### Capability areas
+
+SessionScope groups lifecycle evidence into four user-facing capabilities:
+
+- **Cookie posture**: cookie setting APIs, security attributes, lifetimes, scope, and browser storage signals.
+- **Claims and validation**: JWT issuer, audience, expiry, signature validation, identity-claim inventory, and trust-boundary hints.
+- **Logout and revocation**: logout handlers, cookie clearing, server-side session destruction, token revocation, and provider revoke calls.
+- **Refresh lifecycle**: refresh-token issue, storage, validation, rotation, reuse detection, expiry, and revocation.
+
+These capabilities share one scanner, inventory schema, redaction boundary, classifier pipeline, and reporting model.
+
 ### Lifecycle stages
 
 SessionScope models auth artifacts through stages:
@@ -137,6 +148,8 @@ sessionscope explain FINDING_ID
 sessionscope diff main...HEAD
 sessionscope baseline create
 ```
+
+`scan` is the current command for all capability areas. Focused aliases planned in #39 (`sessionscope cookies`, `sessionscope claims`, `sessionscope logout`, and `sessionscope refresh`) should route through the same scanner, detector registry, classifier, redaction, and reporting pipeline rather than becoming separate products or engines.
 
 JSON reports are machine-readable inventories using the documented schema
 version. A compact cookie audit excerpt looks like:
@@ -309,18 +322,29 @@ such as env files and private-key material before source loading.
 
 ## Potential checks
 
+Cookie posture:
+
 - Cookie missing `HttpOnly`
 - Cookie missing `Secure`
 - Unsafe or review-required cookie posture, including excessive lifetime, broad Domain/Path scope, and `SameSite=None` handling
+
+Claims and validation:
+
 - JWT verification without issuer validation
 - JWT verification without audience validation
 - Tokens issued without explicit expiry
-- Refresh tokens without rotation evidence
-- Logout without revocation evidence
-- Password reset tokens without expiry or single-use evidence
-- Session fixation risk signals
 - Token accepted from query parameters
 - Review-required token reuse across services, environments, or trust boundaries
+
+Logout and revocation:
+
+- Logout without revocation evidence
+- Session fixation risk signals around authentication transitions
+
+Refresh lifecycle:
+
+- Refresh tokens without rotation evidence
+- Password reset tokens without expiry or single-use evidence
 
 ## Non-goals
 

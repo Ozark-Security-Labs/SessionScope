@@ -1,6 +1,6 @@
 # Framework Coverage
 
-SessionScope framework coverage for `#18` is evidence-bound and pattern-based. Detectors emit source-bound artifacts and evidence; classifiers decide whether the evidence is a finding. Unsupported or provider-managed behavior should be documented as a limitation rather than reported as a high-confidence issue.
+SessionScope framework coverage for `#18` is evidence-bound and pattern-based. Detectors emit source-bound artifacts and evidence for the shared cookie posture, claims and validation, logout and revocation, and refresh lifecycle capability areas; classifiers decide whether the evidence is a finding. Unsupported or provider-managed behavior should be documented as a limitation rather than reported as a high-confidence issue.
 
 ## Common rules
 

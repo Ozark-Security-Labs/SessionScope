@@ -4,6 +4,8 @@
 
 Session, cookie, JWT, and token lifecycle auditing for product-security review.
 
+SessionScope is the umbrella product model for four capability areas: cookie posture, claim and validation evidence, logout and revocation evidence, and refresh-token lifecycle evidence. Earlier working names such as CookieJarvis, the SessionScope-owned ClaimTrace subset, LogoutLab, and RefreshRaptor are folded into SessionScope rather than tracked as separate public products.
+
 ## Target users
 
 - Product-security engineers
@@ -13,7 +15,7 @@ Session, cookie, JWT, and token lifecycle auditing for product-security review.
 
 ## Primary job to be done
 
-When reviewing an application or pull request, show how auth artifacts move through their lifecycle and identify missing or weak lifecycle controls.
+When reviewing an application or pull request, show how auth artifacts move through their lifecycle and identify missing or weak lifecycle controls across cookies, claims, logout, and refresh behavior.
 
 ## Why now
 
@@ -21,7 +23,7 @@ Applications increasingly mix framework sessions, JWTs, refresh tokens, third-pa
 
 ## Differentiator
 
-SessionScope focuses on lifecycle evidence rather than isolated lint rules. It maps where tokens are created, stored, validated, refreshed, revoked, and expired.
+SessionScope focuses on lifecycle evidence rather than isolated lint rules or separate point products. It maps where tokens are created, stored, validated, refreshed, revoked, and expired, then reports evidence-bound review questions for the relevant capability area.
 
 ## MVP success criteria
 
@@ -30,6 +32,10 @@ SessionScope focuses on lifecycle evidence rather than isolated lint rules. It m
 - Detect JWT verification calls and classify issuer/audience/expiry evidence.
 - Produce Markdown and JSON reports.
 - Run in GitHub Actions in advisory mode.
+
+## Capability boundaries
+
+SessionScope is offline source analysis. It does not perform live exploitation, brute forcing, token theft, secret collection, provider probing, full authorization graph analysis, or general SAST sprawl. Claims and authorization reasoning should remain evidence inventory and review questions, with future AuthMap/rulepath interoperability considered only for clearly designed integrations.
 
 ## Open design questions
 

@@ -10,7 +10,9 @@ AuthMap-style alignment are recorded in
 The schema is designed for defensive, offline source-code analysis. It must not
 store token values, private keys, bearer strings, cookie values, or other
 sensitive runtime data. Evidence excerpts must be sanitized before they enter
-the model.
+the model. The same schema represents SessionScope's cookie posture, claims and
+validation, logout and revocation, and refresh lifecycle capability areas; these
+areas are report views over shared evidence, not separate wire formats.
 
 ## Versioning
 
@@ -225,12 +227,14 @@ observation shape as the top-level JWT attributes and may contain:
 
 Identity-claim observations are trust-boundary inventory only. They indicate
 that a JWT may carry a claim useful for downstream authorization review; they do
-not mean the claim is trustworthy unless validation evidence also exists.
-Literal identity claim values, including subjects, user IDs, tenant IDs, org
-IDs, workspace IDs, roles, scopes, groups, email addresses, and auth method
-strings, must be redacted or summarized as placeholders. Boolean
-`email_verified` literals may be retained because they do not identify a
-principal.
+not mean the claim is trustworthy unless validation evidence also exists. They
+also do not make SessionScope a full authorization graph engine; future
+AuthMap/rulepath interoperability should consume sanitized evidence through an
+explicit integration boundary. Literal identity claim values, including
+subjects, user IDs, tenant IDs, org IDs, workspace IDs, roles, scopes, groups,
+email addresses, and auth method strings, must be redacted or summarized as
+placeholders. Boolean `email_verified` literals may be retained because they do
+not identify a principal.
 
 JWT issuer, audience, tenant, workspace, and scope observations may also be
 mirrored into `token_boundary_attributes` so trust-boundary reuse findings can
