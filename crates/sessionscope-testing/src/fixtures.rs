@@ -185,6 +185,98 @@ mod tests {
     }
 
     #[test]
+    fn issue_18_framework_fixtures_emit_documented_coverage() {
+        let cases = [
+            (
+                fixture_root().join("nextjs").join("nextresponse-session"),
+                "nextjs",
+                [
+                    "cookie.set",
+                    "jwt.validate",
+                    "logout.cookie_clear",
+                    "refresh.rotate",
+                ],
+            ),
+            (
+                fixture_root().join("express").join("session-middleware"),
+                "express",
+                [
+                    "cookie.set",
+                    "session.regenerate",
+                    "logout.session_destroy",
+                    "refresh.revoke",
+                ],
+            ),
+            (
+                fixture_root().join("fastapi").join("security-dependencies"),
+                "fastapi",
+                [
+                    "cookie.set",
+                    "fastapi.security_dependency",
+                    "logout.cookie_clear",
+                    "refresh.revoke",
+                ],
+            ),
+            (
+                fixture_root().join("django").join("settings-session-auth"),
+                "django",
+                [
+                    "cookie.set",
+                    "session.regenerate",
+                    "logout.session_destroy",
+                    "refresh.revoke",
+                ],
+            ),
+        ];
+
+        for (root, framework, detector_ids) in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            assert!(
+                report.artifacts.iter().any(|artifact| artifact
+                    .framework_hints
+                    .iter()
+                    .any(|hint| hint == framework)),
+                "{} should include {framework} framework hints",
+                root.display()
+            );
+            for detector_id in detector_ids {
+                assert!(
+                    report
+                        .evidence
+                        .iter()
+                        .any(|evidence| evidence.detector_id == detector_id),
+                    "{} should include {detector_id} evidence",
+                    root.display()
+                );
+            }
+            assert!(report.evidence.iter().any(|evidence| {
+                matches!(
+                    evidence.lifecycle_stage,
+                    LifecycleStage::Store | LifecycleStage::Validate | LifecycleStage::Revoke
+                )
+            }));
+
+            for format in [
+                ReportFormat::Json,
+                ReportFormat::Markdown,
+                ReportFormat::Sarif,
+            ] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+                assert!(!rendered.contains("PLACEHOLDER_RESET_TOKEN"));
+                assert!(!rendered.contains("PLACEHOLDER_RESET_TOKEN_ROTATED"));
+            }
+        }
+    }
+
+    #[test]
     fn cookie_fixtures_scan_with_builtin_cookie_detector() {
         let cases = [
             (

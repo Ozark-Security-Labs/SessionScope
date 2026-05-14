@@ -1,0 +1,15 @@
+{
+  "fixture_id": "django.settings-session-auth",
+  "framework": "django",
+  "source_files": ["settings.py", "views.py"],
+  "expected_artifacts": ["session_cookie:sessionid", "refresh_cookie:refresh_token", "access_jwt", "password_reset_token", "session_record:session"],
+  "expected_lifecycle_stages": ["issue", "store", "transmit", "validate", "refresh", "revoke", "expire"],
+  "expected_findings": [
+    "django_session_cookie_settings_evidence_present",
+    "django_login_cycle_key_evidence_present",
+    "django_logout_flush_evidence_present",
+    "django_signing_evidence_present",
+    "refresh_revocation_evidence_present"
+  ],
+  "notes": "Covers Django session cookie settings, login/cycle_key/logout/flush, signing utilities, JWT helpers, password reset timeout, refresh revocation, and cookie deletion."
+}

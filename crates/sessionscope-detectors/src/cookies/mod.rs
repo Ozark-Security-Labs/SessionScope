@@ -177,6 +177,7 @@ fn detect_python(input: &DetectorInput<'_>, detector_id: &str) -> DetectionOutpu
     let mut calls = Vec::new();
     collect_python_cookie_calls(root, input.source, &[], &option_aliases, &mut calls);
     collect_python_wrapper_calls(root, input.source, &wrappers, &mut calls);
+    collect_django_settings_calls(input.source, &mut calls);
 
     calls_to_output(input, detector_id, calls)
 }
@@ -436,8 +437,12 @@ fn default_attribute_for_call(
     }
 
     let framework_default = match call.api_name {
-        "javascript.cookie" | "next.cookies.set" if kind == CookieAttributeKind::Path => Some("/"),
-        "python.set_cookie" => match kind {
+        "javascript.cookie" | "next.cookies.set" | "express.session.middleware"
+            if kind == CookieAttributeKind::Path =>
+        {
+            Some("/")
+        }
+        "python.set_cookie" | "django.settings" => match kind {
             CookieAttributeKind::HttpOnly => Some("false"),
             CookieAttributeKind::Secure => Some("false"),
             CookieAttributeKind::SameSite => Some("lax"),
@@ -635,6 +640,11 @@ fn js_cookie_call<'tree>(
     let (api_name, framework_hint) = js_supported_cookie_api(function, source)?;
     let arguments = node.child_by_field_name("arguments")?;
     let argument_nodes = named_children(arguments);
+
+    if api_name == "express.session.middleware" {
+        return js_session_middleware_cookie_call(node, source, &argument_nodes, option_aliases);
+    }
+
     let name_argument = argument_nodes.first().copied()?;
 
     if is_identifier_in_parameters(name_argument, source, function_parameters) {
@@ -699,7 +709,7 @@ fn python_cookie_call<'tree>(
 
     Some(CookieCall {
         api_name: "python.set_cookie",
-        framework_hint: "python",
+        framework_hint: python_cookie_framework_hint(&node_text(node, source)),
         line: node_line_column(node).0,
         column: node_line_column(node).1,
         excerpt: excerpt_around_node_with_redactions(
@@ -709,6 +719,47 @@ fn python_cookie_call<'tree>(
         ),
         cookie_name: string_literal_value(name_argument, source),
         signed: false,
+        attributes: options.attributes,
+        dynamic_options: options.dynamic,
+    })
+}
+
+fn js_session_middleware_cookie_call(
+    node: Node<'_>,
+    source: &str,
+    argument_nodes: &[Node<'_>],
+    option_aliases: &BTreeMap<String, OptionAlias>,
+) -> Option<CookieCall> {
+    let options_node = argument_nodes.first().copied()?;
+    let is_cookie_session = node_text(node, source).contains("cookieSession");
+    let mut options = if is_cookie_session {
+        js_options_from_node(options_node, source, option_aliases)
+    } else {
+        object_property_value(options_node, source, "cookie")
+            .map(|cookie| js_options_from_node(cookie, source, option_aliases))
+            .unwrap_or_else(|| OptionAlias {
+                attributes: BTreeMap::new(),
+                signed: false,
+                dynamic: false,
+            })
+    };
+    options.signed |= is_cookie_session;
+    let cookie_name = object_property_value(options_node, source, "name")
+        .and_then(|name| string_literal_value(name, source))
+        .or_else(|| {
+            object_property_value(options_node, source, "key")
+                .and_then(|name| string_literal_value(name, source))
+        })
+        .or_else(|| Some("session".to_string()));
+
+    Some(CookieCall {
+        api_name: "express.session.middleware",
+        framework_hint: "express",
+        line: node_line_column(node).0,
+        column: node_line_column(node).1,
+        excerpt: excerpt_around_node_with_redactions(source, node, &[]),
+        cookie_name,
+        signed: options.signed,
         attributes: options.attributes,
         dynamic_options: options.dynamic,
     })
@@ -952,6 +1003,13 @@ fn js_supported_cookie_api(
     function: Node<'_>,
     source: &str,
 ) -> Option<(&'static str, &'static str)> {
+    if matches!(
+        node_text(function, source).as_str(),
+        "session" | "cookieSession"
+    ) {
+        return Some(("express.session.middleware", "express"));
+    }
+
     if !is_member_expression(function) {
         return None;
     }
@@ -966,7 +1024,9 @@ fn js_supported_cookie_api(
     if property_name == "set"
         && function
             .child_by_field_name("object")
-            .is_some_and(|object| is_cookies_call(object, source))
+            .is_some_and(|object| {
+                is_cookies_call(object, source) || node_text(object, source).ends_with(".cookies")
+            })
     {
         return Some(("next.cookies.set", "nextjs"));
     }
@@ -982,6 +1042,21 @@ fn python_supported_cookie_api(function: Node<'_>, source: &str) -> bool {
     }
 
     node_text(function, source).ends_with(".set_cookie")
+}
+
+fn python_cookie_framework_hint(context: &str) -> &'static str {
+    let normalized = context.to_ascii_lowercase();
+    if normalized.contains("django") || normalized.contains("httpresponse") {
+        "django"
+    } else if normalized.contains("fastapi")
+        || normalized.contains("@app.")
+        || normalized.contains("@router.")
+        || normalized.contains("response")
+    {
+        "fastapi"
+    } else {
+        "python"
+    }
 }
 
 fn first_python_cookie_name_argument<'tree>(
@@ -1268,6 +1343,64 @@ fn python_options_from_dictionary(node: Node<'_>, source: &str) -> Option<Option
     }
 
     Some(alias)
+}
+
+fn collect_django_settings_calls(source: &str, calls: &mut Vec<CookieCall>) {
+    let mut attributes = BTreeMap::new();
+    let mut first_location = None;
+
+    for (index, line) in source.lines().enumerate() {
+        let trimmed = line.trim();
+        let Some((name, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        let name = name.trim();
+        let value = value.trim();
+        let kind = match name {
+            "SESSION_COOKIE_HTTPONLY" => CookieAttributeKind::HttpOnly,
+            "SESSION_COOKIE_SECURE" => CookieAttributeKind::Secure,
+            "SESSION_COOKIE_SAMESITE" => CookieAttributeKind::SameSite,
+            "SESSION_COOKIE_AGE" => CookieAttributeKind::MaxAge,
+            "SESSION_COOKIE_DOMAIN" => CookieAttributeKind::Domain,
+            "SESSION_COOKIE_PATH" => CookieAttributeKind::Path,
+            _ => continue,
+        };
+        let line_number = index + 1;
+        first_location.get_or_insert((line_number, line.find(name).unwrap_or(0) + 1));
+        attributes.insert(
+            kind,
+            AttributeEvidence {
+                state: if is_missing_literal(&value.to_ascii_lowercase()) {
+                    CookieAttributeState::Missing
+                } else {
+                    CookieAttributeState::Present
+                },
+                value: Some(redact_detector_excerpt(&normalize_attribute_value(
+                    kind, value,
+                ))),
+                confidence: Confidence::High,
+                excerpt: redact_detector_excerpt(&format!("{name} = {value}")).into(),
+                line: line_number,
+                column: line.find(value).unwrap_or(0) + 1,
+                framework_default: false,
+            },
+        );
+    }
+
+    if !attributes.is_empty() {
+        let (line, column) = first_location.unwrap_or((1, 1));
+        calls.push(CookieCall {
+            api_name: "django.settings",
+            framework_hint: "django",
+            line,
+            column,
+            excerpt: "Django SESSION_COOKIE_* settings".into(),
+            cookie_name: Some("sessionid".to_string()),
+            signed: false,
+            attributes,
+            dynamic_options: false,
+        });
+    }
 }
 
 fn dynamic_option_alias() -> OptionAlias {
@@ -1874,6 +2007,100 @@ const text = "response.cookie(\"string\", token)";
         assert_eq!(output.artifacts[0].artifact_type, ArtifactType::Unknown);
         assert_eq!(output.artifacts[0].display_name.as_deref(), Some("access"));
         assert_eq!(output.artifacts[0].framework_hints, vec!["nextjs"]);
+    }
+
+    #[test]
+    fn detects_nextresponse_cookies_set() {
+        let output = detect(
+            Language::TypeScript,
+            r#"response.cookies.set("session", token, { httpOnly: true, secure: true });"#,
+        );
+
+        assert_eq!(output.artifacts.len(), 1);
+        assert_eq!(
+            output.artifacts[0].artifact_type,
+            ArtifactType::SessionCookie
+        );
+        assert_eq!(output.artifacts[0].display_name.as_deref(), Some("session"));
+        assert_eq!(output.artifacts[0].framework_hints, vec!["nextjs"]);
+    }
+
+    #[test]
+    fn detects_express_session_middleware_cookie_config() {
+        let output = detect(
+            Language::TypeScript,
+            r#"app.use(session({ name: "sid", secret, cookie: { httpOnly: true, secure: true, sameSite: "lax", maxAge: 900 } }));"#,
+        );
+
+        assert_eq!(output.artifacts.len(), 1);
+        assert_eq!(
+            output.artifacts[0].artifact_type,
+            ArtifactType::SessionCookie
+        );
+        assert_eq!(output.artifacts[0].display_name.as_deref(), Some("sid"));
+        assert_eq!(output.artifacts[0].framework_hints, vec!["express"]);
+        let attributes = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(attributes.http_only.state, CookieAttributeState::Present);
+        assert_eq!(attributes.secure.state, CookieAttributeState::Present);
+        assert_eq!(attributes.same_site.value.as_deref(), Some("lax"));
+        assert_eq!(attributes.max_age.value.as_deref(), Some("900"));
+    }
+
+    #[test]
+    fn detects_cookie_session_middleware_options() {
+        let output = detect(
+            Language::TypeScript,
+            r#"app.use(cookieSession({ name: "session", keys: [secret], httpOnly: true, secure: true, sameSite: "strict" }));"#,
+        );
+
+        assert_eq!(output.artifacts.len(), 1);
+        assert_eq!(
+            output.artifacts[0].artifact_type,
+            ArtifactType::SignedCookie
+        );
+        assert_eq!(output.artifacts[0].display_name.as_deref(), Some("session"));
+        let attributes = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(attributes.http_only.state, CookieAttributeState::Present);
+        assert_eq!(attributes.secure.state, CookieAttributeState::Present);
+        assert_eq!(attributes.same_site.value.as_deref(), Some("strict"));
+    }
+
+    #[test]
+    fn detects_django_session_cookie_settings() {
+        let output = detect(
+            Language::Python,
+            r#"
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_AGE = 900
+"#,
+        );
+
+        assert_eq!(output.artifacts.len(), 1);
+        assert_eq!(
+            output.artifacts[0].artifact_type,
+            ArtifactType::SessionCookie
+        );
+        assert_eq!(
+            output.artifacts[0].display_name.as_deref(),
+            Some("sessionid")
+        );
+        assert_eq!(output.artifacts[0].framework_hints, vec!["django"]);
+        let attributes = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(attributes.http_only.state, CookieAttributeState::Present);
+        assert_eq!(attributes.secure.state, CookieAttributeState::Present);
+        assert_eq!(attributes.same_site.value.as_deref(), Some("Lax"));
+        assert_eq!(attributes.max_age.value.as_deref(), Some("900"));
     }
 
     #[test]

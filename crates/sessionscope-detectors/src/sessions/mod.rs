@@ -638,6 +638,22 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
     let text = node_text(node, source);
     let normalized = normalize_symbol_without_literals(&text);
 
+    if is_js_session_middleware_call(&normalized) {
+        signals.push(signal(
+            SignalSpec::new(
+                "session.middleware",
+                LifecycleStage::Store,
+                ArtifactType::SessionRecord,
+                "session",
+                "express",
+                Confidence::Medium,
+                true,
+            ),
+            node,
+            source,
+        ));
+    }
+
     if is_js_auth_transition_route(&text) {
         signals.push(session_fixation_signal(
             "session.auth_transition",
@@ -887,6 +903,22 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
         .unwrap_or_default();
     let text = node_text(node, source);
     let normalized = normalize_symbol_without_literals(&format!("{function} {text}"));
+
+    if is_python_fastapi_security_call(&function, &normalized) {
+        signals.push(signal(
+            SignalSpec::new(
+                "fastapi.security_dependency",
+                LifecycleStage::Validate,
+                ArtifactType::Unknown,
+                "security_dependency",
+                "fastapi",
+                Confidence::Medium,
+                true,
+            ),
+            node,
+            source,
+        ));
+    }
 
     if is_python_django_login_call(&function, &normalized) {
         signals.push(session_fixation_signal(
@@ -1491,15 +1523,28 @@ fn is_js_clear_cookie_call(node: Node<'_>, source: &str) -> bool {
     function.ends_with(".clearCookie")
         || function.ends_with(".clear_cookie")
         || function == "clearCookie"
-        || (function.ends_with(".delete") && node_text(node, source).contains("cookies()"))
+        || (function.ends_with(".delete")
+            && (node_text(node, source).contains("cookies()")
+                || function.contains(".cookies.delete")))
 }
 
 fn js_cookie_clear_framework(text: &str) -> &'static str {
-    if text.contains("cookies()") {
+    if text.contains("cookies()") || text.contains(".cookies.delete") {
         "nextjs"
     } else {
         "express"
     }
+}
+
+fn is_js_session_middleware_call(normalized: &str) -> bool {
+    normalized.contains("expresssession")
+        || normalized.contains("cookiesession")
+        || normalized.contains("appusesession")
+        || normalized.contains("routerusesession")
+        || normalized.contains("appusecookiesession")
+        || normalized.contains("routerusecookiesession")
+        || (normalized.starts_with("session") && normalized.contains("secret"))
+        || (normalized.starts_with("cookiesession") && normalized.contains("secret"))
 }
 
 fn is_js_session_destroy_call(normalized: &str) -> bool {
@@ -1826,6 +1871,16 @@ fn js_session_framework_hint(text: &str) -> &'static str {
     }
 }
 
+fn is_python_fastapi_security_call(function: &str, normalized: &str) -> bool {
+    matches!(
+        function,
+        "Depends" | "Security" | "OAuth2PasswordBearer" | "APIKeyCookie"
+    ) || normalized.contains("depends(")
+        || normalized.contains("security(")
+        || normalized.contains("oauth2passwordbearer")
+        || normalized.contains("apikeycookie")
+}
+
 fn is_python_django_login_call(function: &str, normalized: &str) -> bool {
     matches!(function, "login" | "auth_login")
         || function.ends_with(".login")
@@ -2084,6 +2139,61 @@ export async function DELETE() {
                 .artifacts
                 .iter()
                 .any(|artifact| artifact.framework_hints == vec!["nextjs".to_string()])
+        );
+    }
+
+    #[test]
+    fn detects_nextresponse_cookie_delete() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+export async function DELETE() {
+  const response = new NextResponse(null, { status: 204 });
+  response.cookies.delete("session");
+  return response;
+}
+"#,
+        );
+
+        assert_detector(&output, "logout.handler");
+        assert_detector(&output, "logout.cookie_clear");
+        assert!(output.artifacts.iter().any(|artifact| {
+            artifact.display_name.as_deref() == Some("session")
+                && artifact.framework_hints == vec!["nextjs".to_string()]
+        }));
+    }
+
+    #[test]
+    fn detects_express_session_middleware() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+app.use(session({ secret, cookie: { httpOnly: true, secure: true } }));
+"#,
+        );
+
+        assert_detector(&output, "session.middleware");
+        assert_stage(&output, "session.middleware", LifecycleStage::Store);
+    }
+
+    #[test]
+    fn detects_fastapi_security_dependencies() {
+        let output = detect(
+            Language::Python,
+            r#"
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+session_cookie = APIKeyCookie(name="session")
+
+def current_user(token: str = Security(oauth2_scheme)):
+    return token
+"#,
+        );
+
+        assert_detector(&output, "fastapi.security_dependency");
+        assert_stage(
+            &output,
+            "fastapi.security_dependency",
+            LifecycleStage::Validate,
         );
     }
 

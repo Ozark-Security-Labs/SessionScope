@@ -1,0 +1,15 @@
+{
+  "fixture_id": "nextjs.nextresponse-session",
+  "framework": "nextjs",
+  "source_files": ["route.ts"],
+  "expected_artifacts": ["session_cookie:session", "refresh_cookie:refresh_token", "access_jwt"],
+  "expected_lifecycle_stages": ["issue", "store", "transmit", "validate", "refresh", "revoke", "expire"],
+  "expected_findings": [
+    "nextresponse_cookie_set_evidence_present",
+    "nextresponse_cookie_delete_evidence_present",
+    "jwt_issuer_evidence_present",
+    "jwt_audience_evidence_present",
+    "refresh_rotation_evidence_present"
+  ],
+  "notes": "Covers Next.js NextResponse cookie storage/deletion, route-local JWT validation, refresh rotation, and logout revocation evidence."
+}

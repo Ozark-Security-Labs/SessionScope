@@ -35,8 +35,8 @@
 
 ## Phase 5: Framework expansion
 
-- Next.js
-- Express
-- FastAPI
-- Django
-- Common auth libraries and providers
+- Next.js framework coverage matrix and fixtures are documented in [`FRAMEWORK_COVERAGE.md`](FRAMEWORK_COVERAGE.md).
+- Express framework coverage matrix and fixtures are documented in [`FRAMEWORK_COVERAGE.md`](FRAMEWORK_COVERAGE.md).
+- FastAPI framework coverage matrix and fixtures are documented in [`FRAMEWORK_COVERAGE.md`](FRAMEWORK_COVERAGE.md).
+- Django framework coverage matrix and fixtures are documented in [`FRAMEWORK_COVERAGE.md`](FRAMEWORK_COVERAGE.md).
+- Common auth libraries and providers remain separate provider/library coverage work.

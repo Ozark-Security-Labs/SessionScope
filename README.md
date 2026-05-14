@@ -42,6 +42,8 @@ Initial targets:
 - JWT libraries in TypeScript and Python
 - Cookie-setting APIs
 
+Framework support is evidence-bound and pattern-based. The current supported and unsupported framework API matrix is documented in [`docs/FRAMEWORK_COVERAGE.md`](docs/FRAMEWORK_COVERAGE.md).
+
 Initial outputs:
 
 - Markdown lifecycle report
