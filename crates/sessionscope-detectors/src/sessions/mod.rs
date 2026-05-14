@@ -8,7 +8,7 @@ use sessionscope_model::{
 };
 use tree_sitter::{Node, Parser, Tree};
 
-use crate::{DetectionOutput, Detector, DetectorInput};
+use crate::{DetectionOutput, Detector, DetectorInput, providers};
 
 const DETECTOR_ID: &str = "session.lifecycle";
 const REDACTION: &str = "[REDACTED]";
@@ -353,6 +353,7 @@ fn collect_refresh_js_call_signal(node: Node<'_>, source: &str, signals: &mut Ve
     if is_refresh_provider_call(&normalized) {
         let stage = if normalized.contains("revoke")
             || normalized.contains("delete")
+            || normalized.contains("logout")
             || normalized.contains("signout")
         {
             LifecycleStage::Revoke
@@ -364,7 +365,7 @@ fn collect_refresh_js_call_signal(node: Node<'_>, source: &str, signals: &mut Ve
             stage,
             node,
             source,
-            "provider",
+            provider_hint_for_context(&normalized),
             Confidence::Medium,
             true,
         ));
@@ -515,6 +516,7 @@ fn collect_refresh_python_call_signal(node: Node<'_>, source: &str, signals: &mu
     if is_refresh_provider_call(&normalized) {
         let stage = if normalized.contains("revoke")
             || normalized.contains("delete")
+            || normalized.contains("logout")
             || normalized.contains("signout")
         {
             LifecycleStage::Revoke
@@ -526,7 +528,7 @@ fn collect_refresh_python_call_signal(node: Node<'_>, source: &str, signals: &mu
             stage,
             node,
             source,
-            "provider",
+            provider_hint_for_context(&normalized),
             Confidence::Medium,
             true,
         ));
@@ -637,6 +639,22 @@ fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
 fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
     let text = node_text(node, source);
     let normalized = normalize_symbol_without_literals(&text);
+
+    if is_js_provider_session_config_call(&normalized) {
+        signals.push(signal(
+            SignalSpec::new(
+                "session.provider_config",
+                LifecycleStage::Store,
+                ArtifactType::SessionRecord,
+                "session",
+                provider_hint_for_context(&normalized),
+                Confidence::Medium,
+                true,
+            ),
+            node,
+            source,
+        ));
+    }
 
     if is_js_session_middleware_call(&normalized) {
         signals.push(signal(
@@ -785,7 +803,7 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
                 "logout.provider_revoke",
                 token_artifact_type(&display_name),
                 display_name,
-                "provider",
+                provider_hint_for_context(&normalized),
                 Confidence::Medium,
                 true,
             ),
@@ -1047,7 +1065,7 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
                 "logout.provider_revoke",
                 token_artifact_type(&display_name),
                 display_name,
-                "provider",
+                provider_hint_for_context(&normalized),
                 Confidence::Medium,
                 true,
             ),
@@ -1536,6 +1554,14 @@ fn js_cookie_clear_framework(text: &str) -> &'static str {
     }
 }
 
+fn is_js_provider_session_config_call(normalized: &str) -> bool {
+    contains_provider_context(normalized)
+        && (normalized.contains("nextauth")
+            || normalized.contains("auth")
+            || normalized.contains("session")
+            || normalized.contains("passport.authenticate"))
+}
+
 fn is_js_session_middleware_call(normalized: &str) -> bool {
     normalized.contains("expresssession")
         || normalized.contains("cookiesession")
@@ -1581,26 +1607,75 @@ fn is_js_provider_revoke_call(normalized: &str) -> bool {
 }
 
 fn is_provider_revoke_text(normalized: &str) -> bool {
-    normalized.contains("provider.revoke")
-        || normalized.contains("auth0.revoke")
-        || normalized.contains("okta.revoke")
-        || normalized.contains("oauth.revoke")
+    (contains_provider_context(normalized)
+        && (normalized.contains("revoke")
+            || normalized.contains("logout")
+            || normalized.contains("signout")
+            || normalized.contains("sign_out")))
         || normalized.contains("supabase.auth.signout")
         || normalized.contains("clerk.sessions.revoke")
         || normalized.contains("identityprovider.revoke")
 }
 
 fn is_refresh_provider_call(normalized: &str) -> bool {
-    (normalized.contains("provider")
-        || normalized.contains("auth0")
-        || normalized.contains("okta")
-        || normalized.contains("oauth")
-        || normalized.contains("supabase")
-        || normalized.contains("clerk"))
+    contains_provider_context(normalized)
         && (normalized.contains("refresh")
             || normalized.contains("rotate")
             || normalized.contains("revoke")
-            || normalized.contains("signout"))
+            || normalized.contains("signout")
+            || normalized.contains("session")
+            || normalized.contains("callback"))
+}
+
+fn contains_provider_context(normalized: &str) -> bool {
+    normalized.contains("provider")
+        || normalized.contains("nextauth")
+        || normalized.contains("nextauthoptions")
+        || normalized.contains("authjs")
+        || normalized.contains("auth.js")
+        || normalized.contains("passport")
+        || normalized.contains("openidclient")
+        || normalized.contains("openid")
+        || normalized.contains("oidc")
+        || normalized.contains("oauth")
+        || normalized.contains("auth0")
+        || normalized.contains("okta")
+        || normalized.contains("cognito")
+        || normalized.contains("azuread")
+        || normalized.contains("azure_ad")
+        || normalized.contains("firebase")
+        || normalized.contains("supabase")
+        || normalized.contains("clerk")
+}
+
+fn provider_hint_for_context(normalized: &str) -> &'static str {
+    if normalized.contains("nextauth") {
+        providers::NEXTAUTH
+    } else if normalized.contains("authjs") || normalized.contains("auth.js") {
+        providers::AUTHJS
+    } else if normalized.contains("passport") {
+        providers::PASSPORT
+    } else if normalized.contains("openid") || normalized.contains("oidc") {
+        providers::OIDC
+    } else if normalized.contains("auth0") {
+        providers::AUTH0
+    } else if normalized.contains("okta") {
+        providers::OKTA
+    } else if normalized.contains("cognito") {
+        providers::COGNITO
+    } else if normalized.contains("azuread") || normalized.contains("azure_ad") {
+        providers::AZURE_AD
+    } else if normalized.contains("firebase") {
+        providers::FIREBASE
+    } else if normalized.contains("supabase") {
+        providers::SUPABASE
+    } else if normalized.contains("clerk") {
+        providers::CLERK
+    } else if normalized.contains("oauth") {
+        providers::OAUTH
+    } else {
+        providers::PROVIDER
+    }
 }
 
 fn is_refresh_issue_call(normalized: &str) -> bool {
@@ -1742,6 +1817,8 @@ fn refresh_framework_hint(text: &str) -> &'static str {
         "provider"
     } else if normalized.contains("app.") || normalized.contains("router.") {
         "express"
+    } else if contains_provider_context(&normalized) {
+        provider_hint_for_context(&normalized)
     } else {
         "refresh"
     }

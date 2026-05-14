@@ -39,4 +39,4 @@
 - Express framework coverage matrix and fixtures are documented in [`FRAMEWORK_COVERAGE.md`](FRAMEWORK_COVERAGE.md).
 - FastAPI framework coverage matrix and fixtures are documented in [`FRAMEWORK_COVERAGE.md`](FRAMEWORK_COVERAGE.md).
 - Django framework coverage matrix and fixtures are documented in [`FRAMEWORK_COVERAGE.md`](FRAMEWORK_COVERAGE.md).
-- Common auth libraries and providers remain separate provider/library coverage work.
+- Common auth libraries and providers are documented in [`PROVIDER_LIBRARY_COVERAGE.md`](PROVIDER_LIBRARY_COVERAGE.md), with incremental fixture-backed coverage for Auth.js/NextAuth, Passport strategies, OAuth/OIDC client configuration, and common cloud identity SDKs.

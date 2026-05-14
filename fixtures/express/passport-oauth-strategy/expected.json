@@ -1,0 +1,9 @@
+{
+  "fixture_id": "express.passport-oauth-strategy",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["passport:refresh_token", "oauth:unknown_token"],
+  "expected_lifecycle_stages": ["refresh", "revoke", "transmit", "introspect"],
+  "expected_findings": ["provider_boundary_review"],
+  "notes": "Covers Passport OAuth strategy configuration, callback/session handling, provider refresh, and provider revocation as evidence-bound dynamic review context."
+}

@@ -42,7 +42,7 @@ Initial targets:
 - JWT libraries in TypeScript and Python
 - Cookie-setting APIs
 
-Framework support is evidence-bound and pattern-based. The current supported and unsupported framework API matrix is documented in [`docs/FRAMEWORK_COVERAGE.md`](docs/FRAMEWORK_COVERAGE.md).
+Framework support is evidence-bound and pattern-based. The current supported and unsupported framework API matrix is documented in [`docs/FRAMEWORK_COVERAGE.md`](docs/FRAMEWORK_COVERAGE.md). Provider/library support is also evidence-bound and documented in [`docs/PROVIDER_LIBRARY_COVERAGE.md`](docs/PROVIDER_LIBRARY_COVERAGE.md).
 
 Initial outputs:
 
@@ -292,7 +292,7 @@ formats = ["markdown"]
 mode = "advisory"
 max_file_size_bytes = 1000000
 framework_hints = ["express", "nextjs", "fastapi", "django"]
-provider_hints = []
+provider_hints = ["authjs", "nextauth", "passport", "oauth", "oidc", "auth0", "okta", "cognito", "supabase", "clerk"]
 ```
 
 Config precedence is:

@@ -9,7 +9,7 @@ use sessionscope_model::{
 };
 use tree_sitter::{Node, Parser, Tree};
 
-use crate::{DetectionOutput, Detector, DetectorInput};
+use crate::{DetectionOutput, Detector, DetectorInput, providers};
 
 const DETECTOR_ID: &str = "bearer.token";
 const REDACTION: &str = "[REDACTED]";
@@ -236,6 +236,7 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, path: &str, signals: &mu
     let raw_normalized = normalize_symbol(&text);
     let has_token_context = URL_PARAM_RE.is_match(&text)
         || contains_token_context(&normalized)
+        || contains_provider_config_context(&normalized)
         || (is_browser_storage_call(&raw_normalized)
             && contains_browser_session_context(&raw_normalized))
         || (normalized.contains("headers") && contains_token_context(&raw_normalized));
@@ -385,7 +386,7 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, path: &str, signals: &mu
             LifecycleStage::Transmit,
             artifact_type,
             display_name.clone(),
-            "provider",
+            provider_hint_for_context(&normalized),
             Confidence::Medium,
             true,
             node,
@@ -396,7 +397,7 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, path: &str, signals: &mu
         context,
         artifact_type,
         display_name,
-        js_framework_hint(&normalized),
+        provider_or_js_framework_hint(&normalized),
         node,
         source,
         signals,
@@ -409,6 +410,7 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, path: &str, signals:
     let raw_normalized = normalize_symbol(&text);
     let has_token_context = URL_PARAM_RE.is_match(&text)
         || contains_token_context(&normalized)
+        || contains_provider_config_context(&normalized)
         || (is_browser_storage_call(&raw_normalized)
             && contains_browser_session_context(&raw_normalized))
         || (normalized.contains("headers") && contains_token_context(&raw_normalized));
@@ -552,7 +554,7 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, path: &str, signals:
             LifecycleStage::Transmit,
             artifact_type,
             display_name.clone(),
-            "provider",
+            provider_hint_for_context(&normalized),
             Confidence::Medium,
             true,
             node,
@@ -563,7 +565,7 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, path: &str, signals:
         context,
         artifact_type,
         display_name,
-        python_framework_hint(&normalized),
+        provider_or_python_framework_hint(&normalized),
         node,
         source,
         signals,
@@ -835,8 +837,19 @@ fn boundary_kinds_for_context(context: &str) -> Vec<(&'static str, Option<String
     kinds
 }
 
-const ISSUER_BOUNDARY_TERMS: &[&str] = &["issuer", "auth0", "okta", "oauth", "provider"];
-const AUDIENCE_BOUNDARY_TERMS: &[&str] = &["audience", "resource", "internal", "public", "scope"];
+const ISSUER_BOUNDARY_TERMS: &[&str] = &[
+    "issuer", "auth0", "okta", "oauth", "oidc", "openid", "cognito", "azure", "firebase",
+    "supabase", "clerk", "provider",
+];
+const AUDIENCE_BOUNDARY_TERMS: &[&str] = &[
+    "audience",
+    "resource",
+    "internal",
+    "public",
+    "scope",
+    "clientid",
+    "client_id",
+];
 const SERVICE_BOUNDARY_TERMS: &[&str] = &["service", "internal", "backend", "server", "machine"];
 const ENVIRONMENT_BOUNDARY_TERMS: &[&str] = &[
     "production",
@@ -847,9 +860,11 @@ const ENVIRONMENT_BOUNDARY_TERMS: &[&str] = &[
     "dev",
     "test",
 ];
-const TENANT_BOUNDARY_TERMS: &[&str] = &["tenant", "organization", "org", "workspace"];
-const PROVIDER_BOUNDARY_TERMS: &[&str] =
-    &["provider", "auth0", "okta", "oauth", "supabase", "clerk"];
+const TENANT_BOUNDARY_TERMS: &[&str] = &["tenant", "organization", "org", "workspace", "realm"];
+const PROVIDER_BOUNDARY_TERMS: &[&str] = &[
+    "provider", "nextauth", "authjs", "passport", "auth0", "okta", "oauth", "oidc", "openid",
+    "cognito", "azure", "firebase", "supabase", "clerk",
+];
 const TRUST_BOUNDARY_TERMS: &[&str] = &[
     "frontend", "client", "backend", "server", "public", "internal",
 ];
@@ -1135,7 +1150,8 @@ fn parse_python(source: &str) -> Option<Tree> {
 }
 
 fn contains_token_context(normalized: &str) -> bool {
-    normalized.contains("authorization")
+    contains_provider_config_context(normalized)
+        || normalized.contains("authorization")
         || normalized.contains("bearer")
         || normalized.contains("session_token")
         || normalized.contains("sessiontoken")
@@ -1170,6 +1186,46 @@ fn contains_token_context(normalized: &str) -> bool {
                 || normalized.contains("provider")))
         || ((normalized.contains("localstorage") || normalized.contains("sessionstorage"))
             && contains_browser_session_context(normalized))
+}
+
+fn contains_provider_config_context(normalized: &str) -> bool {
+    contains_provider_context(normalized)
+        && (normalized.contains("issuer")
+            || normalized.contains("audience")
+            || normalized.contains("clientid")
+            || normalized.contains("client_id")
+            || normalized.contains("callback")
+            || normalized.contains("callbackurl")
+            || normalized.contains("callback_url")
+            || normalized.contains("scope")
+            || normalized.contains("scopes")
+            || normalized.contains("tenant")
+            || normalized.contains("session")
+            || normalized.contains("jwt")
+            || normalized.contains("token")
+            || normalized.contains("revoke")
+            || normalized.contains("logout")
+            || normalized.contains("signout"))
+}
+
+fn contains_provider_context(normalized: &str) -> bool {
+    normalized.contains("provider")
+        || normalized.contains("nextauth")
+        || normalized.contains("authjs")
+        || normalized.contains("auth.js")
+        || normalized.contains("passport")
+        || normalized.contains("openidclient")
+        || normalized.contains("openid")
+        || normalized.contains("oidc")
+        || normalized.contains("oauth")
+        || normalized.contains("auth0")
+        || normalized.contains("okta")
+        || normalized.contains("cognito")
+        || normalized.contains("azuread")
+        || normalized.contains("azure_ad")
+        || normalized.contains("firebase")
+        || normalized.contains("supabase")
+        || normalized.contains("clerk")
 }
 
 fn contains_browser_session_context(normalized: &str) -> bool {
@@ -1323,13 +1379,14 @@ fn is_rotation_call(normalized: &str) -> bool {
 }
 
 fn is_dynamic_provider_call(normalized: &str) -> bool {
-    (normalized.contains("provider")
-        || normalized.contains("auth0")
-        || normalized.contains("oauth")
-        || normalized.contains("clientcredentials"))
+    (contains_provider_context(normalized) || normalized.contains("clientcredentials"))
         && (normalized.contains("token")
             || normalized.contains("apikey")
-            || normalized.contains("api_key"))
+            || normalized.contains("api_key")
+            || normalized.contains("session")
+            || normalized.contains("jwt")
+            || normalized.contains("callback")
+            || normalized.contains("clientcredentials"))
 }
 
 fn is_inbound_header_read(normalized: &str) -> bool {
@@ -1417,7 +1474,9 @@ fn display_name_for_context(normalized: &str, artifact_type: ArtifactType) -> St
 }
 
 fn js_framework_hint(normalized: &str) -> &'static str {
-    if normalized.contains("cookies") || normalized.contains("next") {
+    if contains_provider_context(normalized) {
+        provider_hint_for_context(normalized)
+    } else if normalized.contains("cookies") || normalized.contains("next") {
         "nextjs"
     } else if normalized.contains("req.")
         || normalized.contains("res.")
@@ -1432,7 +1491,9 @@ fn js_framework_hint(normalized: &str) -> &'static str {
 }
 
 fn python_framework_hint(normalized: &str) -> &'static str {
-    if normalized.contains("request.headers") || normalized.contains("fastapi") {
+    if contains_provider_context(normalized) {
+        provider_hint_for_context(normalized)
+    } else if normalized.contains("request.headers") || normalized.contains("fastapi") {
         "fastapi"
     } else if normalized.contains("django") || normalized.contains("settings.") {
         "django"
@@ -1440,6 +1501,52 @@ fn python_framework_hint(normalized: &str) -> &'static str {
         "python-http-client"
     } else {
         "python"
+    }
+}
+
+fn provider_or_js_framework_hint(normalized: &str) -> &'static str {
+    if contains_provider_context(normalized) {
+        provider_hint_for_context(normalized)
+    } else {
+        js_framework_hint(normalized)
+    }
+}
+
+fn provider_or_python_framework_hint(normalized: &str) -> &'static str {
+    if contains_provider_context(normalized) {
+        provider_hint_for_context(normalized)
+    } else {
+        python_framework_hint(normalized)
+    }
+}
+
+fn provider_hint_for_context(normalized: &str) -> &'static str {
+    if normalized.contains("nextauth") {
+        providers::NEXTAUTH
+    } else if normalized.contains("authjs") || normalized.contains("auth.js") {
+        providers::AUTHJS
+    } else if normalized.contains("passport") {
+        providers::PASSPORT
+    } else if normalized.contains("openid") || normalized.contains("oidc") {
+        providers::OIDC
+    } else if normalized.contains("auth0") {
+        providers::AUTH0
+    } else if normalized.contains("okta") {
+        providers::OKTA
+    } else if normalized.contains("cognito") {
+        providers::COGNITO
+    } else if normalized.contains("azuread") || normalized.contains("azure_ad") {
+        providers::AZURE_AD
+    } else if normalized.contains("firebase") {
+        providers::FIREBASE
+    } else if normalized.contains("supabase") {
+        providers::SUPABASE
+    } else if normalized.contains("clerk") {
+        providers::CLERK
+    } else if normalized.contains("oauth") {
+        providers::OAUTH
+    } else {
+        providers::PROVIDER
     }
 }
 
