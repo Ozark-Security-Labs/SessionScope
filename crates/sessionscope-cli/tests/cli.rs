@@ -487,6 +487,52 @@ fn scan_sarif_renders_findings_and_locations() {
 }
 
 #[test]
+fn scan_sarif_output_writes_file_without_stdout_report() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
+    )
+    .expect("app source should be written");
+    let output_path = temp.path().join("sessions.sarif");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "sarif",
+        "--output",
+        output_path.to_str().expect("output path should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "--output should not echo SARIF report to stdout"
+    );
+    let written = fs::read_to_string(output_path).expect("SARIF output should be written");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&written).expect("written SARIF should parse");
+    assert_eq!(parsed["version"], "2.1.0");
+    assert!(
+        parsed["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .is_some_and(|rules| !rules.is_empty())
+    );
+    assert!(
+        parsed["runs"][0]["results"]
+            .as_array()
+            .is_some_and(|results| results.iter().any(|result| {
+                result["partialFingerprints"]["sessionscopeFindingId"].is_string()
+                    && result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+                        == "app.ts"
+            }))
+    );
+    assert!(!written.contains("PLACEHOLDER_RESET_TOKEN"));
+}
+
+#[test]
 fn scan_rejects_invalid_max_file_size() {
     let output = run_sessionscope(&["scan", "--max-file-size", "0"]);
 

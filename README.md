@@ -130,6 +130,7 @@ It should avoid unsupported claims like "authentication bypass" unless proven by
 sessionscope init
 sessionscope scan --path . --format markdown --output sessions.md
 sessionscope scan --path . --include "src/**/*.ts" --exclude "**/*.test.ts" --format json --output sessions.json
+sessionscope scan --path . --format sarif --output sessions.sarif
 sessionscope scan --path . --max-file-size 1000000
 sessionscope explain FINDING_ID
 sessionscope diff main...HEAD
