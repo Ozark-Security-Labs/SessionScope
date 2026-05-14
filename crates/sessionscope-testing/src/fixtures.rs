@@ -94,7 +94,9 @@ mod tests {
     use sessionscope_classifier::classify;
     use sessionscope_core::{ScanConfig, scan_path};
     use sessionscope_detectors::DetectorRegistry;
-    use sessionscope_model::{ArtifactType, FindingCategory, LifecycleStage, SkippedReason};
+    use sessionscope_model::{
+        ArtifactType, FindingCategory, LifecycleStage, Severity, SkippedReason,
+    };
     use sessionscope_reporters::{ReportFormat, render};
 
     use crate::snapshots::normalize_snapshot_paths;
@@ -180,6 +182,98 @@ mod tests {
                         case.expected.fixture_id
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn issue_18_framework_fixtures_emit_documented_coverage() {
+        let cases = [
+            (
+                fixture_root().join("nextjs").join("nextresponse-session"),
+                "nextjs",
+                [
+                    "cookie.set",
+                    "jwt.validate",
+                    "logout.cookie_clear",
+                    "refresh.rotate",
+                ],
+            ),
+            (
+                fixture_root().join("express").join("session-middleware"),
+                "express",
+                [
+                    "cookie.set",
+                    "session.regenerate",
+                    "logout.session_destroy",
+                    "refresh.revoke",
+                ],
+            ),
+            (
+                fixture_root().join("fastapi").join("security-dependencies"),
+                "fastapi",
+                [
+                    "cookie.set",
+                    "fastapi.security_dependency",
+                    "logout.cookie_clear",
+                    "refresh.revoke",
+                ],
+            ),
+            (
+                fixture_root().join("django").join("settings-session-auth"),
+                "django",
+                [
+                    "cookie.set",
+                    "session.regenerate",
+                    "logout.session_destroy",
+                    "refresh.revoke",
+                ],
+            ),
+        ];
+
+        for (root, framework, detector_ids) in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            assert!(
+                report.artifacts.iter().any(|artifact| artifact
+                    .framework_hints
+                    .iter()
+                    .any(|hint| hint == framework)),
+                "{} should include {framework} framework hints",
+                root.display()
+            );
+            for detector_id in detector_ids {
+                assert!(
+                    report
+                        .evidence
+                        .iter()
+                        .any(|evidence| evidence.detector_id == detector_id),
+                    "{} should include {detector_id} evidence",
+                    root.display()
+                );
+            }
+            assert!(report.evidence.iter().any(|evidence| {
+                matches!(
+                    evidence.lifecycle_stage,
+                    LifecycleStage::Store | LifecycleStage::Validate | LifecycleStage::Revoke
+                )
+            }));
+
+            for format in [
+                ReportFormat::Json,
+                ReportFormat::Markdown,
+                ReportFormat::Sarif,
+            ] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+                assert!(!rendered.contains("PLACEHOLDER_RESET_TOKEN"));
+                assert!(!rendered.contains("PLACEHOLDER_RESET_TOKEN_ROTATED"));
             }
         }
     }
@@ -471,6 +565,101 @@ mod tests {
                 && finding.title.contains("cleared on logout")
                 && finding.reviewer_question.is_some()
         }));
+    }
+
+    #[test]
+    fn issue_27_provider_library_fixtures_emit_documented_coverage() {
+        let cases = [
+            (
+                fixture_root()
+                    .join("nextjs")
+                    .join("authjs-nextauth-provider"),
+                ["nextauth", "auth0"].as_slice(),
+                [
+                    "refresh.provider",
+                    "logout.provider_revoke",
+                    "bearer.dynamic_provider",
+                ]
+                .as_slice(),
+            ),
+            (
+                fixture_root()
+                    .join("express")
+                    .join("passport-oauth-strategy"),
+                ["passport", "oauth"].as_slice(),
+                [
+                    "refresh.provider",
+                    "logout.provider_revoke",
+                    "bearer.dynamic_provider",
+                ]
+                .as_slice(),
+            ),
+            (
+                fixture_root().join("generic-ts").join("oidc-client-config"),
+                ["oidc"].as_slice(),
+                ["refresh.provider", "bearer.dynamic_provider"].as_slice(),
+            ),
+            (
+                fixture_root().join("generic-ts").join("cloud-identity-sdk"),
+                ["auth0", "okta", "cognito", "azure-ad", "firebase"].as_slice(),
+                [
+                    "refresh.provider",
+                    "logout.provider_revoke",
+                    "bearer.dynamic_provider",
+                ]
+                .as_slice(),
+            ),
+        ];
+
+        for (root, provider_hints, detector_ids) in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            for provider_hint in provider_hints {
+                assert!(
+                    report.artifacts.iter().any(|artifact| artifact
+                        .framework_hints
+                        .iter()
+                        .any(|hint| hint == provider_hint)),
+                    "{} should include {provider_hint} provider hints",
+                    root.display()
+                );
+            }
+            for detector_id in detector_ids {
+                assert!(
+                    report
+                        .evidence
+                        .iter()
+                        .any(|evidence| evidence.detector_id == *detector_id),
+                    "{} should include {detector_id} evidence",
+                    root.display()
+                );
+            }
+            assert!(report.evidence.iter().any(|evidence| evidence.dynamic));
+            assert!(report.artifacts.iter().any(|artifact| {
+                artifact
+                    .token_boundary_attributes
+                    .as_ref()
+                    .is_some_and(|attributes| {
+                        attributes.provider.evidence_ids.len()
+                            + attributes.audience.evidence_ids.len()
+                            + attributes.issuer.evidence_ids.len()
+                            + attributes.scope.evidence_ids.len()
+                            > 0
+                    })
+            }));
+            assert!(
+                !report
+                    .findings
+                    .iter()
+                    .any(|finding| finding.severity == Severity::High)
+            );
+        }
     }
 
     #[test]

@@ -34,7 +34,7 @@ pub const DEFAULT_CONFIG: &str = concat!(
     "\n",
     "# Hints are parsed for future detectors and have no runtime effect yet.\n",
     "framework_hints = [\"express\", \"nextjs\", \"fastapi\", \"django\"]\n",
-    "provider_hints = []\n",
+    "provider_hints = [\"authjs\", \"nextauth\", \"passport\", \"oauth\", \"oidc\", \"auth0\", \"okta\", \"cognito\", \"supabase\", \"clerk\"]\n",
 );
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]

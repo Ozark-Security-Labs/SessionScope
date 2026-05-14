@@ -8,7 +8,7 @@ use sessionscope_model::{
 };
 use tree_sitter::{Node, Parser, Tree};
 
-use crate::{DetectionOutput, Detector, DetectorInput};
+use crate::{DetectionOutput, Detector, DetectorInput, providers};
 
 const DETECTOR_ID: &str = "session.lifecycle";
 const REDACTION: &str = "[REDACTED]";
@@ -353,6 +353,7 @@ fn collect_refresh_js_call_signal(node: Node<'_>, source: &str, signals: &mut Ve
     if is_refresh_provider_call(&normalized) {
         let stage = if normalized.contains("revoke")
             || normalized.contains("delete")
+            || normalized.contains("logout")
             || normalized.contains("signout")
         {
             LifecycleStage::Revoke
@@ -364,7 +365,7 @@ fn collect_refresh_js_call_signal(node: Node<'_>, source: &str, signals: &mut Ve
             stage,
             node,
             source,
-            "provider",
+            provider_hint_for_context(&normalized),
             Confidence::Medium,
             true,
         ));
@@ -515,6 +516,7 @@ fn collect_refresh_python_call_signal(node: Node<'_>, source: &str, signals: &mu
     if is_refresh_provider_call(&normalized) {
         let stage = if normalized.contains("revoke")
             || normalized.contains("delete")
+            || normalized.contains("logout")
             || normalized.contains("signout")
         {
             LifecycleStage::Revoke
@@ -526,7 +528,7 @@ fn collect_refresh_python_call_signal(node: Node<'_>, source: &str, signals: &mu
             stage,
             node,
             source,
-            "provider",
+            provider_hint_for_context(&normalized),
             Confidence::Medium,
             true,
         ));
@@ -637,6 +639,38 @@ fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
 fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
     let text = node_text(node, source);
     let normalized = normalize_symbol_without_literals(&text);
+
+    if is_js_provider_session_config_call(&normalized) {
+        signals.push(signal(
+            SignalSpec::new(
+                "session.provider_config",
+                LifecycleStage::Store,
+                ArtifactType::SessionRecord,
+                "session",
+                provider_hint_for_context(&normalized),
+                Confidence::Medium,
+                true,
+            ),
+            node,
+            source,
+        ));
+    }
+
+    if is_js_session_middleware_call(&normalized) {
+        signals.push(signal(
+            SignalSpec::new(
+                "session.middleware",
+                LifecycleStage::Store,
+                ArtifactType::SessionRecord,
+                "session",
+                "express",
+                Confidence::Medium,
+                true,
+            ),
+            node,
+            source,
+        ));
+    }
 
     if is_js_auth_transition_route(&text) {
         signals.push(session_fixation_signal(
@@ -769,7 +803,7 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
                 "logout.provider_revoke",
                 token_artifact_type(&display_name),
                 display_name,
-                "provider",
+                provider_hint_for_context(&normalized),
                 Confidence::Medium,
                 true,
             ),
@@ -887,6 +921,22 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
         .unwrap_or_default();
     let text = node_text(node, source);
     let normalized = normalize_symbol_without_literals(&format!("{function} {text}"));
+
+    if is_python_fastapi_security_call(&function, &normalized) {
+        signals.push(signal(
+            SignalSpec::new(
+                "fastapi.security_dependency",
+                LifecycleStage::Validate,
+                ArtifactType::Unknown,
+                "security_dependency",
+                "fastapi",
+                Confidence::Medium,
+                true,
+            ),
+            node,
+            source,
+        ));
+    }
 
     if is_python_django_login_call(&function, &normalized) {
         signals.push(session_fixation_signal(
@@ -1015,7 +1065,7 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
                 "logout.provider_revoke",
                 token_artifact_type(&display_name),
                 display_name,
-                "provider",
+                provider_hint_for_context(&normalized),
                 Confidence::Medium,
                 true,
             ),
@@ -1491,15 +1541,39 @@ fn is_js_clear_cookie_call(node: Node<'_>, source: &str) -> bool {
     function.ends_with(".clearCookie")
         || function.ends_with(".clear_cookie")
         || function == "clearCookie"
-        || (function.ends_with(".delete") && node_text(node, source).contains("cookies()"))
+        || (function.ends_with(".delete")
+            && (node_text(node, source).contains("cookies()")
+                || function.contains(".cookies.delete")))
 }
 
 fn js_cookie_clear_framework(text: &str) -> &'static str {
-    if text.contains("cookies()") {
+    if text.contains("cookies()") || text.contains(".cookies.delete") {
         "nextjs"
     } else {
         "express"
     }
+}
+
+fn is_js_provider_session_config_call(normalized: &str) -> bool {
+    contains_provider_context(normalized)
+        && (normalized.contains("nextauth")
+            || normalized.contains("auth")
+            || normalized.contains("session")
+            || normalized.contains("passport.authenticate"))
+}
+
+fn is_js_session_middleware_call(normalized: &str) -> bool {
+    normalized.contains("expresssession")
+        || normalized.contains("cookiesession")
+        || normalized.contains("appusecookiesession")
+        || normalized.contains("routerusecookiesession")
+        || ((normalized.contains("appusesession") || normalized.contains("routerusesession"))
+            && (normalized.contains("secret")
+                || normalized.contains("cookie")
+                || normalized.contains("resave")
+                || normalized.contains("saveuninitialized")))
+        || (normalized.starts_with("session") && normalized.contains("secret"))
+        || (normalized.starts_with("cookiesession") && normalized.contains("secret"))
 }
 
 fn is_js_session_destroy_call(normalized: &str) -> bool {
@@ -1536,26 +1610,75 @@ fn is_js_provider_revoke_call(normalized: &str) -> bool {
 }
 
 fn is_provider_revoke_text(normalized: &str) -> bool {
-    normalized.contains("provider.revoke")
-        || normalized.contains("auth0.revoke")
-        || normalized.contains("okta.revoke")
-        || normalized.contains("oauth.revoke")
+    (contains_provider_context(normalized)
+        && (normalized.contains("revoke")
+            || normalized.contains("logout")
+            || normalized.contains("signout")
+            || normalized.contains("sign_out")))
         || normalized.contains("supabase.auth.signout")
         || normalized.contains("clerk.sessions.revoke")
         || normalized.contains("identityprovider.revoke")
 }
 
 fn is_refresh_provider_call(normalized: &str) -> bool {
-    (normalized.contains("provider")
-        || normalized.contains("auth0")
-        || normalized.contains("okta")
-        || normalized.contains("oauth")
-        || normalized.contains("supabase")
-        || normalized.contains("clerk"))
+    contains_provider_context(normalized)
         && (normalized.contains("refresh")
             || normalized.contains("rotate")
             || normalized.contains("revoke")
-            || normalized.contains("signout"))
+            || normalized.contains("signout")
+            || normalized.contains("session")
+            || normalized.contains("callback"))
+}
+
+fn contains_provider_context(normalized: &str) -> bool {
+    normalized.contains("provider")
+        || normalized.contains("nextauth")
+        || normalized.contains("nextauthoptions")
+        || normalized.contains("authjs")
+        || normalized.contains("auth.js")
+        || normalized.contains("passport")
+        || normalized.contains("openidclient")
+        || normalized.contains("openid")
+        || normalized.contains("oidc")
+        || normalized.contains("oauth")
+        || normalized.contains("auth0")
+        || normalized.contains("okta")
+        || normalized.contains("cognito")
+        || normalized.contains("azuread")
+        || normalized.contains("azure_ad")
+        || normalized.contains("firebase")
+        || normalized.contains("supabase")
+        || normalized.contains("clerk")
+}
+
+fn provider_hint_for_context(normalized: &str) -> &'static str {
+    if normalized.contains("nextauth") {
+        providers::NEXTAUTH
+    } else if normalized.contains("authjs") || normalized.contains("auth.js") {
+        providers::AUTHJS
+    } else if normalized.contains("passport") {
+        providers::PASSPORT
+    } else if normalized.contains("openid") || normalized.contains("oidc") {
+        providers::OIDC
+    } else if normalized.contains("auth0") {
+        providers::AUTH0
+    } else if normalized.contains("okta") {
+        providers::OKTA
+    } else if normalized.contains("cognito") {
+        providers::COGNITO
+    } else if normalized.contains("azuread") || normalized.contains("azure_ad") {
+        providers::AZURE_AD
+    } else if normalized.contains("firebase") {
+        providers::FIREBASE
+    } else if normalized.contains("supabase") {
+        providers::SUPABASE
+    } else if normalized.contains("clerk") {
+        providers::CLERK
+    } else if normalized.contains("oauth") {
+        providers::OAUTH
+    } else {
+        providers::PROVIDER
+    }
 }
 
 fn is_refresh_issue_call(normalized: &str) -> bool {
@@ -1697,6 +1820,8 @@ fn refresh_framework_hint(text: &str) -> &'static str {
         "provider"
     } else if normalized.contains("app.") || normalized.contains("router.") {
         "express"
+    } else if contains_provider_context(&normalized) {
+        provider_hint_for_context(&normalized)
     } else {
         "refresh"
     }
@@ -1824,6 +1949,35 @@ fn js_session_framework_hint(text: &str) -> &'static str {
     } else {
         "javascript"
     }
+}
+
+fn is_python_fastapi_security_call(function: &str, normalized: &str) -> bool {
+    if matches!(function, "OAuth2PasswordBearer" | "APIKeyCookie")
+        || normalized.contains("oauth2passwordbearer")
+        || normalized.contains("apikeycookie")
+    {
+        return true;
+    }
+
+    (matches!(function, "Depends" | "Security")
+        || normalized.contains("depends(")
+        || normalized.contains("security("))
+        && is_python_auth_dependency_context(normalized)
+}
+
+fn is_python_auth_dependency_context(normalized: &str) -> bool {
+    normalized.contains("oauth")
+        || normalized.contains("security")
+        || normalized.contains("apikey")
+        || normalized.contains("api_key")
+        || normalized.contains("bearer")
+        || normalized.contains("token")
+        || normalized.contains("jwt")
+        || normalized.contains("auth")
+        || normalized.contains("session")
+        || normalized.contains("cookie")
+        || normalized.contains("currentuser")
+        || normalized.contains("current_user")
 }
 
 fn is_python_django_login_call(function: &str, normalized: &str) -> bool {
@@ -2084,6 +2238,113 @@ export async function DELETE() {
                 .artifacts
                 .iter()
                 .any(|artifact| artifact.framework_hints == vec!["nextjs".to_string()])
+        );
+    }
+
+    #[test]
+    fn detects_nextresponse_cookie_delete() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+export async function DELETE() {
+  const response = new NextResponse(null, { status: 204 });
+  response.cookies.delete("session");
+  return response;
+}
+"#,
+        );
+
+        assert_detector(&output, "logout.handler");
+        assert_detector(&output, "logout.cookie_clear");
+        assert!(output.artifacts.iter().any(|artifact| {
+            artifact.display_name.as_deref() == Some("session")
+                && artifact.framework_hints == vec!["nextjs".to_string()]
+        }));
+    }
+
+    #[test]
+    fn detects_express_session_middleware() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+app.use(session({ secret, cookie: { httpOnly: true, secure: true } }));
+"#,
+        );
+
+        assert_detector(&output, "session.middleware");
+        assert_stage(&output, "session.middleware", LifecycleStage::Store);
+    }
+
+    #[test]
+    fn ignores_non_session_express_middleware_helpers() {
+        let output = detect(Language::TypeScript, "app.use(sessionLogger());");
+
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "session.middleware")
+        );
+    }
+
+    #[test]
+    fn detects_nextauth_provider_session_config() {
+        let output = detect(
+            Language::TypeScript,
+            r#"export const GET = NextAuth({ session: { strategy: "jwt" } });"#,
+        );
+
+        let evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.detector_id == "session.provider_config")
+            .expect("provider config evidence should exist");
+        assert_eq!(evidence.lifecycle_stage, LifecycleStage::Store);
+        assert!(evidence.dynamic);
+        assert!(output.artifacts.iter().any(|artifact| {
+            artifact
+                .framework_hints
+                .iter()
+                .any(|hint| hint == "nextauth")
+        }));
+    }
+
+    #[test]
+    fn detects_fastapi_security_dependencies() {
+        let output = detect(
+            Language::Python,
+            r#"
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+session_cookie = APIKeyCookie(name="session")
+
+def current_user(token: str = Security(oauth2_scheme)):
+    return token
+"#,
+        );
+
+        assert_detector(&output, "fastapi.security_dependency");
+        assert_stage(
+            &output,
+            "fastapi.security_dependency",
+            LifecycleStage::Validate,
+        );
+    }
+
+    #[test]
+    fn ignores_non_security_fastapi_dependencies() {
+        let output = detect(
+            Language::Python,
+            r#"
+def list_orders(db = Depends(get_db)):
+    return db.query(Order).all()
+"#,
+        );
+
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "fastapi.security_dependency")
         );
     }
 

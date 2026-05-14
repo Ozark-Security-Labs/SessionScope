@@ -135,9 +135,11 @@ SessionScope will not share an intermediate representation with AuthMap in
 Rules:
 
 - SessionScope owns its token lifecycle inventory schema for this milestone.
+- The claims capability records JWT validation, identity-claim, and boundary evidence as source-bound inventory and reviewer questions; it is not a full authorization graph engine.
 - The model should align conceptually with AuthMap-style evidence records:
   stable IDs, source locations, sanitized excerpts, confidence, and reviewer
   questions.
+- Future AuthMap/rulepath interoperability should be designed as an explicit integration boundary rather than implied by claim inventory fields.
 - Shared IR work should be revisited only when a concrete integration
   requirement exists.
 - Detectors should keep token lifecycle evidence separate from authorization

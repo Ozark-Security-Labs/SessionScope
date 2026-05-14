@@ -17,6 +17,17 @@ The implementation should favor:
 - safe parallel scanning with explicit ownership boundaries
 - small detector modules that can be tested with fixtures
 
+## Capability Model
+
+SessionScope is one product with four source-analysis capability areas:
+
+- **Cookie posture** covers cookie-setting APIs, cookie attributes, storage context, lifetimes, domain/path scope, and browser storage signals. It is implemented by cookie and bearer/storage detectors, cookie posture classifiers, fixture assertions, and normal report rendering.
+- **Claims and validation** covers JWT validation, issuer/audience/expiry evidence, signature verification, identity-claim inventory, and token-boundary hints. It remains token lifecycle evidence and review context, not a full authorization graph engine.
+- **Logout and revocation** covers logout handlers, cookie clearing, server-side session destruction, token revocation, provider revocation, and lifecycle-gap classification for clear-cookie-only paths.
+- **Refresh lifecycle** covers refresh-token issue, store, validate, refresh, rotate, reuse-detect, revoke, and expire evidence, including provider-managed behavior as dynamic review context.
+
+These areas share the same discovery, source loading, detector registry, redaction boundary, deterministic merge, lifecycle linking, classifier, and reporters. Planned focused commands such as `cookies`, `claims`, `logout`, and `refresh` should filter or present this shared inventory rather than fork the scanner pipeline.
+
 ## Pipeline
 
 ```text
@@ -193,15 +204,16 @@ source into evidence records, not final findings.
 
 Initial detector families:
 
-- cookie-setting APIs
-- JWT issue/verify/decode APIs
+- cookie-setting APIs for cookie posture
+- JWT issue/verify/decode APIs for claims and validation
 - session middleware and session regeneration calls
 - password-reset and email-verification token patterns
-- refresh-token stores and rotation signals
-- logout and revocation handlers
+- refresh-token stores and rotation signals for refresh lifecycle
+- logout and revocation handlers for logout/revocation review
 - opaque bearer token and API key storage/transmission
 - query-parameter token acceptance
 - framework adapters for Express, Next.js, FastAPI, and Django
+- provider/library adapters for source-visible Auth.js/NextAuth, Passport, OAuth/OIDC, and cloud identity SDK patterns
 
 Detectors should be small modules with fixture-backed tests. A detector may emit
 confidence and reviewer-question hints, but final risk classification belongs in
