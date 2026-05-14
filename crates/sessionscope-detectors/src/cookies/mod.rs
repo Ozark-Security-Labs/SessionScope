@@ -35,6 +35,12 @@ static JWT_RE: LazyLock<Regex> = LazyLock::new(|| {
 static SET_COOKIE_PAIR_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)^(\s*[^=;\s]+)\s*=\s*([^;]*)"#).expect("set-cookie pair regex should compile")
 });
+static SENSITIVE_OPTION_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?ix)(\b(?:secret|keys?|signing[_-]?key|private[_-]?key|token|jwt)\b\s*[:=]\s*)(\[[^\]]*\]|["'][^"']*["'])"#,
+    )
+    .expect("sensitive option redaction regex should compile")
+});
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CookieSetDetector;
@@ -177,7 +183,7 @@ fn detect_python(input: &DetectorInput<'_>, detector_id: &str) -> DetectionOutpu
     let mut calls = Vec::new();
     collect_python_cookie_calls(root, input.source, &[], &option_aliases, &mut calls);
     collect_python_wrapper_calls(root, input.source, &wrappers, &mut calls);
-    collect_django_settings_calls(input.source, &mut calls);
+    collect_django_settings_calls(root, input.source, &mut calls);
 
     calls_to_output(input, detector_id, calls)
 }
@@ -437,18 +443,31 @@ fn default_attribute_for_call(
     }
 
     let framework_default = match call.api_name {
-        "javascript.cookie" | "next.cookies.set" | "express.session.middleware"
-            if kind == CookieAttributeKind::Path =>
-        {
-            Some("/")
-        }
-        "python.set_cookie" | "django.settings" => match kind {
+        "express.session.middleware" => match kind {
+            CookieAttributeKind::HttpOnly => Some("true"),
+            CookieAttributeKind::Secure => Some("false"),
+            CookieAttributeKind::SameSite => Some("none"),
+            CookieAttributeKind::MaxAge
+            | CookieAttributeKind::Expires
+            | CookieAttributeKind::Domain => Some("none"),
+            CookieAttributeKind::Path => Some("/"),
+        },
+        "javascript.cookie" | "next.cookies.set" if kind == CookieAttributeKind::Path => Some("/"),
+        "python.set_cookie" => match kind {
             CookieAttributeKind::HttpOnly => Some("false"),
             CookieAttributeKind::Secure => Some("false"),
             CookieAttributeKind::SameSite => Some("lax"),
             CookieAttributeKind::MaxAge
             | CookieAttributeKind::Expires
             | CookieAttributeKind::Domain => Some("none"),
+            CookieAttributeKind::Path => Some("/"),
+        },
+        "django.settings" => match kind {
+            CookieAttributeKind::HttpOnly => Some("true"),
+            CookieAttributeKind::Secure => Some("false"),
+            CookieAttributeKind::SameSite => Some("lax"),
+            CookieAttributeKind::MaxAge => Some("1209600"),
+            CookieAttributeKind::Expires | CookieAttributeKind::Domain => Some("none"),
             CookieAttributeKind::Path => Some("/"),
         },
         _ => None,
@@ -554,8 +573,11 @@ fn redact_detector_excerpt(input: &str) -> String {
         .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string();
     output = JWT_RE.replace_all(&output, REDACTION).to_string();
-    PLACEHOLDER_SECRET_RE
+    output = PLACEHOLDER_SECRET_RE
         .replace_all(&output, REDACTION)
+        .to_string();
+    SENSITIVE_OPTION_RE
+        .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string()
 }
 
@@ -757,7 +779,7 @@ fn js_session_middleware_cookie_call(
         framework_hint: "express",
         line: node_line_column(node).0,
         column: node_line_column(node).1,
-        excerpt: excerpt_around_node_with_redactions(source, node, &[]),
+        excerpt: excerpt_around_node_with_redactions(source, node, &[options_node]),
         cookie_name,
         signed: options.signed,
         attributes: options.attributes,
@@ -1051,7 +1073,6 @@ fn python_cookie_framework_hint(context: &str) -> &'static str {
     } else if normalized.contains("fastapi")
         || normalized.contains("@app.")
         || normalized.contains("@router.")
-        || normalized.contains("response")
     {
         "fastapi"
     } else {
@@ -1345,47 +1366,10 @@ fn python_options_from_dictionary(node: Node<'_>, source: &str) -> Option<Option
     Some(alias)
 }
 
-fn collect_django_settings_calls(source: &str, calls: &mut Vec<CookieCall>) {
+fn collect_django_settings_calls(root: Node<'_>, source: &str, calls: &mut Vec<CookieCall>) {
     let mut attributes = BTreeMap::new();
     let mut first_location = None;
-
-    for (index, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-        let Some((name, value)) = trimmed.split_once('=') else {
-            continue;
-        };
-        let name = name.trim();
-        let value = value.trim();
-        let kind = match name {
-            "SESSION_COOKIE_HTTPONLY" => CookieAttributeKind::HttpOnly,
-            "SESSION_COOKIE_SECURE" => CookieAttributeKind::Secure,
-            "SESSION_COOKIE_SAMESITE" => CookieAttributeKind::SameSite,
-            "SESSION_COOKIE_AGE" => CookieAttributeKind::MaxAge,
-            "SESSION_COOKIE_DOMAIN" => CookieAttributeKind::Domain,
-            "SESSION_COOKIE_PATH" => CookieAttributeKind::Path,
-            _ => continue,
-        };
-        let line_number = index + 1;
-        first_location.get_or_insert((line_number, line.find(name).unwrap_or(0) + 1));
-        attributes.insert(
-            kind,
-            AttributeEvidence {
-                state: if is_missing_literal(&value.to_ascii_lowercase()) {
-                    CookieAttributeState::Missing
-                } else {
-                    CookieAttributeState::Present
-                },
-                value: Some(redact_detector_excerpt(&normalize_attribute_value(
-                    kind, value,
-                ))),
-                confidence: Confidence::High,
-                excerpt: redact_detector_excerpt(&format!("{name} = {value}")).into(),
-                line: line_number,
-                column: line.find(value).unwrap_or(0) + 1,
-                framework_default: false,
-            },
-        );
-    }
+    collect_django_settings_assignments(root, source, &mut attributes, &mut first_location);
 
     if !attributes.is_empty() {
         let (line, column) = first_location.unwrap_or((1, 1));
@@ -1400,6 +1384,48 @@ fn collect_django_settings_calls(source: &str, calls: &mut Vec<CookieCall>) {
             attributes,
             dynamic_options: false,
         });
+    }
+}
+
+fn collect_django_settings_assignments(
+    node: Node<'_>,
+    source: &str,
+    attributes: &mut BTreeMap<CookieAttributeKind, AttributeEvidence>,
+    first_location: &mut Option<(usize, usize)>,
+) {
+    if node.kind() == "assignment" && scope_id(node) == 0 {
+        let children = named_children(node);
+        if let (Some(name_node), Some(value_node)) = (children.first(), children.get(1)) {
+            let name = node_text(*name_node, source);
+            if let Some(kind) = django_setting_attribute_kind(&name) {
+                first_location.get_or_insert(node_line_column(*name_node));
+                let mut attribute = attribute_from_value(kind, *value_node, source);
+                attribute.excerpt = redact_detector_excerpt(&format!(
+                    "{} = {}",
+                    name,
+                    node_text(*value_node, source)
+                ))
+                .into();
+                attributes.insert(kind, attribute);
+            }
+        }
+    }
+
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_django_settings_assignments(child, source, attributes, first_location);
+    }
+}
+
+fn django_setting_attribute_kind(name: &str) -> Option<CookieAttributeKind> {
+    match name {
+        "SESSION_COOKIE_HTTPONLY" => Some(CookieAttributeKind::HttpOnly),
+        "SESSION_COOKIE_SECURE" => Some(CookieAttributeKind::Secure),
+        "SESSION_COOKIE_SAMESITE" => Some(CookieAttributeKind::SameSite),
+        "SESSION_COOKIE_AGE" => Some(CookieAttributeKind::MaxAge),
+        "SESSION_COOKIE_DOMAIN" => Some(CookieAttributeKind::Domain),
+        "SESSION_COOKIE_PATH" => Some(CookieAttributeKind::Path),
+        _ => None,
     }
 }
 
@@ -2589,6 +2615,70 @@ def second(response, token):
         assert_eq!(attributes.http_only.confidence, Confidence::Medium);
         assert_eq!(attributes.secure.state, CookieAttributeState::Dynamic);
         assert_eq!(attributes.secure.confidence, Confidence::Medium);
+    }
+
+    #[test]
+    fn express_session_middleware_uses_defaults_and_redacts_secret_options() {
+        let output = detect(
+            Language::TypeScript,
+            r#"app.use(session({ secret: "short-secret", keys: ["key-one"], cookie: {} }));"#,
+        );
+
+        let attributes = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(
+            attributes.http_only.state,
+            CookieAttributeState::FrameworkDefault
+        );
+        assert_eq!(attributes.http_only.value.as_deref(), Some("true"));
+        assert_eq!(attributes.http_only.confidence, Confidence::Low);
+        assert_eq!(
+            attributes.secure.state,
+            CookieAttributeState::FrameworkDefault
+        );
+        assert!(!detected_text(&output).contains("short-secret"));
+        assert!(!detected_text(&output).contains("key-one"));
+    }
+
+    #[test]
+    fn django_settings_defaults_and_dynamic_values_are_conservative() {
+        let output = detect(
+            Language::Python,
+            r#"
+import os
+SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE") == "true"
+SESSION_COOKIE_SAMESITE = "Lax"
+"#,
+        );
+
+        let attributes = output.artifacts[0]
+            .cookie_attributes
+            .as_ref()
+            .expect("cookie attributes should exist");
+        assert_eq!(
+            attributes.http_only.state,
+            CookieAttributeState::FrameworkDefault
+        );
+        assert_eq!(attributes.http_only.value.as_deref(), Some("true"));
+        assert_eq!(attributes.secure.state, CookieAttributeState::Dynamic);
+        assert_eq!(attributes.secure.confidence, Confidence::Medium);
+        assert_eq!(attributes.same_site.state, CookieAttributeState::Present);
+        assert_eq!(
+            attributes.path.state,
+            CookieAttributeState::FrameworkDefault
+        );
+    }
+
+    #[test]
+    fn generic_python_response_cookie_keeps_generic_framework_hint() {
+        let output = detect(
+            Language::Python,
+            r#"response.set_cookie("session", token, httponly=True)"#,
+        );
+
+        assert_eq!(output.artifacts[0].framework_hints, vec!["python"]);
     }
 
     fn detected_text(output: &crate::DetectionOutput) -> String {

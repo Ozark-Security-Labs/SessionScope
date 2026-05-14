@@ -601,7 +601,7 @@ mod tests {
             ),
             (
                 fixture_root().join("generic-ts").join("cloud-identity-sdk"),
-                ["auth0", "okta", "cognito"].as_slice(),
+                ["auth0", "okta", "cognito", "azure-ad", "firebase"].as_slice(),
                 [
                     "refresh.provider",
                     "logout.provider_revoke",

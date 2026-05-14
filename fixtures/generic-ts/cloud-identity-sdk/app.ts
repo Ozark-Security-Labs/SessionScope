@@ -11,6 +11,11 @@ export async function cloudIdentityFlow() {
     Token: "PLACEHOLDER_RESET_TOKEN",
     ClientId: process.env.COGNITO_CLIENT_ID,
   });
+  await azureAd.acquireTokenSilent({
+    scopes: ["api://orders/.default"],
+    account: currentAccount,
+  });
+  await firebase.auth().currentUser.getIdToken();
   await supabase.auth.signOut();
   await clerk.sessions.revoke("PLACEHOLDER_RESET_TOKEN");
   return auth0Token;

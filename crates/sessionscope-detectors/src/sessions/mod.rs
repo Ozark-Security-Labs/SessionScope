@@ -1565,10 +1565,13 @@ fn is_js_provider_session_config_call(normalized: &str) -> bool {
 fn is_js_session_middleware_call(normalized: &str) -> bool {
     normalized.contains("expresssession")
         || normalized.contains("cookiesession")
-        || normalized.contains("appusesession")
-        || normalized.contains("routerusesession")
         || normalized.contains("appusecookiesession")
         || normalized.contains("routerusecookiesession")
+        || ((normalized.contains("appusesession") || normalized.contains("routerusesession"))
+            && (normalized.contains("secret")
+                || normalized.contains("cookie")
+                || normalized.contains("resave")
+                || normalized.contains("saveuninitialized")))
         || (normalized.starts_with("session") && normalized.contains("secret"))
         || (normalized.starts_with("cookiesession") && normalized.contains("secret"))
 }
@@ -1949,13 +1952,32 @@ fn js_session_framework_hint(text: &str) -> &'static str {
 }
 
 fn is_python_fastapi_security_call(function: &str, normalized: &str) -> bool {
-    matches!(
-        function,
-        "Depends" | "Security" | "OAuth2PasswordBearer" | "APIKeyCookie"
-    ) || normalized.contains("depends(")
-        || normalized.contains("security(")
+    if matches!(function, "OAuth2PasswordBearer" | "APIKeyCookie")
         || normalized.contains("oauth2passwordbearer")
         || normalized.contains("apikeycookie")
+    {
+        return true;
+    }
+
+    (matches!(function, "Depends" | "Security")
+        || normalized.contains("depends(")
+        || normalized.contains("security("))
+        && is_python_auth_dependency_context(normalized)
+}
+
+fn is_python_auth_dependency_context(normalized: &str) -> bool {
+    normalized.contains("oauth")
+        || normalized.contains("security")
+        || normalized.contains("apikey")
+        || normalized.contains("api_key")
+        || normalized.contains("bearer")
+        || normalized.contains("token")
+        || normalized.contains("jwt")
+        || normalized.contains("auth")
+        || normalized.contains("session")
+        || normalized.contains("cookie")
+        || normalized.contains("currentuser")
+        || normalized.contains("current_user")
 }
 
 fn is_python_django_login_call(function: &str, normalized: &str) -> bool {
@@ -2254,6 +2276,40 @@ app.use(session({ secret, cookie: { httpOnly: true, secure: true } }));
     }
 
     #[test]
+    fn ignores_non_session_express_middleware_helpers() {
+        let output = detect(Language::TypeScript, "app.use(sessionLogger());");
+
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "session.middleware")
+        );
+    }
+
+    #[test]
+    fn detects_nextauth_provider_session_config() {
+        let output = detect(
+            Language::TypeScript,
+            r#"export const GET = NextAuth({ session: { strategy: "jwt" } });"#,
+        );
+
+        let evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.detector_id == "session.provider_config")
+            .expect("provider config evidence should exist");
+        assert_eq!(evidence.lifecycle_stage, LifecycleStage::Store);
+        assert!(evidence.dynamic);
+        assert!(output.artifacts.iter().any(|artifact| {
+            artifact
+                .framework_hints
+                .iter()
+                .any(|hint| hint == "nextauth")
+        }));
+    }
+
+    #[test]
     fn detects_fastapi_security_dependencies() {
         let output = detect(
             Language::Python,
@@ -2271,6 +2327,24 @@ def current_user(token: str = Security(oauth2_scheme)):
             &output,
             "fastapi.security_dependency",
             LifecycleStage::Validate,
+        );
+    }
+
+    #[test]
+    fn ignores_non_security_fastapi_dependencies() {
+        let output = detect(
+            Language::Python,
+            r#"
+def list_orders(db = Depends(get_db)):
+    return db.query(Order).all()
+"#,
+        );
+
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "fastapi.security_dependency")
         );
     }
 
