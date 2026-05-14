@@ -5,13 +5,18 @@ mode="${INPUT_MODE:-advisory}"
 scan_path="${INPUT_PATH:-.}"
 outputs="${INPUT_OUTPUT:-markdown,sarif}"
 fail_on_findings="${INPUT_FAIL_ON_FINDINGS:-false}"
+fail_severity="${INPUT_FAIL_SEVERITY:-high}"
+fail_category="${INPUT_FAIL_CATEGORY:-}"
+include_finding_id="${INPUT_INCLUDE_FINDING_ID:-}"
+exclude_finding_id="${INPUT_EXCLUDE_FINDING_ID:-}"
+baseline="${INPUT_BASELINE:-}"
 reports_dir="${SESSIONSCOPE_REPORTS_DIR:-${RUNNER_TEMP:-/tmp}/sessionscope-reports}"
 summary_path="$reports_dir/summary.md"
 
 case "$mode" in
-  advisory) ;;
+  advisory | enforce) ;;
   *)
-    echo "sessionscope: unsupported mode '$mode'; only advisory is supported" >&2
+    echo "sessionscope: mode must be advisory or enforce" >&2
     exit 2
     ;;
 esac
@@ -76,14 +81,36 @@ write_output() {
 
 validate_requested_formats
 
+policy_args=()
+policy_args_without_severity=()
+if [[ -n "$fail_severity" ]]; then
+  policy_args+=(--fail-severity "$fail_severity")
+fi
+if [[ -n "$fail_category" ]]; then
+  policy_args+=(--fail-category "$fail_category")
+  policy_args_without_severity+=(--fail-category "$fail_category")
+fi
+if [[ -n "$include_finding_id" ]]; then
+  policy_args+=(--include-finding-id "$include_finding_id")
+  policy_args_without_severity+=(--include-finding-id "$include_finding_id")
+fi
+if [[ -n "$exclude_finding_id" ]]; then
+  policy_args+=(--exclude-finding-id "$exclude_finding_id")
+  policy_args_without_severity+=(--exclude-finding-id "$exclude_finding_id")
+fi
+if [[ -n "$baseline" ]]; then
+  policy_args+=(--baseline "$baseline")
+  policy_args_without_severity+=(--baseline "$baseline")
+fi
+
 json_path="$reports_dir/sessionscope.json"
-run_sessionscope scan --path "$scan_path" --format json --output "$json_path"
+run_sessionscope scan --path "$scan_path" --mode advisory "${policy_args[@]}" --format json --output "$json_path"
 
 markdown_path=""
 sarif_path=""
 if format_requested markdown; then
   markdown_path="$reports_dir/sessionscope.md"
-  run_sessionscope scan --path "$scan_path" --format markdown --output "$markdown_path"
+  run_sessionscope scan --path "$scan_path" --mode advisory "${policy_args[@]}" --format markdown --output "$markdown_path"
 fi
 if format_requested json; then
   # The internal JSON report is also the requested JSON artifact.
@@ -91,7 +118,7 @@ if format_requested json; then
 fi
 if format_requested sarif; then
   sarif_path="$reports_dir/sessionscope.sarif"
-  run_sessionscope scan --path "$scan_path" --format sarif --output "$sarif_path"
+  run_sessionscope scan --path "$scan_path" --mode advisory "${policy_args[@]}" --format sarif --output "$sarif_path"
 fi
 
 python3 - "$json_path" "$summary_path" "$reports_dir" "$markdown_path" "$sarif_path" <<'PY'
@@ -166,13 +193,6 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   cat "$summary_path" >> "$GITHUB_STEP_SUMMARY"
 fi
 
-finding_count="$(python3 - "$json_path" <<'PY'
-import json
-import sys
-print(len(json.loads(open(sys.argv[1]).read()).get("findings", [])))
-PY
-)"
-
 write_output reports-dir "$reports_dir"
 write_output json-path "$json_path"
 write_output summary-path "$summary_path"
@@ -183,7 +203,20 @@ if [[ -n "$sarif_path" ]]; then
   write_output sarif-path "$sarif_path"
 fi
 
-if [[ "$fail_on_findings" == "true" && "$finding_count" != "0" ]]; then
-  echo "sessionscope: found $finding_count finding(s)" >&2
-  exit 1
+effective_mode="$mode"
+effective_fail_severity="$fail_severity"
+if [[ "$fail_on_findings" == "true" ]]; then
+  effective_mode="enforce"
+  effective_fail_severity="info"
+fi
+
+if [[ "$effective_mode" == "enforce" ]]; then
+  enforcement_path="$reports_dir/sessionscope-enforcement.json"
+  run_sessionscope scan \
+    --path "$scan_path" \
+    --mode enforce \
+    --fail-severity "$effective_fail_severity" \
+    "${policy_args_without_severity[@]}" \
+    --format json \
+    --output "$enforcement_path"
 fi

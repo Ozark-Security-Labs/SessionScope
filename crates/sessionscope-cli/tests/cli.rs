@@ -179,6 +179,208 @@ fn scan_json_runs_builtin_cookie_detector() {
 }
 
 #[test]
+fn scan_advisory_mode_with_findings_exits_zero() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
+    )
+    .expect("app source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--mode",
+        "advisory",
+        "--format",
+        "json",
+    ]);
+
+    assert!(output.status.success());
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
+    assert!(!parsed["findings"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn scan_enforce_default_blocks_high_findings_after_output() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let output_path = temp.path().join("sessionscope.json");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
+    )
+    .expect("app source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--mode",
+        "enforce",
+        "--format",
+        "json",
+        "--output",
+        output_path.to_str().expect("output path should be UTF-8"),
+    ]);
+
+    assert!(!output.status.success());
+    assert!(
+        output_path.exists(),
+        "report should be written before failure"
+    );
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("enforce mode blocked"));
+    assert!(stderr.contains("high_confidence_misconfiguration"));
+    assert!(!stderr.contains("PLACEHOLDER_RESET_TOKEN"));
+}
+
+#[test]
+fn scan_enforce_respects_severity_category_id_and_baseline_policy() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("sessionscope.json");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
+    )
+    .expect("app source should be written");
+
+    let advisory = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json",
+        "--output",
+        report_path.to_str().expect("report path should be UTF-8"),
+    ]);
+    assert!(advisory.status.success());
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&report_path).expect("report should be readable"))
+            .expect("scan JSON should parse");
+    let findings = parsed["findings"]
+        .as_array()
+        .expect("findings should be array");
+    let medium_id = findings
+        .iter()
+        .find(|finding| finding["severity"] == "medium")
+        .and_then(|finding| finding["id"].as_str())
+        .expect("fixture should produce medium finding");
+    let high_id = findings
+        .iter()
+        .find(|finding| finding["severity"] == "high")
+        .and_then(|finding| finding["id"].as_str())
+        .expect("fixture should produce high finding");
+
+    let medium = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--mode",
+        "enforce",
+        "--fail-severity",
+        "medium",
+        "--format",
+        "json",
+        "--output",
+        report_path.to_str().expect("report path should be UTF-8"),
+    ]);
+    assert!(!medium.status.success());
+
+    let dynamic_only = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--mode",
+        "enforce",
+        "--fail-category",
+        "dynamic_review_required",
+        "--format",
+        "json",
+    ]);
+    assert!(dynamic_only.status.success());
+
+    let lifecycle_low = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--mode",
+        "enforce",
+        "--fail-severity",
+        "low",
+        "--fail-category",
+        "lifecycle_gap",
+        "--format",
+        "json",
+    ]);
+    assert!(!lifecycle_low.status.success());
+
+    let include_medium = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--mode",
+        "enforce",
+        "--baseline",
+        report_path.to_str().expect("report path should be UTF-8"),
+        "--include-finding-id",
+        medium_id,
+        "--format",
+        "json",
+    ]);
+    assert!(!include_medium.status.success());
+
+    let exclude_high = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--mode",
+        "enforce",
+        "--exclude-finding-id",
+        high_id,
+        "--format",
+        "json",
+    ]);
+    assert!(!exclude_high.status.success());
+    let stderr = str::from_utf8(&exclude_high.stderr).expect("stderr should be UTF-8");
+    assert!(!stderr.contains(high_id));
+
+    let baseline = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--mode",
+        "enforce",
+        "--baseline",
+        report_path.to_str().expect("report path should be UTF-8"),
+        "--format",
+        "json",
+    ]);
+    assert!(baseline.status.success());
+}
+
+#[test]
+fn scan_no_finding_enforce_exits_zero() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(temp.path().join("app.ts"), "const app = true;")
+        .expect("app source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--mode",
+        "enforce",
+        "--format",
+        "json",
+    ]);
+
+    assert!(output.status.success());
+}
+
+#[test]
 fn scan_json_runs_builtin_jwt_detector() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     fs::write(
@@ -571,6 +773,11 @@ fn action_definition_declares_wrapper_contract() {
     assert!(action.contains("mode:"));
     assert!(action.contains("output:"));
     assert!(action.contains("fail-on-findings:"));
+    assert!(action.contains("fail-severity:"));
+    assert!(action.contains("fail-category:"));
+    assert!(action.contains("include-finding-id:"));
+    assert!(action.contains("exclude-finding-id:"));
+    assert!(action.contains("baseline:"));
     assert!(action.contains("reports-dir:"));
     assert!(action.contains("sarif-path:"));
     assert!(action.contains("bash \"$GITHUB_ACTION_PATH/scripts/github-action.sh\""));
@@ -675,8 +882,13 @@ fn github_action_script_can_fail_on_findings_after_writing_reports() {
         r#"#!/usr/bin/env bash
 set -euo pipefail
 output=""
+mode="advisory"
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
+    --mode)
+      mode="$2"
+      shift 2
+      ;;
     --output)
       output="$2"
       shift 2
@@ -689,6 +901,10 @@ done
 cat > "$output" <<'JSON'
 {"summary":{"files_discovered":1,"files_scanned":1,"files_skipped":0},"lifecycle_paths":[],"findings":[{"severity":"high","category":"high_confidence_misconfiguration","title":"Cookie lacks HttpOnly"}]}
 JSON
+if [[ "$mode" == "enforce" ]]; then
+  echo "sessionscope: enforce mode blocked 1 finding(s)" >&2
+  exit 1
+fi
 "#,
     )
     .expect("fake cli should be written");
@@ -714,7 +930,7 @@ JSON
     assert!(!output.status.success());
     assert!(reports_dir.join("sessionscope.json").exists());
     let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
-    assert!(stderr.contains("found 1 finding"));
+    assert!(stderr.contains("enforce mode blocked 1 finding"));
 }
 
 #[test]

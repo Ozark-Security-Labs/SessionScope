@@ -3,7 +3,7 @@ description: Run SessionScope in GitHub Actions and publish advisory scan report
 
 inputs:
   mode:
-    description: Policy mode. Only advisory is supported initially.
+    description: Policy mode. Use advisory to report only or enforce to fail on matching findings.
     required: false
     default: advisory
   path:
@@ -15,9 +15,29 @@ inputs:
     required: false
     default: markdown,sarif
   fail-on-findings:
-    description: Fail the step when findings are detected.
+    description: Backward-compatible shortcut for mode=enforce with fail-severity=info.
     required: false
     default: "false"
+  fail-severity:
+    description: Minimum severity that fails enforce mode: high, medium, low, or info.
+    required: false
+    default: high
+  fail-category:
+    description: Comma-separated finding categories that fail enforce mode. Empty means all categories.
+    required: false
+    default: ""
+  include-finding-id:
+    description: Comma-separated finding IDs that always fail unless excluded.
+    required: false
+    default: ""
+  exclude-finding-id:
+    description: Comma-separated finding IDs that never fail.
+    required: false
+    default: ""
+  baseline:
+    description: Path to a prior SessionScope JSON report whose finding IDs are suppressed.
+    required: false
+    default: ""
 
 outputs:
   reports-dir:
@@ -47,4 +67,9 @@ runs:
         INPUT_PATH: ${{ inputs.path }}
         INPUT_OUTPUT: ${{ inputs.output }}
         INPUT_FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+        INPUT_FAIL_SEVERITY: ${{ inputs.fail-severity }}
+        INPUT_FAIL_CATEGORY: ${{ inputs.fail-category }}
+        INPUT_INCLUDE_FINDING_ID: ${{ inputs.include-finding-id }}
+        INPUT_EXCLUDE_FINDING_ID: ${{ inputs.exclude-finding-id }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
       run: bash "$GITHUB_ACTION_PATH/scripts/github-action.sh"
