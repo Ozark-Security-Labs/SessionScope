@@ -30,6 +30,10 @@ fn fixture_path(segments: &[&str]) -> std::path::PathBuf {
     )
 }
 
+fn repo_root() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
+}
+
 #[test]
 fn help_succeeds() {
     let output = run_sessionscope(&["--help"]);
@@ -530,6 +534,187 @@ fn scan_sarif_output_writes_file_without_stdout_report() {
             }))
     );
     assert!(!written.contains("PLACEHOLDER_RESET_TOKEN"));
+}
+
+#[test]
+fn scan_github_summary_renders_key_findings() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
+    )
+    .expect("app source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "github-summary",
+    ]);
+
+    assert!(output.status.success());
+    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("## SessionScope"));
+    assert!(stdout.contains("### Key findings"));
+    assert!(stdout.contains("`high_confidence_misconfiguration`"));
+    assert!(!stdout.contains("PLACEHOLDER_RESET_TOKEN"));
+}
+
+#[test]
+fn action_definition_declares_wrapper_contract() {
+    let root = repo_root();
+    let action = fs::read_to_string(root.join("action.yml")).expect("action.yml should exist");
+    let script = root.join("scripts").join("github-action.sh");
+
+    assert!(action.contains("using: composite"));
+    assert!(action.contains("mode:"));
+    assert!(action.contains("output:"));
+    assert!(action.contains("fail-on-findings:"));
+    assert!(action.contains("reports-dir:"));
+    assert!(action.contains("sarif-path:"));
+    assert!(action.contains("bash \"$GITHUB_ACTION_PATH/scripts/github-action.sh\""));
+    assert!(script.exists(), "action runner script should exist");
+}
+
+#[cfg(not(windows))]
+#[test]
+fn github_action_script_writes_outputs_and_summary_with_fake_cli() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let fake_cli = temp.path().join("sessionscope");
+    fs::write(
+        &fake_cli,
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+format=""
+output=""
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --format)
+      format="$2"
+      shift 2
+      ;;
+    --output)
+      output="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+case "$format" in
+  json)
+    cat > "$output" <<'JSON'
+{"summary":{"files_discovered":1,"files_scanned":1,"files_skipped":0},"lifecycle_paths":[],"findings":[{"severity":"high","category":"high_confidence_misconfiguration","title":"Cookie lacks HttpOnly"}]}
+JSON
+    ;;
+  markdown)
+    printf '# SessionScope Report\n' > "$output"
+    ;;
+  sarif)
+    printf '{"version":"2.1.0","runs":[]}\n' > "$output"
+    ;;
+  *)
+    echo "unexpected format $format" >&2
+    exit 1
+    ;;
+esac
+"#,
+    )
+    .expect("fake cli should be written");
+    let mut permissions = fs::metadata(&fake_cli)
+        .expect("fake cli metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_cli, permissions).expect("fake cli should be executable");
+
+    let output_file = temp.path().join("github-output");
+    let step_summary = temp.path().join("step-summary.md");
+    let reports_dir = temp.path().join("reports");
+    let script = repo_root().join("scripts").join("github-action.sh");
+    let output = Command::new("bash")
+        .arg(script)
+        .env("SESSIONSCOPE_BIN", &fake_cli)
+        .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
+        .env("GITHUB_OUTPUT", &output_file)
+        .env("GITHUB_STEP_SUMMARY", &step_summary)
+        .env("INPUT_MODE", "advisory")
+        .env("INPUT_PATH", ".")
+        .env("INPUT_OUTPUT", "markdown,sarif")
+        .env("INPUT_FAIL_ON_FINDINGS", "false")
+        .output()
+        .expect("action script should run");
+
+    assert!(output.status.success());
+    let outputs = fs::read_to_string(output_file).expect("github outputs should be written");
+    assert!(outputs.contains("reports-dir="));
+    assert!(outputs.contains("json-path="));
+    assert!(outputs.contains("markdown-path="));
+    assert!(outputs.contains("sarif-path="));
+    assert!(outputs.contains("summary-path="));
+    let summary = fs::read_to_string(step_summary).expect("step summary should be written");
+    assert!(summary.contains("## SessionScope"));
+    assert!(summary.contains("Cookie lacks HttpOnly"));
+    assert!(reports_dir.join("sessionscope.json").exists());
+    assert!(reports_dir.join("sessionscope.md").exists());
+    assert!(reports_dir.join("sessionscope.sarif").exists());
+}
+
+#[cfg(not(windows))]
+#[test]
+fn github_action_script_can_fail_on_findings_after_writing_reports() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let fake_cli = temp.path().join("sessionscope");
+    fs::write(
+        &fake_cli,
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+output=""
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --output)
+      output="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+cat > "$output" <<'JSON'
+{"summary":{"files_discovered":1,"files_scanned":1,"files_skipped":0},"lifecycle_paths":[],"findings":[{"severity":"high","category":"high_confidence_misconfiguration","title":"Cookie lacks HttpOnly"}]}
+JSON
+"#,
+    )
+    .expect("fake cli should be written");
+    let mut permissions = fs::metadata(&fake_cli)
+        .expect("fake cli metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_cli, permissions).expect("fake cli should be executable");
+
+    let reports_dir = temp.path().join("reports");
+    let script = repo_root().join("scripts").join("github-action.sh");
+    let output = Command::new("bash")
+        .arg(script)
+        .env("SESSIONSCOPE_BIN", &fake_cli)
+        .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
+        .env("INPUT_MODE", "advisory")
+        .env("INPUT_PATH", ".")
+        .env("INPUT_OUTPUT", "json")
+        .env("INPUT_FAIL_ON_FINDINGS", "true")
+        .output()
+        .expect("action script should run");
+
+    assert!(!output.status.success());
+    assert!(reports_dir.join("sessionscope.json").exists());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("found 1 finding"));
 }
 
 #[test]

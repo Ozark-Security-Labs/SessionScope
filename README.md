@@ -259,16 +259,36 @@ version. A compact cookie audit excerpt looks like:
 name: SessionScope
 on: [pull_request]
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   sessionscope:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: bjcorder/SessionScope@v0
+      - id: sessionscope
+        uses: Ozark-Security-Labs/SessionScope@v0
         with:
           mode: advisory
-          output: markdown,sarif
+          path: .
+          output: markdown,json,sarif
+          fail-on-findings: "false"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sessionscope-reports
+          path: ${{ steps.sessionscope.outputs.reports-dir }}
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always() && steps.sessionscope.outputs.sarif-path != ''
+        with:
+          sarif_file: ${{ steps.sessionscope.outputs.sarif-path }}
+          category: sessionscope
 ```
+
+The action runs in advisory mode by default, writes a GitHub Actions step
+summary, and exposes report paths for artifact and SARIF upload steps.
 
 ## Configuration
 

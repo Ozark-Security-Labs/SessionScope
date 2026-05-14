@@ -1,0 +1,50 @@
+name: SessionScope
+description: Run SessionScope in GitHub Actions and publish advisory scan reports.
+
+inputs:
+  mode:
+    description: Policy mode. Only advisory is supported initially.
+    required: false
+    default: advisory
+  path:
+    description: Repository-relative path to scan.
+    required: false
+    default: .
+  output:
+    description: Comma-separated report formats to produce: markdown, json, sarif.
+    required: false
+    default: markdown,sarif
+  fail-on-findings:
+    description: Fail the step when findings are detected.
+    required: false
+    default: "false"
+
+outputs:
+  reports-dir:
+    description: Directory containing generated SessionScope reports.
+    value: ${{ steps.sessionscope.outputs.reports-dir }}
+  markdown-path:
+    description: Path to the generated Markdown report, when requested.
+    value: ${{ steps.sessionscope.outputs.markdown-path }}
+  json-path:
+    description: Path to the generated JSON report, when requested.
+    value: ${{ steps.sessionscope.outputs.json-path }}
+  sarif-path:
+    description: Path to the generated SARIF report, when requested.
+    value: ${{ steps.sessionscope.outputs.sarif-path }}
+  summary-path:
+    description: Path to the generated GitHub summary Markdown.
+    value: ${{ steps.sessionscope.outputs.summary-path }}
+
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+    - id: sessionscope
+      shell: bash
+      env:
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/github-action.sh"
