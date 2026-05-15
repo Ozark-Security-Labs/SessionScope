@@ -156,6 +156,11 @@ PY
 
 validate_requested_formats
 
+# Bash 3.x (macOS default) treats "${arr[@]}" as unbound when arr is empty
+# under `set -u`. Expansions of these arrays below use the
+# `${arr[@]+"${arr[@]}"}` pattern, which expands to nothing when the array
+# is unset/empty and to the quoted elements otherwise. Do not "tidy" those
+# expansions back to the simpler form.
 policy_args=()
 policy_args_without_severity=()
 if [[ -n "$fail_severity" ]]; then
@@ -186,17 +191,17 @@ else
   json_path="$(mktemp "${RUNNER_TEMP:-/tmp}/sessionscope-json.XXXXXX")"
 fi
 
-run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory "${policy_args[@]}" --format json --output "$json_path"
+run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory ${policy_args[@]+"${policy_args[@]}"} --format json --output "$json_path"
 
 markdown_path=""
 sarif_path=""
 if format_requested markdown; then
   markdown_path="$reports_dir/sessionscope.md"
-  run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory "${policy_args[@]}" --format markdown --output "$markdown_path"
+  run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory ${policy_args[@]+"${policy_args[@]}"} --format markdown --output "$markdown_path"
 fi
 if format_requested sarif; then
   sarif_path="$reports_dir/sessionscope.sarif"
-  run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory "${policy_args[@]}" --format sarif --output "$sarif_path"
+  run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory ${policy_args[@]+"${policy_args[@]}"} --format sarif --output "$sarif_path"
   prefix_sarif_uris "$sarif_path" "$scan_path"
 fi
 
@@ -295,12 +300,20 @@ fi
 
 if [[ "$effective_mode" == "enforce" ]]; then
   enforcement_path="$(mktemp "${RUNNER_TEMP:-/tmp}/sessionscope-enforcement.XXXXXX")"
+  # Capture the enforcement status explicitly rather than relying on set -e:
+  # bash 3.x (macOS) does not always propagate a function's nonzero exit
+  # through an active EXIT trap, which would otherwise mask a real failure
+  # here as exit 0.
+  enforcement_status=0
   run_sessionscope scan \
     --path "$scan_path" \
     --no-policy-config \
     --mode enforce \
     --fail-severity "$effective_fail_severity" \
-    "${policy_args_without_severity[@]}" \
+    ${policy_args_without_severity[@]+"${policy_args_without_severity[@]}"} \
     --format json \
-    --output "$enforcement_path"
+    --output "$enforcement_path" || enforcement_status=$?
+  if [[ $enforcement_status -ne 0 ]]; then
+    exit "$enforcement_status"
+  fi
 fi
