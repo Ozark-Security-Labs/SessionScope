@@ -6,7 +6,7 @@ It answers:
 
 > How are authentication tokens issued, stored, validated, refreshed, revoked, and scoped?
 
-SessionScope is intended for product-security teams and developers who need evidence-backed review of session management risks without attacking a live system.
+SessionScope is intended for product-security teams and developers who need evidence-backed review of session management risks without attacking a live system. It is the umbrella capability model for four related review areas: cookie posture, claim and validation evidence, logout and revocation evidence, and refresh-token lifecycle evidence.
 
 ## Problem
 
@@ -41,6 +41,8 @@ Initial targets:
 - Django sessions and signing utilities
 - JWT libraries in TypeScript and Python
 - Cookie-setting APIs
+
+Framework support is evidence-bound and pattern-based. The current supported and unsupported framework API matrix is documented in [`docs/FRAMEWORK_COVERAGE.md`](docs/FRAMEWORK_COVERAGE.md). Provider/library support is also evidence-bound and documented in [`docs/PROVIDER_LIBRARY_COVERAGE.md`](docs/PROVIDER_LIBRARY_COVERAGE.md).
 
 Initial outputs:
 
@@ -83,6 +85,17 @@ Suggested fix:
 
 The versioned inventory and finding schema is documented in
 [`docs/SCHEMA.md`](docs/SCHEMA.md).
+
+### Capability areas
+
+SessionScope groups lifecycle evidence into four user-facing capabilities:
+
+- **Cookie posture**: cookie setting APIs, security attributes, lifetimes, scope, and browser storage signals.
+- **Claims and validation**: JWT issuer, audience, expiry, signature validation, identity-claim inventory, and trust-boundary hints.
+- **Logout and revocation**: logout handlers, cookie clearing, server-side session destruction, token revocation, and provider revoke calls.
+- **Refresh lifecycle**: refresh-token issue, storage, validation, rotation, reuse detection, expiry, and revocation.
+
+These capabilities share one scanner, inventory schema, redaction boundary, classifier pipeline, and reporting model.
 
 ### Lifecycle stages
 
@@ -130,6 +143,7 @@ It should avoid unsupported claims like "authentication bypass" unless proven by
 sessionscope init
 sessionscope scan --path . --format markdown --output sessions.md
 sessionscope scan --path . --include "src/**/*.ts" --exclude "**/*.test.ts" --format json --output sessions.json
+sessionscope scan --path . --format sarif --output sessions.sarif
 sessionscope scan --path . --max-file-size 1000000
 sessionscope cookies --path . --format markdown
 sessionscope claims --path . --format json
@@ -138,7 +152,13 @@ sessionscope refresh --path . --format json
 sessionscope explain FINDING_ID --report sessions.json
 sessionscope baseline create --from sessions.json --output sessionscope-baseline.json
 sessionscope diff --baseline sessionscope-baseline.json --current sessions.json --format markdown
+sessionscope scan --path . --mode enforce --fail-severity high --format json --output sessions.json
+sessionscope explain FINDING_ID
+sessionscope diff main...HEAD
+sessionscope baseline create
 ```
+
+`scan` is the current command for all capability areas. Focused aliases planned in #39 (`sessionscope cookies`, `sessionscope claims`, `sessionscope logout`, and `sessionscope refresh`) should route through the same scanner, detector registry, classifier, redaction, and reporting pipeline rather than becoming separate products or engines.
 
 JSON reports are machine-readable inventories using the documented schema
 version. A compact cookie audit excerpt looks like:
@@ -262,16 +282,52 @@ version. A compact cookie audit excerpt looks like:
 name: SessionScope
 on: [pull_request]
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   sessionscope:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: bjcorder/SessionScope@v0
+      - id: sessionscope
+        uses: Ozark-Security-Labs/SessionScope@v0
         with:
           mode: advisory
-          output: markdown,sarif
+          path: .
+          output: markdown,json,sarif
+          fail-on-findings: "false"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sessionscope-reports
+          path: ${{ steps.sessionscope.outputs.reports-dir }}
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always() && steps.sessionscope.outputs.sarif-path != ''
+        with:
+          sarif_file: ${{ steps.sessionscope.outputs.sarif-path }}
+          category: sessionscope
 ```
+
+The action runs in advisory mode by default, writes a GitHub Actions step
+summary, and exposes report paths for artifact and SARIF upload steps.
+
+To enforce policy in CI, start by keeping `mode: advisory` while uploading
+Markdown, JSON, and SARIF reports as artifacts. After the team has reviewed the
+initial findings, switch to `mode: enforce` with the default `fail-severity:
+high`. Tighten to `medium`, category-specific blocking, or exact finding ID
+includes only after the remaining backlog is understood. The legacy
+`fail-on-findings: "true"` input is still accepted and is equivalent to
+`mode: enforce` with `fail-severity: info`.
+
+Enforce mode writes reports before returning a failing status. A finding blocks
+when it meets the severity threshold and optional category filter, or when its
+ID is listed in `include-finding-id`. IDs listed in `exclude-finding-id` never
+block. `baseline` points to a prior SessionScope JSON report, or any JSON
+object with a top-level `findings` array, and suppresses matching finding IDs.
+This is read-only suppression; creating and maintaining baseline files remains
+separate from `sessionscope baseline create`.
 
 ## Configuration
 
@@ -292,15 +348,21 @@ include = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.py", "**/*.json",
 exclude = ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"]
 formats = ["markdown"]
 mode = "advisory"
+fail_severity = "high"
+fail_categories = []
+include_finding_ids = []
+exclude_finding_ids = []
+# baseline = "sessionscope-baseline.json"
 max_file_size_bytes = 1000000
 framework_hints = ["express", "nextjs", "fastapi", "django"]
-provider_hints = []
+provider_hints = ["authjs", "nextauth", "passport", "oauth", "oidc", "auth0", "okta", "cognito", "supabase", "clerk"]
 ```
 
 Config precedence is:
 
-1. CLI flags such as `--path`, `--include`, `--exclude`, `--format`, and
-   `--max-file-size`
+1. CLI flags such as `--path`, `--include`, `--exclude`, `--format`,
+   `--max-file-size`, `--mode`, `--fail-severity`, `--fail-category`,
+   `--include-finding-id`, `--exclude-finding-id`, and `--baseline`
 2. `sessionscope.toml`
 3. Built-in defaults
 
@@ -311,18 +373,29 @@ such as env files and private-key material before source loading.
 
 ## Potential checks
 
+Cookie posture:
+
 - Cookie missing `HttpOnly`
 - Cookie missing `Secure`
 - Unsafe or review-required cookie posture, including excessive lifetime, broad Domain/Path scope, and `SameSite=None` handling
+
+Claims and validation:
+
 - JWT verification without issuer validation
 - JWT verification without audience validation
 - Tokens issued without explicit expiry
-- Refresh tokens without rotation evidence
-- Logout without revocation evidence
-- Password reset tokens without expiry or single-use evidence
-- Session fixation risk signals
 - Token accepted from query parameters
 - Review-required token reuse across services, environments, or trust boundaries
+
+Logout and revocation:
+
+- Logout without revocation evidence
+- Session fixation risk signals around authentication transitions
+
+Refresh lifecycle:
+
+- Refresh tokens without rotation evidence
+- Password reset tokens without expiry or single-use evidence
 
 ## Non-goals
 

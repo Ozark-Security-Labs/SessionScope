@@ -6,6 +6,8 @@ use std::path::Path;
 use serde::Deserialize;
 use sessionscope_reporters::ReportFormat;
 
+use crate::enforcement::{parse_category, parse_severity};
+
 pub const CONFIG_FILE_NAME: &str = "sessionscope.toml";
 
 pub const DEFAULT_CONFIG: &str = concat!(
@@ -27,14 +29,19 @@ pub const DEFAULT_CONFIG: &str = concat!(
     "# v0.1.0 uses the first configured format unless --format is passed.\n",
     "formats = [\"markdown\"]\n",
     "\n",
-    "# `enforce` is accepted as a future policy placeholder; current scans remain advisory.\n",
+    "# Policy defaults keep scans advisory. Use enforce mode in CI after reviewing reports.\n",
     "mode = \"advisory\"\n",
+    "fail_severity = \"high\"\n",
+    "fail_categories = []\n",
+    "include_finding_ids = []\n",
+    "exclude_finding_ids = []\n",
+    "# baseline = \"sessionscope-baseline.json\"\n",
     "\n",
     "max_file_size_bytes = 1000000\n",
     "\n",
     "# Hints are parsed for future detectors and have no runtime effect yet.\n",
     "framework_hints = [\"express\", \"nextjs\", \"fastapi\", \"django\"]\n",
-    "provider_hints = []\n",
+    "provider_hints = [\"authjs\", \"nextauth\", \"passport\", \"oauth\", \"oidc\", \"auth0\", \"okta\", \"cognito\", \"supabase\", \"clerk\"]\n",
 );
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -45,6 +52,11 @@ pub struct ProjectConfig {
     pub exclude: Option<Vec<String>>,
     pub formats: Option<Vec<String>>,
     pub mode: Option<PolicyMode>,
+    pub fail_severity: Option<String>,
+    pub fail_categories: Option<Vec<String>>,
+    pub include_finding_ids: Option<Vec<String>>,
+    pub exclude_finding_ids: Option<Vec<String>>,
+    pub baseline: Option<String>,
     pub max_file_size_bytes: Option<u64>,
     pub framework_hints: Option<Vec<String>>,
     pub provider_hints: Option<Vec<String>>,
@@ -84,6 +96,11 @@ impl ProjectConfig {
             exclude: None,
             formats: None,
             mode: None,
+            fail_severity: None,
+            fail_categories: None,
+            include_finding_ids: None,
+            exclude_finding_ids: None,
+            baseline: None,
             max_file_size_bytes: None,
             framework_hints: None,
             provider_hints: None,
@@ -138,7 +155,6 @@ impl ProjectConfig {
     fn validate(&self) -> Result<(), ConfigError> {
         validate_non_empty_list(self.scan_paths.as_ref(), "scan_paths")?;
         validate_non_empty_list(self.formats.as_ref(), "formats")?;
-
         if self.max_file_size_bytes == Some(0) {
             return Err(ConfigError::Validation(
                 "max_file_size_bytes must be greater than zero".to_string(),
@@ -152,6 +168,16 @@ impl ProjectConfig {
                         "unsupported format in {CONFIG_FILE_NAME}; expected markdown, json, sarif, or github-summary"
                     ))
                 })?;
+            }
+        }
+
+        if let Some(severity) = &self.fail_severity {
+            parse_severity(severity).map_err(ConfigError::Validation)?;
+        }
+
+        if let Some(categories) = &self.fail_categories {
+            for category in categories {
+                parse_category(category).map_err(ConfigError::Validation)?;
             }
         }
 
@@ -207,6 +233,13 @@ mod tests {
 
         assert_eq!(config.first_scan_path(), Some("."));
         assert_eq!(config.mode, Some(PolicyMode::Advisory));
+        assert_eq!(config.fail_severity.as_deref(), Some("high"));
+        assert!(
+            config
+                .fail_categories
+                .as_ref()
+                .is_some_and(|values| values.is_empty())
+        );
         assert_eq!(config.max_file_size_bytes, Some(1_000_000));
         assert!(
             config
@@ -243,6 +276,33 @@ mod tests {
         let enforce = ProjectConfig::parse("mode = \"enforce\"\nformats = [\"markdown\"]\n")
             .expect("enforce mode should parse");
         assert_eq!(enforce.mode, Some(PolicyMode::Enforce));
+
+        let enforcement = ProjectConfig::parse(concat!(
+            "mode = \"enforce\"\n",
+            "fail_severity = \"medium\"\n",
+            "fail_categories = [\"high_confidence_misconfiguration\"]\n",
+            "include_finding_ids = [\"finding_one\"]\n",
+            "exclude_finding_ids = [\"finding_two\"]\n",
+            "baseline = \"sessionscope-baseline.json\"\n",
+        ))
+        .expect("enforcement config should parse");
+        assert_eq!(enforcement.fail_severity.as_deref(), Some("medium"));
+        assert_eq!(
+            enforcement.fail_categories.as_ref().unwrap(),
+            &vec!["high_confidence_misconfiguration".to_string()]
+        );
+        assert_eq!(
+            enforcement.include_finding_ids.as_ref().unwrap(),
+            &vec!["finding_one".to_string()]
+        );
+        assert_eq!(
+            enforcement.exclude_finding_ids.as_ref().unwrap(),
+            &vec!["finding_two".to_string()]
+        );
+        assert_eq!(
+            enforcement.baseline.as_deref(),
+            Some("sessionscope-baseline.json")
+        );
     }
 
     #[test]
@@ -251,6 +311,8 @@ mod tests {
         assert!(ProjectConfig::parse("scan_paths = []\n").is_err());
         assert!(ProjectConfig::parse("formats = []\n").is_err());
         assert!(ProjectConfig::parse("formats = [\"xml\"]\n").is_err());
+        assert!(ProjectConfig::parse("fail_severity = \"critical\"\n").is_err());
+        assert!(ProjectConfig::parse("fail_categories = [\"unknown\"]\n").is_err());
         assert!(ProjectConfig::parse("max_file_size_bytes = 0\n").is_err());
         assert!(ProjectConfig::parse("unexpected = true\n").is_err());
     }

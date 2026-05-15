@@ -345,4 +345,14 @@ mod tests {
             assert!(!output.contains(SECRET), "{format:?} leaked a secret");
         }
     }
+
+    #[test]
+    fn github_summary_includes_sanitized_key_findings() {
+        let output = render(&unsafe_report(), ReportFormat::GithubSummary);
+
+        assert!(output.contains("### Key findings"));
+        assert!(output.contains("`high` `high_confidence_misconfiguration`"));
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains(SECRET));
+    }
 }

@@ -1,0 +1,15 @@
+{
+  "fixture_id": "fastapi.security-dependencies",
+  "framework": "fastapi",
+  "source_files": ["app.py"],
+  "expected_artifacts": ["session_cookie:session", "refresh_cookie:refresh_token", "access_jwt"],
+  "expected_lifecycle_stages": ["issue", "store", "transmit", "validate", "refresh", "revoke", "expire"],
+  "expected_findings": [
+    "fastapi_security_dependency_evidence_present",
+    "api_key_cookie_evidence_present",
+    "jwt_decode_validation_evidence_present",
+    "refresh_revocation_evidence_present",
+    "logout_cookie_delete_evidence_present"
+  ],
+  "notes": "Covers FastAPI Depends/Security auth dependencies, OAuth2PasswordBearer, APIKeyCookie, response cookies, JWT validation, refresh revocation, and logout deletion."
+}
