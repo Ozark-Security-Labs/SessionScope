@@ -391,6 +391,7 @@ dependencies = [
  "sessionscope-classifier",
  "sessionscope-core",
  "sessionscope-detectors",
+ "sessionscope-model",
  "sessionscope-reporters",
  "tempfile",
  "toml",

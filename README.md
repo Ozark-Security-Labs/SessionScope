@@ -143,7 +143,9 @@ It should avoid unsupported claims like "authentication bypass" unless proven by
 sessionscope init
 sessionscope scan --path . --format markdown --output sessions.md
 sessionscope scan --path . --include "src/**/*.ts" --exclude "**/*.test.ts" --format json --output sessions.json
+sessionscope scan --path . --format sarif --output sessions.sarif
 sessionscope scan --path . --max-file-size 1000000
+sessionscope scan --path . --mode enforce --fail-severity high --format json --output sessions.json
 sessionscope explain FINDING_ID
 sessionscope diff main...HEAD
 sessionscope baseline create
@@ -273,16 +275,52 @@ version. A compact cookie audit excerpt looks like:
 name: SessionScope
 on: [pull_request]
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   sessionscope:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: bjcorder/SessionScope@v0
+      - id: sessionscope
+        uses: Ozark-Security-Labs/SessionScope@v0
         with:
           mode: advisory
-          output: markdown,sarif
+          path: .
+          output: markdown,json,sarif
+          fail-on-findings: "false"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sessionscope-reports
+          path: ${{ steps.sessionscope.outputs.reports-dir }}
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always() && steps.sessionscope.outputs.sarif-path != ''
+        with:
+          sarif_file: ${{ steps.sessionscope.outputs.sarif-path }}
+          category: sessionscope
 ```
+
+The action runs in advisory mode by default, writes a GitHub Actions step
+summary, and exposes report paths for artifact and SARIF upload steps.
+
+To enforce policy in CI, start by keeping `mode: advisory` while uploading
+Markdown, JSON, and SARIF reports as artifacts. After the team has reviewed the
+initial findings, switch to `mode: enforce` with the default `fail-severity:
+high`. Tighten to `medium`, category-specific blocking, or exact finding ID
+includes only after the remaining backlog is understood. The legacy
+`fail-on-findings: "true"` input is still accepted and is equivalent to
+`mode: enforce` with `fail-severity: info`.
+
+Enforce mode writes reports before returning a failing status. A finding blocks
+when it meets the severity threshold and optional category filter, or when its
+ID is listed in `include-finding-id`. IDs listed in `exclude-finding-id` never
+block. `baseline` points to a prior SessionScope JSON report, or any JSON
+object with a top-level `findings` array, and suppresses matching finding IDs.
+This is read-only suppression; creating and maintaining baseline files remains
+separate from `sessionscope baseline create`.
 
 ## Configuration
 
@@ -303,6 +341,11 @@ include = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.py", "**/*.json",
 exclude = ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"]
 formats = ["markdown"]
 mode = "advisory"
+fail_severity = "high"
+fail_categories = []
+include_finding_ids = []
+exclude_finding_ids = []
+# baseline = "sessionscope-baseline.json"
 max_file_size_bytes = 1000000
 framework_hints = ["express", "nextjs", "fastapi", "django"]
 provider_hints = ["authjs", "nextauth", "passport", "oauth", "oidc", "auth0", "okta", "cognito", "supabase", "clerk"]
@@ -310,8 +353,9 @@ provider_hints = ["authjs", "nextauth", "passport", "oauth", "oidc", "auth0", "o
 
 Config precedence is:
 
-1. CLI flags such as `--path`, `--include`, `--exclude`, `--format`, and
-   `--max-file-size`
+1. CLI flags such as `--path`, `--include`, `--exclude`, `--format`,
+   `--max-file-size`, `--mode`, `--fail-severity`, `--fail-category`,
+   `--include-finding-id`, `--exclude-finding-id`, and `--baseline`
 2. `sessionscope.toml`
 3. Built-in defaults
 

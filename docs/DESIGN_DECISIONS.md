@@ -262,3 +262,29 @@ Rules:
   `dynamic_review_required` or `framework_default_assumed`.
 - Browser storage of session-like tokens should reuse token storage evidence and
   must not introduce raw token or cookie values into reports.
+
+## SS-DEC-010: CI Enforcement Is Explicit And Conservative
+
+SessionScope reports should be useful before they become merge blockers.
+Advisory mode remains the default for CLI and GitHub Action usage. Enforce mode
+is opt-in and evaluates already-rendered findings after reports have been
+written.
+
+Rules:
+
+- `mode = "advisory"` exits successfully when scanning and report writing
+  succeed, even if findings are present.
+- `mode = "enforce"` exits nonzero only for findings that match the configured
+  policy.
+- The default enforcement threshold is `high` severity across all categories.
+  Teams can tighten to `medium`, `low`, or `info` after reviewing advisory
+  output.
+- Category filters use model JSON names, such as
+  `high_confidence_misconfiguration` and `dynamic_review_required`.
+- Exact finding IDs in `include_finding_ids` block even when they are present in
+  a baseline. Exact IDs in `exclude_finding_ids` never block.
+- Baseline support is read-only suppression of finding IDs from an existing
+  JSON report with a top-level `findings` array. Full baseline creation and
+  lifecycle management remain separate.
+- Missing or malformed baseline files are configuration errors whenever a
+  baseline is explicitly supplied.

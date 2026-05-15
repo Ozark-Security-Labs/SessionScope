@@ -343,6 +343,10 @@ JSON report output serializes the full `ScanReport` model. Reporters should not
 receive raw secret-bearing source snippets, and output formats should continue
 escaping or formatting defensively.
 
+SARIF output is a rendered presentation format over the sanitized `ScanReport`.
+It does not define additional model fields or change the persisted inventory
+schema.
+
 Reports must not rely on redaction to fix unsafe identifiers. Stable artifact,
 evidence, and finding IDs should always be derived from non-secret facts rather
 than token values, private keys, bearer strings, cookie values, or runtime
