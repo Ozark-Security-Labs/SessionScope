@@ -132,8 +132,8 @@ sessionscope scan --path . --format markdown --output sessions.md
 sessionscope scan --path . --include "src/**/*.ts" --exclude "**/*.test.ts" --format json --output sessions.json
 sessionscope scan --path . --max-file-size 1000000
 sessionscope explain FINDING_ID
-sessionscope diff main...HEAD
-sessionscope baseline create
+sessionscope baseline create --from sessions.json --output sessionscope-baseline.json
+sessionscope diff --baseline sessionscope-baseline.json --current sessions.json --format markdown
 ```
 
 JSON reports are machine-readable inventories using the documented schema

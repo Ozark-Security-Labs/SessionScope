@@ -86,6 +86,216 @@ fn explain_scaffold_does_not_echo_finding_id() {
 }
 
 #[test]
+fn baseline_create_writes_versioned_baseline_from_scan_report() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("scan.json");
+    let baseline_path = temp.path().join("baseline.json");
+    fs::write(
+        &report_path,
+        scan_report_json(&[finding_json(
+            "finding_existing",
+            "Existing finding",
+            "description",
+            "evidence_existing",
+            7,
+        )])
+        .to_string(),
+    )
+    .expect("scan report should be written");
+
+    let output = run_sessionscope(&[
+        "baseline",
+        "create",
+        "--from",
+        report_path.to_str().expect("report path should be UTF-8"),
+        "--output",
+        baseline_path
+            .to_str()
+            .expect("baseline path should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    assert!(output.stdout.is_empty());
+    let baseline = fs::read_to_string(baseline_path).expect("baseline should be written");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&baseline).expect("baseline JSON should parse");
+    assert_eq!(parsed["schema_version"], "0.1.0");
+    assert_eq!(parsed["report_schema_version"], "0.5.0");
+    assert_eq!(parsed["findings"][0]["id"], "finding_existing");
+    assert!(
+        parsed["findings"][0]["semantic_fingerprint"]
+            .as_str()
+            .is_some_and(|value| value.starts_with("fingerprint_"))
+    );
+}
+
+#[test]
+fn diff_json_classifies_incremental_finding_changes() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let baseline_report_path = temp.path().join("baseline-scan.json");
+    let baseline_path = temp.path().join("baseline.json");
+    let current_report_path = temp.path().join("current-scan.json");
+
+    fs::write(
+        &baseline_report_path,
+        scan_report_json(&[
+            finding_json(
+                "finding_moved_old",
+                "Moved finding",
+                "description",
+                "evidence_moved_old",
+                7,
+            ),
+            finding_json(
+                "finding_resolved",
+                "Resolved finding",
+                "description",
+                "evidence_resolved",
+                11,
+            ),
+        ])
+        .to_string(),
+    )
+    .expect("baseline scan report should be written");
+    fs::write(
+        &current_report_path,
+        scan_report_json(&[
+            finding_json(
+                "finding_moved_new",
+                "Moved finding",
+                "description",
+                "evidence_moved_new",
+                17,
+            ),
+            finding_json(
+                "finding_new",
+                "New finding",
+                "description",
+                "evidence_new",
+                19,
+            ),
+        ])
+        .to_string(),
+    )
+    .expect("current scan report should be written");
+
+    let baseline_output = run_sessionscope(&[
+        "baseline",
+        "create",
+        "--from",
+        baseline_report_path
+            .to_str()
+            .expect("baseline report path should be UTF-8"),
+        "--output",
+        baseline_path
+            .to_str()
+            .expect("baseline path should be UTF-8"),
+    ]);
+    assert!(baseline_output.status.success());
+
+    let diff_output = run_sessionscope(&[
+        "diff",
+        "--baseline",
+        baseline_path
+            .to_str()
+            .expect("baseline path should be UTF-8"),
+        "--current",
+        current_report_path
+            .to_str()
+            .expect("current report path should be UTF-8"),
+        "--format",
+        "json",
+    ]);
+
+    assert!(diff_output.status.success());
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&diff_output.stdout).expect("diff JSON should parse");
+    assert_eq!(parsed["summary"]["moved"], 1);
+    assert_eq!(parsed["summary"]["new"], 1);
+    assert_eq!(parsed["summary"]["resolved"], 1);
+    assert!(
+        parsed["changes"]
+            .as_array()
+            .expect("changes")
+            .iter()
+            .any(|change| change["kind"] == "moved"
+                && change["baseline"]["id"] == "finding_moved_old"
+                && change["current"]["id"] == "finding_moved_new")
+    );
+}
+
+#[test]
+fn diff_markdown_renders_reviewer_summary() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("scan.json");
+    let baseline_path = temp.path().join("baseline.json");
+    fs::write(
+        &report_path,
+        scan_report_json(&[finding_json(
+            "finding_existing",
+            "Existing finding",
+            "description",
+            "evidence_existing",
+            7,
+        )])
+        .to_string(),
+    )
+    .expect("scan report should be written");
+
+    let baseline_output = run_sessionscope(&[
+        "baseline",
+        "create",
+        "--from",
+        report_path.to_str().expect("report path should be UTF-8"),
+        "--output",
+        baseline_path
+            .to_str()
+            .expect("baseline path should be UTF-8"),
+    ]);
+    assert!(baseline_output.status.success());
+
+    let diff_output = run_sessionscope(&[
+        "diff",
+        "--baseline",
+        baseline_path
+            .to_str()
+            .expect("baseline path should be UTF-8"),
+        "--current",
+        report_path.to_str().expect("report path should be UTF-8"),
+    ]);
+
+    assert!(diff_output.status.success());
+    let stdout = str::from_utf8(&diff_output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("# SessionScope Diff"));
+    assert!(stdout.contains("## Summary"));
+    assert!(stdout.contains("- Unchanged: 1"));
+    assert!(stdout.contains("Existing finding"));
+}
+
+#[test]
+fn baseline_parse_error_does_not_echo_secret_like_report_contents() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("scan.json");
+    fs::write(
+        &report_path,
+        "{\"secret\":\"PLACEHOLDER_SECRET_DO_NOT_USE\",",
+    )
+    .expect("invalid scan report should be written");
+
+    let output = run_sessionscope(&[
+        "baseline",
+        "create",
+        "--from",
+        report_path.to_str().expect("report path should be UTF-8"),
+    ]);
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("failed to parse scan report"));
+    assert!(!stderr.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+}
+
+#[test]
 fn scan_accepts_include_exclude_and_max_file_size() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     fs::create_dir_all(temp.path().join("src")).expect("src dir should be created");
@@ -681,4 +891,75 @@ fn scan_invalid_toml_error_does_not_echo_secret_values() {
     assert!(stderr.contains("line 1"));
     assert!(!stderr.contains("client_secret"));
     assert!(!stderr.contains("super-secret-value"));
+}
+
+fn scan_report_json(findings: &[serde_json::Value]) -> serde_json::Value {
+    let evidence = findings
+        .iter()
+        .map(|finding| {
+            let evidence_id = finding["evidence_ids"][0]
+                .as_str()
+                .expect("test finding should contain evidence ID");
+            let line = finding["test_line"]
+                .as_u64()
+                .expect("test finding should contain line");
+            serde_json::json!({
+                "id": evidence_id,
+                "lifecycle_stage": "validate",
+                "location": {
+                    "path": "src/auth.ts",
+                    "line": line,
+                    "column": 1
+                },
+                "detector_id": "test.detector",
+                "confidence": "high",
+                "excerpt": format!("evidence for {}", finding["title"].as_str().expect("title")),
+                "dynamic": false,
+                "framework_default": false
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut clean_findings = findings.to_vec();
+    for finding in &mut clean_findings {
+        finding
+            .as_object_mut()
+            .expect("finding should be object")
+            .remove("test_line");
+    }
+
+    serde_json::json!({
+        "schema_version": "0.5.0",
+        "summary": {
+            "files_discovered": 1,
+            "files_scanned": 1,
+            "files_skipped": 0,
+            "diagnostics": []
+        },
+        "files": [],
+        "artifacts": [],
+        "evidence": evidence,
+        "lifecycle_paths": [],
+        "findings": clean_findings
+    })
+}
+
+fn finding_json(
+    id: &str,
+    title: &str,
+    description: &str,
+    evidence_id: &str,
+    line: u64,
+) -> serde_json::Value {
+    serde_json::json!({
+        "id": id,
+        "category": "lifecycle_gap",
+        "severity": "medium",
+        "artifact_ids": [],
+        "evidence_ids": [evidence_id],
+        "title": title,
+        "description": description,
+        "suggested_fix": null,
+        "reviewer_question": null,
+        "test_line": line
+    })
 }

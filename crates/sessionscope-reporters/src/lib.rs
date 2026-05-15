@@ -1,3 +1,4 @@
+mod diff;
 mod github_summary;
 mod json;
 mod markdown;
@@ -56,6 +57,14 @@ pub fn render(report: &ScanReport, format: ReportFormat) -> String {
         ReportFormat::Sarif => sarif::render(&report),
         ReportFormat::GithubSummary => github_summary::render(&report),
     }
+}
+
+pub fn render_diff_json(report: &sessionscope_model::DiffReport) -> String {
+    diff::render_json(report)
+}
+
+pub fn render_diff_markdown(report: &sessionscope_model::DiffReport) -> String {
+    diff::render_markdown(report)
 }
 
 fn canonicalize_report(report: &mut ScanReport) {

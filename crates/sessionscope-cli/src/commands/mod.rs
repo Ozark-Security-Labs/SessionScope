@@ -37,8 +37,8 @@ fn print_help() {
         "  sessionscope init [--force]\n",
         "  sessionscope scan [--path PATH] [--include PATTERN] [--exclude PATTERN] [--max-file-size BYTES] [--format FORMAT] [--output PATH]\n",
         "  sessionscope explain FINDING_ID\n",
-        "  sessionscope baseline create\n",
-        "  sessionscope diff <base...head>\n",
+        "  sessionscope baseline create --from REPORT.json [--output BASELINE.json]\n",
+        "  sessionscope diff --baseline BASELINE.json --current REPORT.json [--format json|markdown] [--output PATH]\n",
         "  sessionscope version\n\n",
         "Scan filters use repository-relative glob patterns. --include and --exclude may be repeated or comma-separated.\n\n",
         "Formats: markdown, json, sarif, github-summary\n"

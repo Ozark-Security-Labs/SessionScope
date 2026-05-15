@@ -146,8 +146,8 @@ Initial commands:
 - `sessionscope init`
 - `sessionscope scan`
 - `sessionscope explain FINDING_ID`
-- `sessionscope baseline create`
-- `sessionscope diff <base...head>`
+- `sessionscope baseline create --from REPORT.json --output BASELINE.json`
+- `sessionscope diff --baseline BASELINE.json --current REPORT.json`
 - `sessionscope version`
 
 ### `sessionscope-core`
