@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use sessionscope_classifier::classify;
+use sessionscope_core::redaction::sanitized_report;
 use sessionscope_core::{ScanConfig, scan_path};
 use sessionscope_detectors::DetectorRegistry;
 use sessionscope_reporters::{ReportFormat, render};
@@ -28,6 +29,7 @@ pub fn run(args: &[String]) -> CommandResult {
     let mut include_finding_ids = Vec::new();
     let mut exclude_finding_ids = Vec::new();
     let mut baseline = None;
+    let mut use_policy_config = true;
     let mut index = 0;
 
     while index < args.len() {
@@ -100,6 +102,9 @@ pub fn run(args: &[String]) -> CommandResult {
                 index += 1;
                 baseline = Some(PathBuf::from(required_value(args, index, "--baseline")?));
             }
+            "--no-policy-config" => {
+                use_policy_config = false;
+            }
             _ => return Err("unknown scan option; run `sessionscope --help`".into()),
         }
 
@@ -137,12 +142,15 @@ pub fn run(args: &[String]) -> CommandResult {
 
     let enforcement = build_enforcement_options(
         &project_config,
-        mode,
-        fail_severity,
-        fail_categories,
-        include_finding_ids,
-        exclude_finding_ids,
-        baseline,
+        EnforcementArgs {
+            mode,
+            fail_severity,
+            fail_categories,
+            include_finding_ids,
+            exclude_finding_ids,
+            baseline,
+            use_policy_config,
+        },
     )?;
 
     let registry = Arc::new(DetectorRegistry::builtin());
@@ -160,7 +168,8 @@ pub fn run(args: &[String]) -> CommandResult {
         print!("{rendered}");
     }
 
-    let enforcement_result = enforcement.evaluate(&report)?;
+    let enforcement_report = sanitized_report(&report);
+    let enforcement_result = enforcement.evaluate(&enforcement_report)?;
     if enforcement.mode == EnforcementMode::Enforce
         && !enforcement_result.blocking_findings.is_empty()
     {
@@ -170,66 +179,73 @@ pub fn run(args: &[String]) -> CommandResult {
     Ok(())
 }
 
-fn build_enforcement_options(
-    project_config: &ProjectConfig,
+struct EnforcementArgs {
     mode: Option<EnforcementMode>,
     fail_severity: Option<sessionscope_model::Severity>,
     fail_categories: Vec<sessionscope_model::FindingCategory>,
     include_finding_ids: Vec<String>,
     exclude_finding_ids: Vec<String>,
     baseline: Option<PathBuf>,
+    use_policy_config: bool,
+}
+
+fn build_enforcement_options(
+    project_config: &ProjectConfig,
+    args: EnforcementArgs,
 ) -> Result<EnforcementOptions, String> {
     let mut enforcement = EnforcementOptions::default();
 
-    if let Some(config_mode) = project_config.mode {
-        enforcement.mode = match config_mode {
-            crate::project_config::PolicyMode::Advisory => EnforcementMode::Advisory,
-            crate::project_config::PolicyMode::Enforce => EnforcementMode::Enforce,
-        };
-    }
-    if let Some(config_fail_severity) = &project_config.fail_severity {
-        enforcement.fail_severity = parse_severity(config_fail_severity)?;
-    }
-    if let Some(config_fail_categories) = &project_config.fail_categories
-        && !config_fail_categories.is_empty()
-    {
-        enforcement.fail_categories = Some(
-            config_fail_categories
-                .iter()
-                .map(|category| parse_category(category))
-                .collect::<Result<BTreeSet<_>, _>>()?,
-        );
-    }
-    if let Some(config_include_ids) = &project_config.include_finding_ids {
-        enforcement
-            .include_finding_ids
-            .extend(config_include_ids.iter().cloned());
-    }
-    if let Some(config_exclude_ids) = &project_config.exclude_finding_ids {
-        enforcement
-            .exclude_finding_ids
-            .extend(config_exclude_ids.iter().cloned());
-    }
-    if let Some(config_baseline) = &project_config.baseline {
-        enforcement.baseline = Some(PathBuf::from(config_baseline));
+    if args.use_policy_config {
+        if let Some(config_mode) = project_config.mode {
+            enforcement.mode = match config_mode {
+                crate::project_config::PolicyMode::Advisory => EnforcementMode::Advisory,
+                crate::project_config::PolicyMode::Enforce => EnforcementMode::Enforce,
+            };
+        }
+        if let Some(config_fail_severity) = &project_config.fail_severity {
+            enforcement.fail_severity = parse_severity(config_fail_severity)?;
+        }
+        if let Some(config_fail_categories) = &project_config.fail_categories
+            && !config_fail_categories.is_empty()
+        {
+            enforcement.fail_categories = Some(
+                config_fail_categories
+                    .iter()
+                    .map(|category| parse_category(category))
+                    .collect::<Result<BTreeSet<_>, _>>()?,
+            );
+        }
+        if let Some(config_include_ids) = &project_config.include_finding_ids {
+            enforcement
+                .include_finding_ids
+                .extend(config_include_ids.iter().cloned());
+        }
+        if let Some(config_exclude_ids) = &project_config.exclude_finding_ids {
+            enforcement
+                .exclude_finding_ids
+                .extend(config_exclude_ids.iter().cloned());
+        }
+        if let Some(config_baseline) = &project_config.baseline {
+            enforcement.baseline = Some(PathBuf::from(config_baseline));
+        }
     }
 
-    if let Some(mode) = mode {
+    if let Some(mode) = args.mode {
         enforcement.mode = mode;
     }
-    if let Some(fail_severity) = fail_severity {
+    if let Some(fail_severity) = args.fail_severity {
         enforcement.fail_severity = fail_severity;
     }
-    if !fail_categories.is_empty() {
-        enforcement.fail_categories = Some(fail_categories.into_iter().collect());
+    if !args.fail_categories.is_empty() {
+        enforcement.fail_categories = Some(args.fail_categories.into_iter().collect());
     }
-    if !include_finding_ids.is_empty() {
-        enforcement.include_finding_ids = include_finding_ids.into_iter().collect();
+    if !args.include_finding_ids.is_empty() {
+        enforcement.include_finding_ids = args.include_finding_ids.into_iter().collect();
     }
-    if !exclude_finding_ids.is_empty() {
-        enforcement.exclude_finding_ids = exclude_finding_ids.into_iter().collect();
+    if !args.exclude_finding_ids.is_empty() {
+        enforcement.exclude_finding_ids = args.exclude_finding_ids.into_iter().collect();
     }
-    if let Some(baseline) = baseline {
+    if let Some(baseline) = args.baseline {
         enforcement.baseline = Some(baseline);
     }
 

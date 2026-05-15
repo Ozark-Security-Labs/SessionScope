@@ -75,8 +75,67 @@ write_output() {
   local name="$1"
   local value="$2"
   if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-    printf '%s=%s\n' "$name" "$value" >> "$GITHUB_OUTPUT"
+    local delimiter="sessionscope_${name}_$$_${RANDOM}"
+    {
+      printf '%s<<%s\n' "$name" "$delimiter"
+      printf '%s\n' "$value"
+      printf '%s\n' "$delimiter"
+    } >> "$GITHUB_OUTPUT"
   fi
+}
+
+remove_internal_json() {
+  if [[ "${json_requested:-false}" != "true" && -n "${json_path:-}" ]]; then
+    rm -f "$json_path"
+  fi
+}
+
+prefix_sarif_uris() {
+  local sarif_file="$1"
+  local prefix="$2"
+  python3 - "$sarif_file" "$prefix" <<'PY'
+import json
+import sys
+from pathlib import PurePosixPath
+
+sarif_path = sys.argv[1]
+raw_prefix = sys.argv[2].replace("\\", "/")
+
+if raw_prefix.startswith("/"):
+    sys.exit(0)
+
+prefix_parts = [part for part in raw_prefix.split("/") if part not in ("", ".")]
+if not prefix_parts:
+    sys.exit(0)
+
+prefix = str(PurePosixPath(*prefix_parts))
+
+with open(sarif_path, encoding="utf-8") as handle:
+    sarif = json.load(handle)
+
+for run in sarif.get("runs", []):
+    for result in run.get("results", []):
+        for location in result.get("locations", []):
+            artifact = (
+                location
+                .get("physicalLocation", {})
+                .get("artifactLocation", {})
+            )
+            uri = artifact.get("uri")
+            if (
+                isinstance(uri, str)
+                and uri
+                and not uri.startswith("/")
+                and "://" not in uri
+                and uri != prefix
+                and not uri.startswith(prefix + "/")
+            ):
+                artifact["uri"] = f"{prefix}/{uri}"
+
+with open(sarif_path, "w", encoding="utf-8") as handle:
+    json.dump(sarif, handle, indent=2)
+    handle.write("\n")
+PY
 }
 
 validate_requested_formats
@@ -103,25 +162,30 @@ if [[ -n "$baseline" ]]; then
   policy_args_without_severity+=(--baseline "$baseline")
 fi
 
-json_path="$reports_dir/sessionscope.json"
-run_sessionscope scan --path "$scan_path" --mode advisory "${policy_args[@]}" --format json --output "$json_path"
+json_requested=false
+if format_requested json; then
+  json_requested=true
+  json_path="$reports_dir/sessionscope.json"
+else
+  json_path="$(mktemp "${RUNNER_TEMP:-/tmp}/sessionscope-json.XXXXXX")"
+  trap remove_internal_json EXIT
+fi
+
+run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory "${policy_args[@]}" --format json --output "$json_path"
 
 markdown_path=""
 sarif_path=""
 if format_requested markdown; then
   markdown_path="$reports_dir/sessionscope.md"
-  run_sessionscope scan --path "$scan_path" --mode advisory "${policy_args[@]}" --format markdown --output "$markdown_path"
-fi
-if format_requested json; then
-  # The internal JSON report is also the requested JSON artifact.
-  :
+  run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory "${policy_args[@]}" --format markdown --output "$markdown_path"
 fi
 if format_requested sarif; then
   sarif_path="$reports_dir/sessionscope.sarif"
-  run_sessionscope scan --path "$scan_path" --mode advisory "${policy_args[@]}" --format sarif --output "$sarif_path"
+  run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory "${policy_args[@]}" --format sarif --output "$sarif_path"
+  prefix_sarif_uris "$sarif_path" "$scan_path"
 fi
 
-python3 - "$json_path" "$summary_path" "$reports_dir" "$markdown_path" "$sarif_path" <<'PY'
+python3 - "$json_path" "$summary_path" "$reports_dir" "$markdown_path" "$sarif_path" "$json_requested" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -131,6 +195,7 @@ summary_path = Path(sys.argv[2])
 reports_dir = sys.argv[3]
 markdown_path = sys.argv[4]
 sarif_path = sys.argv[5]
+json_requested = sys.argv[6] == "true"
 
 report = json.loads(json_path.read_text())
 summary = report.get("summary", {})
@@ -177,13 +242,14 @@ lines.extend([
     "",
     "### Reports",
     "",
-    f"- Reports directory: `{reports_dir}`",
-    f"- JSON: `{json_path}`",
+    f"- Reports directory: `{inline_text(reports_dir)}`",
 ])
+if json_requested:
+    lines.append(f"- JSON: `{inline_text(json_path)}`")
 if markdown_path:
-    lines.append(f"- Markdown: `{markdown_path}`")
+    lines.append(f"- Markdown: `{inline_text(markdown_path)}`")
 if sarif_path:
-    lines.append(f"- SARIF: `{sarif_path}`")
+    lines.append(f"- SARIF: `{inline_text(sarif_path)}`")
 lines.append("")
 
 summary_path.write_text("\n".join(lines))
@@ -194,8 +260,10 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 fi
 
 write_output reports-dir "$reports_dir"
-write_output json-path "$json_path"
 write_output summary-path "$summary_path"
+if [[ "$json_requested" == "true" ]]; then
+  write_output json-path "$json_path"
+fi
 if [[ -n "$markdown_path" ]]; then
   write_output markdown-path "$markdown_path"
 fi
@@ -211,9 +279,10 @@ if [[ "$fail_on_findings" == "true" ]]; then
 fi
 
 if [[ "$effective_mode" == "enforce" ]]; then
-  enforcement_path="$reports_dir/sessionscope-enforcement.json"
+  enforcement_path="$(mktemp "${RUNNER_TEMP:-/tmp}/sessionscope-enforcement.XXXXXX")"
   run_sessionscope scan \
     --path "$scan_path" \
+    --no-policy-config \
     --mode enforce \
     --fail-severity "$effective_fail_severity" \
     "${policy_args_without_severity[@]}" \

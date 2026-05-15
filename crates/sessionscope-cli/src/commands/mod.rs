@@ -35,7 +35,7 @@ fn print_help() {
         "SessionScope\n\n",
         "Usage:\n",
         "  sessionscope init [--force]\n",
-        "  sessionscope scan [--path PATH] [--include PATTERN] [--exclude PATTERN] [--max-file-size BYTES] [--format FORMAT] [--output PATH] [--mode advisory|enforce]\n",
+        "  sessionscope scan [--path PATH] [--include PATTERN] [--exclude PATTERN] [--max-file-size BYTES] [--format FORMAT] [--output PATH] [--mode advisory|enforce] [--fail-severity high|medium|low|info] [--fail-category CATEGORY] [--include-finding-id ID] [--exclude-finding-id ID] [--baseline PATH]\n",
         "  sessionscope explain FINDING_ID\n",
         "  sessionscope baseline create\n",
         "  sessionscope diff <base...head>\n",

@@ -193,6 +193,7 @@ struct BaselineFinding {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sessionscope_core::redaction::sanitized_report;
     use sessionscope_model::ScanSummary;
 
     fn finding(id: &str, severity: Severity, category: FindingCategory) -> Finding {
@@ -285,5 +286,29 @@ mod tests {
 
         assert_eq!(result.blocking_findings.len(), 1);
         assert_eq!(result.blocking_findings[0].id.0, "included");
+    }
+
+    #[test]
+    fn failure_format_uses_sanitized_finding_text() {
+        let options = EnforcementOptions {
+            mode: PolicyMode::Enforce,
+            ..EnforcementOptions::default()
+        };
+        let report = report(vec![Finding {
+            title: "Secret client_secret = \"PLACEHOLDER_SECRET_DO_NOT_USE\"".to_string(),
+            ..finding(
+                "secret",
+                Severity::High,
+                FindingCategory::HighConfidenceMisconfiguration,
+            )
+        }]);
+        let sanitized = sanitized_report(&report);
+        let result = options
+            .evaluate(&sanitized)
+            .expect("evaluation should succeed");
+        let formatted = format_failure(&result);
+
+        assert!(formatted.contains("[REDACTED]"));
+        assert!(!formatted.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
     }
 }
