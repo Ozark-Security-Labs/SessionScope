@@ -1,4 +1,5 @@
 mod diff;
+mod explain;
 mod github_summary;
 mod json;
 mod markdown;
@@ -65,6 +66,12 @@ pub fn render_diff_json(report: &sessionscope_model::DiffReport) -> String {
 
 pub fn render_diff_markdown(report: &sessionscope_model::DiffReport) -> String {
     diff::render_markdown(report)
+}
+
+pub fn render_explain(report: &ScanReport, finding_id: &str) -> Option<String> {
+    let mut report = sanitized_report(report);
+    canonicalize_report(&mut report);
+    explain::render(&report, finding_id)
 }
 
 fn canonicalize_report(report: &mut ScanReport) {

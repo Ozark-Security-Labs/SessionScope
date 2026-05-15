@@ -36,7 +36,7 @@ fn print_help() {
         "Usage:\n",
         "  sessionscope init [--force]\n",
         "  sessionscope scan [--path PATH] [--include PATTERN] [--exclude PATTERN] [--max-file-size BYTES] [--format FORMAT] [--output PATH]\n",
-        "  sessionscope explain FINDING_ID\n",
+        "  sessionscope explain FINDING_ID --report REPORT.json\n",
         "  sessionscope baseline create --from REPORT.json [--output BASELINE.json]\n",
         "  sessionscope diff --baseline BASELINE.json --current REPORT.json [--format json|markdown] [--output PATH]\n",
         "  sessionscope version\n\n",

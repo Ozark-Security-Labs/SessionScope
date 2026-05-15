@@ -319,6 +319,16 @@ fixes, and optional reviewer questions.
 
 Supported severities are `info`, `low`, `medium`, and `high`.
 
+Individual findings can be explained from a JSON report:
+
+```bash
+sessionscope explain FINDING_ID --report sessions.json
+```
+
+Explain output is a presentation view over existing report data. It should use
+the finding text, linked evidence records, confidence, suggested fix, and
+reviewer question without adding unsupported runtime impact claims.
+
 ## Reports
 
 A scan report contains:

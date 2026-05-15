@@ -75,17 +75,6 @@ fn unknown_command_fails_without_panicking() {
 }
 
 #[test]
-fn explain_scaffold_does_not_echo_finding_id() {
-    let sensitive_finding_id = "aaa.bbb.cccccccccccccccccccccc";
-    let output = run_sessionscope(&["explain", sensitive_finding_id]);
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("explain is scaffolded"));
-    assert!(!stdout.contains(sensitive_finding_id));
-}
-
-#[test]
 fn baseline_create_writes_versioned_baseline_from_scan_report() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     let report_path = temp.path().join("scan.json");
@@ -127,6 +116,88 @@ fn baseline_create_writes_versioned_baseline_from_scan_report() {
             .as_str()
             .is_some_and(|value| value.starts_with("fingerprint_"))
     );
+}
+
+#[test]
+fn explain_known_finding_from_json_report() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("scan.json");
+    fs::write(
+        &report_path,
+        scan_report_json(&[finding_json(
+            "finding_existing",
+            "Existing finding",
+            "Confirm this evidence-bound finding.",
+            "evidence_existing",
+            7,
+        )])
+        .to_string(),
+    )
+    .expect("scan report should be written");
+
+    let output = run_sessionscope(&[
+        "explain",
+        "finding_existing",
+        "--report",
+        report_path.to_str().expect("report path should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("# SessionScope Finding Explain"));
+    assert!(stdout.contains("Existing finding"));
+    assert!(stdout.contains("- Finding ID: `finding_existing`"));
+    assert!(stdout.contains("- Severity: `medium`"));
+    assert!(stdout.contains("- Category: `lifecycle_gap`"));
+    assert!(stdout.contains("lifecycle evidence that appears incomplete"));
+    assert!(stdout.contains("| `evidence_existing` | `validate` | src/auth.ts:7:1 | test.detector | `high` | `no` | `no` | evidence for Existing finding |"));
+    assert!(stdout.contains("- Suggested fix: no specific remediation"));
+    assert!(stdout.contains("- Reviewer question: none attached"));
+    assert!(stdout.contains("docs/SCHEMA.md"));
+}
+
+#[test]
+fn explain_unknown_finding_does_not_echo_supplied_id() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("scan.json");
+    fs::write(&report_path, scan_report_json(&[]).to_string())
+        .expect("scan report should be written");
+    let sensitive_finding_id = "aaa.bbb.cccccccccccccccccccccc";
+
+    let output = run_sessionscope(&[
+        "explain",
+        sensitive_finding_id,
+        "--report",
+        report_path.to_str().expect("report path should be UTF-8"),
+    ]);
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("finding not found in report"));
+    assert!(!stderr.contains(sensitive_finding_id));
+}
+
+#[test]
+fn explain_malformed_report_does_not_echo_secret_like_report_contents() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("scan.json");
+    fs::write(
+        &report_path,
+        "{\"secret\":\"PLACEHOLDER_SECRET_DO_NOT_USE\",",
+    )
+    .expect("invalid scan report should be written");
+
+    let output = run_sessionscope(&[
+        "explain",
+        "finding_existing",
+        "--report",
+        report_path.to_str().expect("report path should be UTF-8"),
+    ]);
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("failed to parse scan report"));
+    assert!(!stderr.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
 }
 
 #[test]
