@@ -39,12 +39,17 @@ esac
 mkdir -p "$reports_dir"
 
 cleanup_internal_artifacts() {
+  # Preserve the triggering exit code. Bash 3.x (macOS default) lets a
+  # successful EXIT trap mask a failing script exit code unless we exit
+  # explicitly with the saved status.
+  local exit_code=$?
   if [[ "${json_requested:-false}" != "true" && -n "${json_path:-}" ]]; then
     rm -f "$json_path"
   fi
   if [[ -n "${enforcement_path:-}" ]]; then
     rm -f "$enforcement_path"
   fi
+  exit "$exit_code"
 }
 trap cleanup_internal_artifacts EXIT
 

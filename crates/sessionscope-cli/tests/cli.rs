@@ -968,6 +968,8 @@ fi
     let script = repo_root().join("scripts").join("github-action.sh");
     let output = Command::new("bash")
         .arg(script)
+        .env_remove("GITHUB_OUTPUT")
+        .env_remove("GITHUB_STEP_SUMMARY")
         .env("SESSIONSCOPE_BIN", &fake_cli)
         .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
         .env("INPUT_MODE", "advisory")
@@ -1025,6 +1027,8 @@ JSON
     let script = repo_root().join("scripts").join("github-action.sh");
     let output = Command::new("bash")
         .arg(script)
+        .env_remove("GITHUB_OUTPUT")
+        .env_remove("GITHUB_STEP_SUMMARY")
         .env("SESSIONSCOPE_BIN", &fake_cli)
         .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
         .env("SESSIONSCOPE_ARG_LOG", &arg_log)
@@ -1067,6 +1071,8 @@ fn github_action_script_prefixes_sarif_uris_for_relative_scan_path() {
     let output = Command::new("bash")
         .current_dir(temp.path())
         .arg(script)
+        .env_remove("GITHUB_OUTPUT")
+        .env_remove("GITHUB_STEP_SUMMARY")
         .env("SESSIONSCOPE_BIN", env!("CARGO_BIN_EXE_sessionscope"))
         .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
         .env("INPUT_MODE", "advisory")
@@ -1101,6 +1107,8 @@ fn github_action_script_rejects_absolute_input_path() {
     let script = repo_root().join("scripts").join("github-action.sh");
     let output = Command::new("bash")
         .arg(script)
+        .env_remove("GITHUB_OUTPUT")
+        .env_remove("GITHUB_STEP_SUMMARY")
         .env("SESSIONSCOPE_BIN", "/bin/false")
         .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
         .env("INPUT_MODE", "advisory")
