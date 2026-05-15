@@ -197,6 +197,12 @@ struct RuleMetadata {
     security_severity: Option<&'static str>,
 }
 
+// security-severity is a GitHub Code Scanning convention. Values map to bands:
+//   high   >= 7.0   HighConfidenceMisconfiguration -> 8.0 (deterministic source evidence)
+//   medium >= 4.0   MissingValidationEvidence      -> 6.5 (validation gap, framework-dependent)
+//   medium >= 4.0   LifecycleGap                   -> 5.5 (complementary control missing)
+//   omitted         DynamicReviewRequired, FrameworkDefaultAssumed render as "note"
+// Adjust tiers only with a corresponding SS-DEC entry; downstream consumers may pin to them.
 fn rule_metadata(category: FindingCategory) -> RuleMetadata {
     match category {
         FindingCategory::HighConfidenceMisconfiguration => RuleMetadata {

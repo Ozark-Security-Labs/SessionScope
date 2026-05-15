@@ -29,7 +29,24 @@ case "$fail_on_findings" in
     ;;
 esac
 
+case "$scan_path" in
+  /*)
+    echo "sessionscope: path must be repository-relative, got '$scan_path'" >&2
+    exit 2
+    ;;
+esac
+
 mkdir -p "$reports_dir"
+
+cleanup_internal_artifacts() {
+  if [[ "${json_requested:-false}" != "true" && -n "${json_path:-}" ]]; then
+    rm -f "$json_path"
+  fi
+  if [[ -n "${enforcement_path:-}" ]]; then
+    rm -f "$enforcement_path"
+  fi
+}
+trap cleanup_internal_artifacts EXIT
 
 run_sessionscope() {
   if [[ -n "${SESSIONSCOPE_BIN:-}" ]]; then
@@ -81,12 +98,6 @@ write_output() {
       printf '%s\n' "$value"
       printf '%s\n' "$delimiter"
     } >> "$GITHUB_OUTPUT"
-  fi
-}
-
-remove_internal_json() {
-  if [[ "${json_requested:-false}" != "true" && -n "${json_path:-}" ]]; then
-    rm -f "$json_path"
   fi
 }
 
@@ -168,7 +179,6 @@ if format_requested json; then
   json_path="$reports_dir/sessionscope.json"
 else
   json_path="$(mktemp "${RUNNER_TEMP:-/tmp}/sessionscope-json.XXXXXX")"
-  trap remove_internal_json EXIT
 fi
 
 run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory "${policy_args[@]}" --format json --output "$json_path"

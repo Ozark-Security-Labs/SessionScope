@@ -1093,6 +1093,29 @@ fn github_action_script_prefixes_sarif_uris_for_relative_scan_path() {
     );
 }
 
+#[cfg(not(windows))]
+#[test]
+fn github_action_script_rejects_absolute_input_path() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let reports_dir = temp.path().join("reports");
+    let script = repo_root().join("scripts").join("github-action.sh");
+    let output = Command::new("bash")
+        .arg(script)
+        .env("SESSIONSCOPE_BIN", "/bin/false")
+        .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
+        .env("INPUT_MODE", "advisory")
+        .env("INPUT_PATH", "/etc")
+        .env("INPUT_OUTPUT", "sarif")
+        .env("INPUT_FAIL_ON_FINDINGS", "false")
+        .output()
+        .expect("action script should run");
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("path must be repository-relative"));
+    assert!(!reports_dir.exists(), "reports dir should not be created");
+}
+
 #[test]
 fn scan_rejects_invalid_max_file_size() {
     let output = run_sessionscope(&["scan", "--max-file-size", "0"]);

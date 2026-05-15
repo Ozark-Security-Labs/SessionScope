@@ -102,6 +102,9 @@ pub fn run(args: &[String]) -> CommandResult {
                 index += 1;
                 baseline = Some(PathBuf::from(required_value(args, index, "--baseline")?));
             }
+            // Action-internal: keeps Action-supplied policy from being overridden by checked-in
+            // TOML during PR CI. Intentionally omitted from --help. Do not remove without
+            // updating scripts/github-action.sh, which depends on this flag.
             "--no-policy-config" => {
                 use_policy_config = false;
             }
