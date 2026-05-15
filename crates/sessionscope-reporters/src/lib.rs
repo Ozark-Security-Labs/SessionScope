@@ -3,6 +3,7 @@ mod explain;
 mod github_summary;
 mod json;
 mod markdown;
+mod markdown_escape;
 mod sarif;
 
 use std::fmt;

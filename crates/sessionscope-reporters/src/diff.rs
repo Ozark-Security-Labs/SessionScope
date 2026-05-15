@@ -1,3 +1,4 @@
+use crate::markdown_escape::{code_span, inline_text};
 use sessionscope_model::{
     DiffChangeKind, DiffFindingChange, DiffReport, FindingCategory, Severity, SourceLocation,
 };
@@ -64,10 +65,10 @@ fn render_change(output: &mut String, change: &DiffFindingChange) {
 
     output.push_str(&format!("### {}\n\n", inline_text(&finding.title)));
     output.push_str(&format!(
-        "- Finding ID: `{}`\n- Severity: `{}`\n- Category: `{}`\n",
-        inline_code(&finding.id.0),
-        format_severity(finding.severity),
-        format_category(finding.category)
+        "- Finding ID: {}\n- Severity: {}\n- Category: {}\n",
+        code_span(&finding.id.0),
+        code_span(format_severity(finding.severity)),
+        code_span(format_category(finding.category))
     ));
 
     match (&change.baseline, &change.current) {
@@ -80,9 +81,9 @@ fn render_change(output: &mut String, change: &DiffFindingChange) {
         }
         (Some(baseline), Some(current)) if change.kind == DiffChangeKind::Changed => {
             output.push_str(&format!(
-                "- Baseline fingerprint: `{}`\n- Current fingerprint: `{}`\n- Current locations: {}\n",
-                inline_code(&baseline.semantic_fingerprint),
-                inline_code(&current.semantic_fingerprint),
+                "- Baseline fingerprint: {}\n- Current fingerprint: {}\n- Current locations: {}\n",
+                code_span(&baseline.semantic_fingerprint),
+                code_span(&current.semantic_fingerprint),
                 format_locations(&current.source_locations)
             ));
         }
@@ -125,15 +126,7 @@ fn format_location(location: &SourceLocation) -> String {
         .column
         .map(|column| column.to_string())
         .unwrap_or_else(|| "?".to_string());
-    format!("`{}:{line}:{column}`", inline_code(&location.path))
-}
-
-fn inline_text(value: &str) -> String {
-    value.replace('<', "&lt;").replace('>', "&gt;")
-}
-
-fn inline_code(value: &str) -> String {
-    value.replace('`', "\\`")
+    code_span(format!("{}:{line}:{column}", location.path))
 }
 
 fn format_severity(severity: Severity) -> &'static str {
@@ -152,5 +145,54 @@ fn format_category(category: FindingCategory) -> &'static str {
         FindingCategory::LifecycleGap => "lifecycle_gap",
         FindingCategory::DynamicReviewRequired => "dynamic_review_required",
         FindingCategory::FrameworkDefaultAssumed => "framework_default_assumed",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sessionscope_model::{
+        BaselineFinding, DiffChangeKind, DiffFindingChange, DiffReport, DiffSummary,
+        FindingCategory, FindingId, Severity, SourceLocation,
+    };
+
+    use super::render_markdown;
+
+    #[test]
+    fn markdown_escapes_report_controlled_fields() {
+        let report = DiffReport {
+            schema_version: "0.1.0".to_string(),
+            baseline_schema_version: "0.1.0".to_string(),
+            current_report_schema_version: "0.5.0".to_string(),
+            summary: DiffSummary {
+                new: 1,
+                ..DiffSummary::default()
+            },
+            changes: vec![DiffFindingChange {
+                kind: DiffChangeKind::New,
+                baseline: None,
+                current: Some(BaselineFinding {
+                    id: FindingId("finding_`id`".to_string()),
+                    category: FindingCategory::LifecycleGap,
+                    severity: Severity::Medium,
+                    title: "Injected [link](https://example.test)\n# heading | cell".to_string(),
+                    semantic_fingerprint: "fingerprint_`semantic`".to_string(),
+                    evidence_fingerprint: "fingerprint_evidence".to_string(),
+                    artifact_ids: Vec::new(),
+                    evidence_ids: Vec::new(),
+                    source_locations: vec![SourceLocation {
+                        path: "src/`auth`|file.ts\n![x](y)".to_string(),
+                        line: Some(7),
+                        column: Some(1),
+                    }],
+                }),
+            }],
+        };
+
+        let rendered = render_markdown(&report);
+
+        assert!(rendered.contains("\\[link\\]\\(https://example.test\\)"));
+        assert!(rendered.contains("<br>\\# heading \\| cell"));
+        assert!(rendered.contains("`` finding_`id` ``"));
+        assert!(rendered.contains("``src/`auth`|file.ts<br>![x](y):7:1``"));
     }
 }

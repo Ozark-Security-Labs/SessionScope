@@ -124,6 +124,36 @@ fn baseline_create_writes_versioned_baseline_from_scan_report() {
 }
 
 #[test]
+fn baseline_create_redacts_secret_like_report_text() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("scan.json");
+    fs::write(
+        &report_path,
+        scan_report_json(&[finding_json(
+            "finding_secret",
+            "PLACEHOLDER_SECRET_DO_NOT_USE in title",
+            "description PLACEHOLDER_SECRET_DO_NOT_USE",
+            "evidence_secret",
+            7,
+        )])
+        .to_string(),
+    )
+    .expect("scan report should be written");
+
+    let output = run_sessionscope(&[
+        "baseline",
+        "create",
+        "--from",
+        report_path.to_str().expect("report path should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
+    assert!(!stdout.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+    assert!(stdout.contains("[REDACTED]"));
+}
+
+#[test]
 fn explain_known_finding_from_json_report() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     let report_path = temp.path().join("scan.json");
@@ -349,6 +379,58 @@ fn diff_markdown_renders_reviewer_summary() {
 }
 
 #[test]
+fn diff_markdown_redacts_and_escapes_report_controlled_text() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let baseline_path = temp.path().join("baseline.json");
+    let current_report_path = temp.path().join("current-scan.json");
+    fs::write(
+        &baseline_path,
+        serde_json::json!({
+            "schema_version": "0.1.0",
+            "report_schema_version": "0.5.0",
+            "created_by": "sessionscope",
+            "findings": [{
+                "id": "finding_secret",
+                "category": "lifecycle_gap",
+                "severity": "medium",
+                "title": "PLACEHOLDER_SECRET_DO_NOT_USE [link](x)",
+                "semantic_fingerprint": "fingerprint_secret",
+                "evidence_fingerprint": "fingerprint_secret",
+                "artifact_ids": [],
+                "evidence_ids": [],
+                "source_locations": [{
+                    "path": "src/[auth](x)|file.ts",
+                    "line": 7,
+                    "column": 1
+                }]
+            }]
+        })
+        .to_string(),
+    )
+    .expect("baseline should be written");
+    fs::write(&current_report_path, scan_report_json(&[]).to_string())
+        .expect("current report should be written");
+
+    let output = run_sessionscope(&[
+        "diff",
+        "--baseline",
+        baseline_path
+            .to_str()
+            .expect("baseline path should be UTF-8"),
+        "--current",
+        current_report_path
+            .to_str()
+            .expect("current report path should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
+    assert!(!stdout.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+    assert!(stdout.contains("\\[REDACTED\\] \\[link\\]\\(x\\)"));
+    assert!(stdout.contains("src/[auth](x)|file.ts:7:1"));
+}
+
+#[test]
 fn baseline_parse_error_does_not_echo_secret_like_report_contents() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     let report_path = temp.path().join("scan.json");
@@ -533,6 +615,8 @@ fn claims_json_filters_to_identity_claim_inventory() {
             .any(|evidence| evidence["detector_id"] == "jwt.attribute.subject")
     );
     let serialized = String::from_utf8_lossy(&output.stdout);
+    assert!(!serialized.contains("has no explicit expiry evidence"));
+    assert!(!serialized.contains("does not show signature verification"));
     assert!(!serialized.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
 }
 
@@ -552,6 +636,7 @@ fn logout_markdown_filters_to_logout_capability() {
     let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
     assert!(stdout.contains("logout.cookie\\_clear") || stdout.contains("logout.cookie_clear"));
     assert!(stdout.contains("cleared on logout"));
+    assert!(!stdout.contains("has no explicit expiry evidence"));
     assert!(!stdout.contains("PLACEHOLDER_RESET_TOKEN"));
 }
 

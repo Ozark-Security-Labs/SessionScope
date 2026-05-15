@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::markdown_escape::{code_span, inline_text, table_cell};
 use sessionscope_model::{
     Evidence, Finding, FindingCategory, ScanReport, Severity, SourceLocation,
 };
@@ -226,38 +227,6 @@ fn bool_text(value: bool) -> &'static str {
     if value { "yes" } else { "no" }
 }
 
-fn table_cell(value: &str) -> String {
-    inline_text(value)
-}
-
-fn inline_text(value: &str) -> String {
-    value
-        .lines()
-        .map(|line| escape_markdown_html(line.trim()))
-        .collect::<Vec<_>>()
-        .join("<br>")
-}
-
-fn code_span(value: impl AsRef<str>) -> String {
-    let text = value.as_ref().replace('<', "&lt;").replace('>', "&gt;");
-    let longest_backtick_run = text.split(|ch| ch != '`').map(str::len).max().unwrap_or(0);
-    let delimiter = "`".repeat(longest_backtick_run + 1);
-    if text.starts_with('`') || text.ends_with('`') {
-        format!("{delimiter} {text} {delimiter}")
-    } else {
-        format!("{delimiter}{text}{delimiter}")
-    }
-}
-
-fn escape_markdown_html(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('|', "\\|")
-        .replace('_', "\\_")
-}
-
 #[cfg(test)]
 mod tests {
     use sessionscope_model::{
@@ -333,5 +302,51 @@ mod tests {
         };
 
         assert!(render(&report, "missing").is_none());
+    }
+
+    #[test]
+    fn escapes_markdown_controlled_report_fields() {
+        let evidence_id = EvidenceId("evidence_`id`".to_string());
+        let report = ScanReport {
+            schema_version: SCHEMA_VERSION.to_string(),
+            summary: ScanSummary::default(),
+            files: Vec::new(),
+            artifacts: Vec::new(),
+            evidence: vec![Evidence {
+                id: evidence_id.clone(),
+                lifecycle_stage: LifecycleStage::Validate,
+                location: SourceLocation {
+                    path: "src/[auth](x)|file.ts".to_string(),
+                    line: Some(3),
+                    column: Some(1),
+                },
+                detector_id: "test.detector".to_string(),
+                confidence: Confidence::High,
+                excerpt: Some(SanitizedExcerpt("![x](y) | `cell`".to_string())),
+                dynamic: false,
+                framework_default: false,
+            }],
+            lifecycle_paths: Vec::new(),
+            findings: vec![Finding {
+                id: FindingId("finding_`id`".to_string()),
+                category: FindingCategory::LifecycleGap,
+                severity: Severity::Medium,
+                artifact_ids: vec![ArtifactId("artifact".to_string())],
+                evidence_ids: vec![evidence_id],
+                title: "Injected [link](https://example.test)\n# heading".to_string(),
+                description: "Description with | table cell".to_string(),
+                suggested_fix: Some("Use `safe` [text](x)".to_string()),
+                reviewer_question: Some("Question with ![image](x)".to_string()),
+            }],
+        };
+
+        let output = render(&report, "finding_`id`").expect("finding should render");
+
+        assert!(output.contains("\\[link\\]\\(https://example.test\\)<br>\\# heading"));
+        assert!(output.contains("Description with \\| table cell"));
+        assert!(output.contains("Use \\`safe\\` \\[text\\]\\(x\\)"));
+        assert!(output.contains("Question with \\!\\[image\\]\\(x\\)"));
+        assert!(output.contains("src/\\[auth\\]\\(x\\)\\|file.ts:3:1"));
+        assert!(output.contains("\\!\\[x\\]\\(y\\) \\| \\`cell\\`"));
     }
 }

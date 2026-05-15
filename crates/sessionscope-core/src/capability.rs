@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use sessionscope_model::{
     Artifact, ArtifactId, ArtifactType, Evidence, EvidenceId, FileScanResult, JwtAttributeState,
-    LifecyclePath, LifecycleStage, ScanReport,
+    LifecyclePath, LifecycleStage, ScanReport, ScanSummary,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,7 +43,9 @@ pub fn filter_report(report: &ScanReport, area: CapabilityArea) -> ScanReport {
         if path_matches(path, &artifact_ids, &evidence_ids) {
             artifact_ids.extend(path.artifact_ids.iter().cloned());
             for step in &path.stages {
-                evidence_ids.extend(step.evidence_ids.iter().cloned());
+                if lifecycle_stage_matches(area, step.stage) {
+                    evidence_ids.extend(step.evidence_ids.iter().cloned());
+                }
             }
         }
     }
@@ -51,16 +53,7 @@ pub fn filter_report(report: &ScanReport, area: CapabilityArea) -> ScanReport {
     let findings = report
         .findings
         .iter()
-        .filter(|finding| {
-            finding
-                .artifact_ids
-                .iter()
-                .any(|id| artifact_ids.contains(id))
-                || finding
-                    .evidence_ids
-                    .iter()
-                    .any(|id| evidence_ids.contains(id))
-        })
+        .filter(|finding| finding_matches(area, finding, &artifact_ids, &evidence_ids))
         .cloned()
         .collect::<Vec<_>>();
 
@@ -91,11 +84,15 @@ pub fn filter_report(report: &ScanReport, area: CapabilityArea) -> ScanReport {
         .files
         .iter()
         .map(|file| filter_file(file, &artifact_ids, &evidence_ids))
+        .filter(|file| {
+            !file.artifacts.is_empty() || !file.evidence.is_empty() || !file.diagnostics.is_empty()
+        })
         .collect::<Vec<_>>();
+    let summary = summarize_files(&files);
 
     ScanReport {
         schema_version: report.schema_version.clone(),
-        summary: report.summary.clone(),
+        summary,
         files,
         artifacts,
         evidence,
@@ -166,6 +163,15 @@ fn evidence_matches(area: CapabilityArea, evidence: &Evidence) -> bool {
     }
 }
 
+fn lifecycle_stage_matches(area: CapabilityArea, stage: LifecycleStage) -> bool {
+    match area {
+        CapabilityArea::Cookies => true,
+        CapabilityArea::Claims => false,
+        CapabilityArea::Logout => stage == LifecycleStage::Revoke,
+        CapabilityArea::Refresh => stage == LifecycleStage::Refresh,
+    }
+}
+
 fn is_identity_claim_detector(detector_id: &str) -> bool {
     matches!(
         detector_id,
@@ -210,7 +216,7 @@ fn collect_artifact_evidence(
                 evidence_ids.extend(claims.auth_class.evidence_ids.iter().cloned());
             }
         }
-        CapabilityArea::Cookies | CapabilityArea::Logout | CapabilityArea::Refresh => {
+        CapabilityArea::Cookies => {
             evidence_ids.extend(artifact.lifecycle_evidence.issue.iter().cloned());
             evidence_ids.extend(artifact.lifecycle_evidence.store.iter().cloned());
             evidence_ids.extend(artifact.lifecycle_evidence.transmit.iter().cloned());
@@ -228,6 +234,12 @@ fn collect_artifact_evidence(
                 evidence_ids.extend(attributes.path.evidence_ids.iter().cloned());
                 evidence_ids.extend(attributes.domain.evidence_ids.iter().cloned());
             }
+        }
+        CapabilityArea::Logout => {
+            evidence_ids.extend(artifact.lifecycle_evidence.revoke.iter().cloned());
+        }
+        CapabilityArea::Refresh => {
+            evidence_ids.extend(artifact.lifecycle_evidence.refresh.iter().cloned());
         }
     }
 }
@@ -260,6 +272,54 @@ fn path_matches(
             .any(|id| evidence_ids.contains(id))
 }
 
+fn finding_matches(
+    area: CapabilityArea,
+    finding: &sessionscope_model::Finding,
+    artifact_ids: &BTreeSet<ArtifactId>,
+    evidence_ids: &BTreeSet<EvidenceId>,
+) -> bool {
+    if finding
+        .evidence_ids
+        .iter()
+        .any(|id| evidence_ids.contains(id))
+    {
+        return true;
+    }
+
+    let title = finding.title.to_ascii_lowercase();
+    match area {
+        CapabilityArea::Cookies => {
+            finding
+                .artifact_ids
+                .iter()
+                .any(|id| artifact_ids.contains(id))
+                && (title.contains("cookie")
+                    || title.contains("samesite")
+                    || title.contains("secure")
+                    || title.contains("httponly"))
+        }
+        CapabilityArea::Claims => {
+            title.contains("claim")
+                || title.contains("subject")
+                || title.contains("tenant")
+                || title.contains("role")
+                || title.contains("scope")
+                || title.contains("group")
+                || title.contains("email")
+        }
+        CapabilityArea::Logout => {
+            title.contains("logout") || title.contains("revoke") || title.contains("revocation")
+        }
+        CapabilityArea::Refresh => {
+            title.contains("refresh")
+                && finding
+                    .artifact_ids
+                    .iter()
+                    .any(|id| artifact_ids.contains(id))
+        }
+    }
+}
+
 fn filter_file(
     file: &FileScanResult,
     artifact_ids: &BTreeSet<ArtifactId>,
@@ -270,15 +330,35 @@ fn filter_file(
         .retain(|artifact| artifact_ids.contains(&artifact.id));
     file.evidence
         .retain(|evidence| evidence_ids.contains(&evidence.id));
+    file.diagnostics.clear();
     file
+}
+
+fn summarize_files(files: &[FileScanResult]) -> ScanSummary {
+    ScanSummary {
+        files_discovered: files.len(),
+        files_scanned: files
+            .iter()
+            .filter(|file| file.skipped_reason.is_none())
+            .count(),
+        files_skipped: files
+            .iter()
+            .filter(|file| file.skipped_reason.is_some())
+            .count(),
+        diagnostics: files
+            .iter()
+            .flat_map(|file| file.diagnostics.iter().cloned())
+            .collect(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use sessionscope_model::{
-        Artifact, ArtifactId, ArtifactType, Confidence, Evidence, EvidenceId,
-        JwtAttributeObservation, JwtAttributeState, JwtAttributes, JwtIdentityClaims,
-        LifecycleEvidence, LifecycleStage, SCHEMA_VERSION, ScanReport, ScanSummary, SourceLocation,
+        Artifact, ArtifactId, ArtifactType, Confidence, Evidence, EvidenceId, FileScanResult,
+        Finding, FindingCategory, FindingId, JwtAttributeObservation, JwtAttributeState,
+        JwtAttributes, JwtIdentityClaims, Language, LifecycleEvidence, LifecycleStage,
+        SCHEMA_VERSION, ScanReport, ScanSummary, Severity, SourceLocation,
     };
 
     use super::{CapabilityArea, filter_report};
@@ -356,6 +436,76 @@ mod tests {
         assert_eq!(filtered.evidence.len(), 1);
     }
 
+    #[test]
+    fn logout_filter_excludes_unrelated_same_artifact_findings() {
+        let mut cookie = artifact("cookie", ArtifactType::SessionCookie, "session");
+        cookie.lifecycle_evidence.revoke = vec![EvidenceId("logout_evidence".to_string())];
+        cookie.lifecycle_evidence.expire = vec![EvidenceId("expiry_evidence".to_string())];
+        let mut report = report(
+            vec![cookie],
+            vec![
+                evidence(
+                    "logout_evidence",
+                    "logout.cookie_clear",
+                    LifecycleStage::Revoke,
+                ),
+                evidence("expiry_evidence", "cookie.set", LifecycleStage::Expire),
+            ],
+        );
+        report.findings = vec![
+            finding(
+                "finding_logout",
+                "Cookie is cleared on logout without linked server-side revocation",
+                "cookie",
+                "logout_evidence",
+            ),
+            finding(
+                "finding_expiry",
+                "Cookie 'session' has no explicit expiry evidence",
+                "cookie",
+                "expiry_evidence",
+            ),
+        ];
+
+        let filtered = filter_report(&report, CapabilityArea::Logout);
+
+        assert_eq!(filtered.findings.len(), 1);
+        assert_eq!(filtered.findings[0].id.0, "finding_logout");
+    }
+
+    #[test]
+    fn capability_filter_drops_unrelated_file_metadata() {
+        let cookie_evidence = evidence("cookie_evidence", "cookie.set", LifecycleStage::Store);
+        let unrelated_evidence = evidence(
+            "unrelated_evidence",
+            "jwt.validation.expiry",
+            LifecycleStage::Validate,
+        );
+        let mut report = report(
+            vec![artifact("cookie", ArtifactType::SessionCookie, "session")],
+            vec![cookie_evidence.clone(), unrelated_evidence.clone()],
+        );
+        report.files = vec![
+            file("src/cookie.ts", vec![cookie_evidence], Vec::new()),
+            file(
+                "src/unrelated.ts",
+                vec![unrelated_evidence],
+                vec!["PLACEHOLDER_SECRET_DO_NOT_USE".to_string()],
+            ),
+        ];
+        report.summary.files_discovered = 2;
+        report.summary.files_scanned = 2;
+        report.summary.diagnostics = vec!["unrelated diagnostic".to_string()];
+
+        let filtered = filter_report(&report, CapabilityArea::Cookies);
+
+        assert_eq!(filtered.files.len(), 1);
+        assert_eq!(filtered.files[0].path, "src/cookie.ts");
+        assert_eq!(filtered.summary.files_discovered, 1);
+        assert_eq!(filtered.summary.files_scanned, 1);
+        assert!(filtered.summary.diagnostics.is_empty());
+    }
+
     fn report(artifacts: Vec<Artifact>, evidence: Vec<Evidence>) -> ScanReport {
         ScanReport {
             schema_version: SCHEMA_VERSION.to_string(),
@@ -397,6 +547,31 @@ mod tests {
             excerpt: None,
             dynamic: false,
             framework_default: false,
+        }
+    }
+
+    fn finding(id: &str, title: &str, artifact_id: &str, evidence_id: &str) -> Finding {
+        Finding {
+            id: FindingId(id.to_string()),
+            category: FindingCategory::LifecycleGap,
+            severity: Severity::Medium,
+            artifact_ids: vec![ArtifactId(artifact_id.to_string())],
+            evidence_ids: vec![EvidenceId(evidence_id.to_string())],
+            title: title.to_string(),
+            description: "description".to_string(),
+            suggested_fix: None,
+            reviewer_question: None,
+        }
+    }
+
+    fn file(path: &str, evidence: Vec<Evidence>, diagnostics: Vec<String>) -> FileScanResult {
+        FileScanResult {
+            path: path.to_string(),
+            language: Language::TypeScript,
+            artifacts: Vec::new(),
+            evidence,
+            diagnostics,
+            skipped_reason: None,
         }
     }
 

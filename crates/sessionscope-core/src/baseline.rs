@@ -1,12 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::redaction::{redact_sensitive_values, sanitized_report};
 use sessionscope_model::{
     BASELINE_SCHEMA_VERSION, Baseline, BaselineFinding, DIFF_SCHEMA_VERSION, DiffChangeKind,
     DiffFindingChange, DiffReport, DiffSummary, Evidence, Finding, ScanReport, SourceLocation,
 };
 
 pub fn create_baseline(report: &ScanReport, created_by: impl Into<String>) -> Baseline {
-    let evidence_by_id = evidence_by_id(report);
+    let report = sanitized_report(report);
+    let evidence_by_id = evidence_by_id(&report);
     let mut findings = report
         .findings
         .iter()
@@ -24,37 +26,41 @@ pub fn create_baseline(report: &ScanReport, created_by: impl Into<String>) -> Ba
 }
 
 pub fn diff_baseline(baseline: &Baseline, current_report: &ScanReport) -> DiffReport {
+    let baseline = sanitized_baseline(baseline);
     let current_baseline = create_baseline(current_report, baseline.created_by.clone());
     let mut changes = Vec::new();
+    let mut matched_baseline = BTreeSet::new();
     let mut matched_current = BTreeSet::new();
     let current_by_id = current_baseline
         .findings
         .iter()
         .map(|finding| (finding.id.0.as_str(), finding))
         .collect::<BTreeMap<_, _>>();
+    let mut current_by_fingerprint = BTreeMap::new();
+    for finding in &current_baseline.findings {
+        current_by_fingerprint
+            .entry(fingerprint_key(finding))
+            .or_insert_with(Vec::new)
+            .push(finding);
+    }
 
     for baseline_finding in &baseline.findings {
         if let Some(current) = current_by_id.get(baseline_finding.id.0.as_str()) {
+            matched_baseline.insert(baseline_finding.id.0.clone());
             matched_current.insert(current.id.0.clone());
             changes.push(compare_matched(baseline_finding, current));
         }
     }
 
     for baseline_finding in &baseline.findings {
-        if changes.iter().any(|change| {
-            change
-                .baseline
-                .as_ref()
-                .is_some_and(|finding| finding.id == baseline_finding.id)
-        }) {
+        if matched_baseline.contains(&baseline_finding.id.0) {
             continue;
         }
 
-        if let Some(current) = find_fingerprint_match(
-            baseline_finding,
-            &current_baseline.findings,
-            &matched_current,
-        ) {
+        if let Some(current) =
+            find_fingerprint_match(baseline_finding, &current_by_fingerprint, &matched_current)
+        {
+            matched_baseline.insert(baseline_finding.id.0.clone());
             matched_current.insert(current.id.0.clone());
             changes.push(DiffFindingChange {
                 kind: DiffChangeKind::Moved,
@@ -62,6 +68,7 @@ pub fn diff_baseline(baseline: &Baseline, current_report: &ScanReport) -> DiffRe
                 current: Some(current.clone()),
             });
         } else {
+            matched_baseline.insert(baseline_finding.id.0.clone());
             changes.push(DiffFindingChange {
                 kind: DiffChangeKind::Resolved,
                 baseline: Some(baseline_finding.clone()),
@@ -114,14 +121,32 @@ fn compare_matched(baseline: &BaselineFinding, current: &BaselineFinding) -> Dif
 
 fn find_fingerprint_match<'a>(
     baseline: &BaselineFinding,
-    current_findings: &'a [BaselineFinding],
+    current_by_fingerprint: &'a BTreeMap<(String, String), Vec<&'a BaselineFinding>>,
     matched_current: &BTreeSet<String>,
 ) -> Option<&'a BaselineFinding> {
-    current_findings.iter().find(|current| {
-        !matched_current.contains(&current.id.0)
-            && current.semantic_fingerprint == baseline.semantic_fingerprint
-            && current.evidence_fingerprint == baseline.evidence_fingerprint
+    let key = fingerprint_key(baseline);
+    current_by_fingerprint.get(&key).and_then(|findings| {
+        findings
+            .iter()
+            .copied()
+            .find(|current| !matched_current.contains(&current.id.0))
     })
+}
+
+fn fingerprint_key(finding: &BaselineFinding) -> (String, String) {
+    (
+        finding.semantic_fingerprint.clone(),
+        finding.evidence_fingerprint.clone(),
+    )
+}
+
+fn sanitized_baseline(baseline: &Baseline) -> Baseline {
+    let mut baseline = baseline.clone();
+    baseline.created_by = redact_sensitive_values(&baseline.created_by);
+    for finding in &mut baseline.findings {
+        finding.title = redact_sensitive_values(&finding.title);
+    }
+    baseline
 }
 
 fn baseline_finding(
@@ -311,6 +336,51 @@ mod tests {
                     .as_ref()
                     .is_some_and(|finding| finding.id.0 == "finding_moved_new")
         }));
+    }
+
+    #[test]
+    fn baseline_redacts_secret_like_finding_text() {
+        let baseline = create_baseline(
+            &report(vec![finding(
+                "finding_secret",
+                "PLACEHOLDER_SECRET_DO_NOT_USE leaks in title",
+                "evidence_secret",
+            )]),
+            "sessionscope",
+        );
+
+        assert!(
+            !baseline.findings[0]
+                .title
+                .contains("PLACEHOLDER_SECRET_DO_NOT_USE")
+        );
+        assert!(
+            !baseline.findings[0]
+                .semantic_fingerprint
+                .contains("PLACEHOLDER_SECRET_DO_NOT_USE")
+        );
+    }
+
+    #[test]
+    fn diff_redacts_secret_like_baseline_titles() {
+        let mut baseline = create_baseline(
+            &report(vec![finding(
+                "finding_secret",
+                "safe title",
+                "evidence_secret",
+            )]),
+            "sessionscope",
+        );
+        baseline.findings[0].title = "PLACEHOLDER_SECRET_DO_NOT_USE leaks in title".to_string();
+
+        let diff = diff_baseline(&baseline, &report(Vec::new()));
+
+        let rendered_title = &diff.changes[0]
+            .baseline
+            .as_ref()
+            .expect("resolved change should include baseline")
+            .title;
+        assert!(!rendered_title.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
     }
 
     fn report(findings: Vec<Finding>) -> ScanReport {
