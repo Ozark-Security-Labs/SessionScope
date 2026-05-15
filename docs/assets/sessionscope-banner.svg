@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 200" role="img" aria-label="SessionScope">
+  <title>SessionScope</title>
+  <desc>SessionScope: session, cookie, JWT, and token lifecycle auditing</desc>
+  <rect width="720" height="200" rx="12" fill="#0b1220"/>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+    <text x="48" y="108" font-size="72" font-weight="700" fill="#e2e8f0">Session</text>
+    <text x="354" y="108" font-size="72" font-weight="700" fill="#a78bfa">Scope</text>
+    <text x="48" y="148" font-size="18" fill="#94a3b8">session, cookie, JWT, and token lifecycle auditing</text>
+  </g>
+  <g transform="translate(630, 56)">
+    <rect width="42" height="14" rx="7" fill="#22c55e"/>
+    <rect y="28" width="42" height="14" rx="7" fill="#f59e0b"/>
+    <rect y="56" width="42" height="14" rx="7" fill="#ef4444"/>
+  </g>
+</svg>
