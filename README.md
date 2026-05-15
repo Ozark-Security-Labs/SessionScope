@@ -131,6 +131,10 @@ sessionscope init
 sessionscope scan --path . --format markdown --output sessions.md
 sessionscope scan --path . --include "src/**/*.ts" --exclude "**/*.test.ts" --format json --output sessions.json
 sessionscope scan --path . --max-file-size 1000000
+sessionscope cookies --path . --format markdown
+sessionscope claims --path . --format json
+sessionscope logout --path . --format markdown
+sessionscope refresh --path . --format json
 sessionscope explain FINDING_ID --report sessions.json
 sessionscope baseline create --from sessions.json --output sessionscope-baseline.json
 sessionscope diff --baseline sessionscope-baseline.json --current sessions.json --format markdown

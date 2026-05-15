@@ -145,10 +145,18 @@ Initial commands:
 
 - `sessionscope init`
 - `sessionscope scan`
+- `sessionscope cookies`
+- `sessionscope claims`
+- `sessionscope logout`
+- `sessionscope refresh`
 - `sessionscope explain FINDING_ID --report REPORT.json`
 - `sessionscope baseline create --from REPORT.json --output BASELINE.json`
 - `sessionscope diff --baseline BASELINE.json --current REPORT.json`
 - `sessionscope version`
+
+The focused capability commands are aliases over `sessionscope scan`. They use
+the same discovery, detector registry, classifier, redaction, and reporter
+pipeline, then apply a deterministic report filter for the requested capability.
 
 ### `sessionscope-core`
 

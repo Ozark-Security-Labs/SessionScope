@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use sessionscope_classifier::classify;
-use sessionscope_core::{ScanConfig, scan_path};
+use sessionscope_core::{CapabilityArea, ScanConfig, filter_report, scan_path};
 use sessionscope_detectors::DetectorRegistry;
 use sessionscope_reporters::{ReportFormat, render};
 
@@ -11,6 +11,14 @@ use crate::commands::CommandResult;
 use crate::project_config::ProjectConfig;
 
 pub fn run(args: &[String]) -> CommandResult {
+    run_with_capability(args, None)
+}
+
+pub fn run_capability(args: &[String], capability: CapabilityArea) -> CommandResult {
+    run_with_capability(args, Some(capability))
+}
+
+fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> CommandResult {
     let mut path = None;
     let mut format = None;
     let mut output = None;
@@ -27,9 +35,13 @@ pub fn run(args: &[String]) -> CommandResult {
             }
             "--format" => {
                 index += 1;
-                format = Some(ReportFormat::parse(required_value(
-                    args, index, "--format",
-                )?)?);
+                let parsed = ReportFormat::parse(required_value(args, index, "--format")?)?;
+                if capability.is_some()
+                    && !matches!(parsed, ReportFormat::Json | ReportFormat::Markdown)
+                {
+                    return Err("unsupported capability format; expected markdown or json".into());
+                }
+                format = Some(parsed);
             }
             "--output" => {
                 index += 1;
@@ -51,7 +63,7 @@ pub fn run(args: &[String]) -> CommandResult {
                     "--max-file-size",
                 )?)?);
             }
-            _ => return Err("unknown scan option; run `sessionscope --help`".into()),
+            _ => return Err(unknown_option_message(capability).into()),
         }
 
         index += 1;
@@ -64,6 +76,9 @@ pub fn run(args: &[String]) -> CommandResult {
     let format = format
         .or(project_config.first_format()?)
         .unwrap_or(ReportFormat::Markdown);
+    if capability.is_some() && !matches!(format, ReportFormat::Json | ReportFormat::Markdown) {
+        return Err("unsupported capability format; expected markdown or json".into());
+    }
 
     let mut config = ScanConfig::new(scan_root);
     if let Some(config_include) = project_config.include {
@@ -87,7 +102,10 @@ pub fn run(args: &[String]) -> CommandResult {
     }
 
     let registry = Arc::new(DetectorRegistry::builtin());
-    let report = classify(scan_path(config, registry)?);
+    let mut report = classify(scan_path(config, registry)?);
+    if let Some(capability) = capability {
+        report = filter_report(&report, capability);
+    }
     let rendered = render(&report, format);
 
     if let Some(output) = output {
@@ -102,6 +120,14 @@ pub fn run(args: &[String]) -> CommandResult {
     }
 
     Ok(())
+}
+
+fn unknown_option_message(capability: Option<CapabilityArea>) -> &'static str {
+    if capability.is_some() {
+        "unknown capability option; run `sessionscope --help`"
+    } else {
+        "unknown scan option; run `sessionscope --help`"
+    }
 }
 
 fn required_value<'a>(args: &'a [String], index: usize, flag: &str) -> Result<&'a str, String> {

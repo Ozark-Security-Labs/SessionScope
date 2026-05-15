@@ -341,6 +341,11 @@ A scan report contains:
 - lifecycle paths
 - findings
 
+Focused capability commands such as `sessionscope cookies`, `sessionscope
+claims`, `sessionscope logout`, and `sessionscope refresh` serialize the same
+report shape after filtering artifacts, evidence, lifecycle paths, and findings
+to the requested capability area. They do not change the schema version.
+
 Skipped file reasons are serialized as non-sensitive categories: `binary`,
 `too_large`, `unsupported`, `excluded`, `ignored`, `sensitive_path`, or
 `read_error`.
