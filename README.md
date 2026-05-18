@@ -194,7 +194,7 @@ Config precedence is:
 
 ## Project status
 
-- **Milestone:** v0.8.0 - reviewer workflows (current branch). MVP is imminent.
+- **Milestone:** v1.0.0 - Stable CLI Release. Release packaging, versioning, and installation workflow are tracked in #28.
 - **Complete:** v0.1 foundation, v0.2 cookie audit, v0.3 JWT validation, v0.4 lifecycle mapping, v0.5 expanded token handling, v0.6 framework/provider coverage, v0.7 CI SARIF/enforcement, v0.8 reviewer workflows.
 - **Schema:** JSON contract v0.5.0.
 - **Rust:** edition 2024. MSRV is not yet pinned.
