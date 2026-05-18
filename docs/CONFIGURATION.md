@@ -39,8 +39,8 @@ provider_hints = []
 | `scan_paths` | Default roots to scan when no `--path` flag is supplied. |
 | `include` | Glob patterns to include. Replaced (not merged) by `--include`. |
 | `exclude` | Glob patterns to exclude. Appended to by `--exclude`. |
-| `formats` | Default output formats. Overridden by `--format`. |
-| `mode` | Reserved for future enforce/advisory gating. Currently informational. |
+| `formats` | Default output formats. The first value is used unless `--format` is passed. |
+| `mode` | Default policy mode. Overridden by `--mode`. |
 | `max_file_size_bytes` | Skip files larger than this; overridden by `--max-file-size`. |
 | `framework_hints` | Hints to bias detectors and classifiers toward specific frameworks. |
 | `provider_hints` | Hints for auth providers (e.g., identity SaaS); reserved for future detectors. |
@@ -49,7 +49,7 @@ provider_hints = []
 
 When resolving effective options for a scan, SessionScope applies sources in this order:
 
-1. **CLI flags** — `--path`, `--include`, `--exclude`, `--format`, `--max-file-size`.
+1. **CLI flags** — `--path`, `--include`, `--exclude`, `--format`, `--output-dir`, `--max-file-size`, and policy options.
 2. **`sessionscope.toml`** — values from the loaded config.
 3. **Built-in defaults** — used when neither CLI flags nor config supply a value.
 

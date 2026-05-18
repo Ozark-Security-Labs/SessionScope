@@ -48,6 +48,7 @@ fn help_succeeds() {
         "sessionscope logout",
         "sessionscope refresh",
         "sessionscope explain",
+        "sessionscope evaluate",
         "sessionscope baseline create",
         "sessionscope diff",
         "sessionscope version",
@@ -556,6 +557,88 @@ fn scan_json_runs_builtin_cookie_detector() {
 }
 
 #[test]
+fn scan_writes_multiple_formats_to_output_dir() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let reports_dir = temp.path().join("reports");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
+    )
+    .expect("app source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "markdown,json,sarif",
+        "--output-dir",
+        reports_dir.to_str().expect("reports dir should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    assert!(output.stdout.is_empty());
+    let json = fs::read_to_string(reports_dir.join("sessionscope.json"))
+        .expect("JSON report should be written");
+    let parsed: serde_json::Value = serde_json::from_str(&json).expect("JSON should parse");
+    assert_eq!(parsed["schema_version"], "0.5.0");
+    assert!(
+        fs::read_to_string(reports_dir.join("sessionscope.md"))
+            .expect("Markdown report should be written")
+            .contains("# SessionScope")
+    );
+    assert!(
+        fs::read_to_string(reports_dir.join("sessionscope.sarif"))
+            .expect("SARIF report should be written")
+            .contains("\"version\": \"2.1.0\"")
+    );
+}
+
+#[test]
+fn scan_rejects_multiple_formats_with_single_output_file() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let output_path = temp.path().join("sessionscope.json");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json,markdown",
+        "--output",
+        output_path.to_str().expect("output path should be UTF-8"),
+    ]);
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("multiple formats require --output-dir"));
+    assert!(!output_path.exists());
+}
+
+#[test]
+fn scan_writes_single_format_to_output_dir() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let reports_dir = temp.path().join("reports");
+    fs::write(temp.path().join("app.ts"), "const app = true;")
+        .expect("app source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json",
+        "--output-dir",
+        reports_dir.to_str().expect("reports dir should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    assert!(reports_dir.join("sessionscope.json").exists());
+    assert!(!reports_dir.join("sessionscope.md").exists());
+    assert!(!reports_dir.join("sessionscope.sarif").exists());
+}
+
+#[test]
 fn cookies_json_filters_to_cookie_capability() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     fs::write(
@@ -820,6 +903,39 @@ fn scan_no_policy_config_ignores_configured_enforcement_suppression() {
 }
 
 #[test]
+fn evaluate_enforces_existing_scan_report_without_scanning() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("sessionscope.json");
+    fs::write(
+        &report_path,
+        scan_report_json(&[finding_json(
+            "finding_existing",
+            "Existing finding",
+            "description",
+            "evidence_existing",
+            7,
+        )])
+        .to_string(),
+    )
+    .expect("scan report should be written");
+
+    let output = run_sessionscope(&[
+        "evaluate",
+        report_path.to_str().expect("report path should be UTF-8"),
+        "--mode",
+        "enforce",
+        "--fail-severity",
+        "medium",
+    ]);
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("enforce mode blocked 1 finding"));
+    assert!(stderr.contains("finding_existing"));
+}
+
+#[test]
 fn scan_no_finding_enforce_exits_zero() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     fs::write(temp.path().join("app.ts"), "const app = true;")
@@ -956,6 +1072,14 @@ fn capability_aliases_reject_unsupported_formats_and_unknown_options() {
         str::from_utf8(&unknown.stderr)
             .expect("stderr should be UTF-8")
             .contains("unknown capability option")
+    );
+
+    let mixed = run_sessionscope(&["cookies", "--format", "json,sarif"]);
+    assert!(!mixed.status.success());
+    assert!(
+        str::from_utf8(&mixed.stderr)
+            .expect("stderr should be UTF-8")
+            .contains("unsupported capability format")
     );
 }
 
@@ -1360,6 +1484,9 @@ fn action_definition_declares_wrapper_contract() {
     assert!(action.contains("reports-dir:"));
     assert!(action.contains("sarif-path:"));
     assert!(action.contains("bash \"$GITHUB_ACTION_PATH/scripts/github-action.sh\""));
+    assert!(action.contains("GITHUB_ACTION_REF:"));
+    assert!(action.contains("GITHUB_ACTION_REPOSITORY:"));
+    assert!(!action.contains("dtolnay/rust-toolchain"));
     assert!(script.exists(), "action runner script should exist");
 }
 
@@ -1376,6 +1503,13 @@ fn github_action_script_writes_outputs_and_summary_with_fake_cli() {
 set -euo pipefail
 format=""
 output=""
+output_dir=""
+scan_count_file="${SESSIONSCOPE_SCAN_COUNT:-}"
+if [[ "$1" != "scan" ]]; then
+  echo "expected scan command" >&2
+  exit 1
+fi
+shift
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --format)
@@ -1386,28 +1520,41 @@ while [[ "$#" -gt 0 ]]; do
       output="$2"
       shift 2
       ;;
+    --output-dir)
+      output_dir="$2"
+      shift 2
+      ;;
     *)
       shift
       ;;
   esac
 done
-case "$format" in
-  json)
-    cat > "$output" <<'JSON'
+if [[ -n "$scan_count_file" ]]; then
+  echo scan >> "$scan_count_file"
+fi
+IFS=',' read -ra formats <<< "$format"
+for requested in "${formats[@]}"; do
+  case "$requested" in
+    json)
+      target="${output:-${output_dir}/sessionscope.json}"
+      cat > "$target" <<'JSON'
 {"summary":{"files_discovered":1,"files_scanned":1,"files_skipped":0},"lifecycle_paths":[],"findings":[{"severity":"high","category":"high_confidence_misconfiguration","title":"Cookie lacks HttpOnly"}]}
 JSON
-    ;;
-  markdown)
-    printf '# SessionScope Report\n' > "$output"
-    ;;
-  sarif)
-    printf '{"version":"2.1.0","runs":[]}\n' > "$output"
-    ;;
-  *)
-    echo "unexpected format $format" >&2
-    exit 1
-    ;;
-esac
+      ;;
+    markdown)
+      target="${output:-${output_dir}/sessionscope.md}"
+      printf '# SessionScope Report\n' > "$target"
+      ;;
+    sarif)
+      target="${output:-${output_dir}/sessionscope.sarif}"
+      printf '{"version":"2.1.0","runs":[]}\n' > "$target"
+      ;;
+    *)
+      echo "unexpected format $requested" >&2
+      exit 1
+      ;;
+  esac
+done
 "#,
     )
     .expect("fake cli should be written");
@@ -1420,11 +1567,13 @@ esac
     let output_file = temp.path().join("github-output");
     let step_summary = temp.path().join("step-summary.md");
     let reports_dir = temp.path().join("reports");
+    let scan_count = temp.path().join("scan-count");
     let script = repo_root().join("scripts").join("github-action.sh");
     let output = Command::new("bash")
         .arg(script)
         .env("SESSIONSCOPE_BIN", &fake_cli)
         .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
+        .env("SESSIONSCOPE_SCAN_COUNT", &scan_count)
         .env("GITHUB_OUTPUT", &output_file)
         .env("GITHUB_STEP_SUMMARY", &step_summary)
         .env("INPUT_MODE", "advisory")
@@ -1447,6 +1596,10 @@ esac
     assert!(!reports_dir.join("sessionscope.json").exists());
     assert!(reports_dir.join("sessionscope.md").exists());
     assert!(reports_dir.join("sessionscope.sarif").exists());
+    assert_eq!(
+        fs::read_to_string(scan_count).expect("scan count should be written"),
+        "scan\n"
+    );
 }
 
 #[cfg(not(windows))]
@@ -1458,18 +1611,19 @@ fn github_action_script_can_fail_on_findings_after_writing_reports() {
     let fake_cli = temp.path().join("sessionscope");
     fs::write(
         &fake_cli,
-        r#"#!/usr/bin/env bash
+r#"#!/usr/bin/env bash
 set -euo pipefail
+command="$1"
+shift
 output=""
-mode="advisory"
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
-    --mode)
-      mode="$2"
-      shift 2
-      ;;
     --output)
       output="$2"
+      shift 2
+      ;;
+    --output-dir)
+      output="$2/sessionscope.json"
       shift 2
       ;;
     *)
@@ -1477,13 +1631,14 @@ while [[ "$#" -gt 0 ]]; do
       ;;
   esac
 done
-cat > "$output" <<'JSON'
-{"summary":{"files_discovered":1,"files_scanned":1,"files_skipped":0},"lifecycle_paths":[],"findings":[{"severity":"high","category":"high_confidence_misconfiguration","title":"Cookie lacks HttpOnly"}]}
-JSON
-if [[ "$mode" == "enforce" ]]; then
+printf '%s\n' "$command" >> "$SESSIONSCOPE_COMMAND_LOG"
+if [[ "$command" == "evaluate" ]]; then
   echo "sessionscope: enforce mode blocked 1 finding(s)" >&2
   exit 1
 fi
+cat > "$output" <<'JSON'
+{"summary":{"files_discovered":1,"files_scanned":1,"files_skipped":0},"lifecycle_paths":[],"findings":[{"severity":"high","category":"high_confidence_misconfiguration","title":"Cookie lacks HttpOnly"}]}
+JSON
 "#,
     )
     .expect("fake cli should be written");
@@ -1494,6 +1649,7 @@ fi
     fs::set_permissions(&fake_cli, permissions).expect("fake cli should be executable");
 
     let reports_dir = temp.path().join("reports");
+    let command_log = temp.path().join("commands.log");
     let script = repo_root().join("scripts").join("github-action.sh");
     let output = Command::new("bash")
         .arg(script)
@@ -1501,6 +1657,7 @@ fi
         .env_remove("GITHUB_STEP_SUMMARY")
         .env("SESSIONSCOPE_BIN", &fake_cli)
         .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
+        .env("SESSIONSCOPE_COMMAND_LOG", &command_log)
         .env("INPUT_MODE", "advisory")
         .env("INPUT_PATH", ".")
         .env("INPUT_OUTPUT", "json")
@@ -1512,6 +1669,10 @@ fi
     assert!(reports_dir.join("sessionscope.json").exists());
     let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
     assert!(stderr.contains("enforce mode blocked 1 finding"));
+    assert_eq!(
+        fs::read_to_string(command_log).expect("command log should be written"),
+        "scan\nevaluate\n"
+    );
 }
 
 #[cfg(not(windows))]
@@ -1523,14 +1684,20 @@ fn github_action_script_forwards_enforce_policy_inputs() {
     let fake_cli = temp.path().join("sessionscope");
     fs::write(
         &fake_cli,
-        r#"#!/usr/bin/env bash
+r#"#!/usr/bin/env bash
 set -euo pipefail
 output=""
+command="$1"
 original_args="$*"
+shift
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --output)
       output="$2"
+      shift 2
+      ;;
+    --output-dir)
+      output="$2/sessionscope.json"
       shift 2
       ;;
     *)
@@ -1539,6 +1706,9 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 printf '%s\n' "$original_args" >> "$SESSIONSCOPE_ARG_LOG"
+if [[ "$command" == "evaluate" ]]; then
+  exit 0
+fi
 cat > "$output" <<'JSON'
 {"summary":{"files_discovered":1,"files_scanned":1,"files_skipped":0},"lifecycle_paths":[],"findings":[]}
 JSON
@@ -1576,6 +1746,8 @@ JSON
     assert!(output.status.success());
     let args = fs::read_to_string(arg_log).expect("arg log should be written");
     assert!(args.contains("--no-policy-config"));
+    assert!(args.contains("--mode advisory"));
+    assert!(args.contains("evaluate"));
     assert!(args.contains("--mode enforce"));
     assert!(args.contains("--fail-severity medium"));
     assert!(args.contains("--fail-category high_confidence_misconfiguration"));
@@ -1626,6 +1798,173 @@ fn github_action_script_prefixes_sarif_uris_for_relative_scan_path() {
                     == "src/app.ts"
             )
     );
+}
+
+#[cfg(not(windows))]
+#[test]
+fn github_action_script_downloads_release_binary_for_tagged_action_ref() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let release_dir = temp.path().join("release");
+    let package_root = temp
+        .path()
+        .join("package")
+        .join("sessionscope-0.1.0-x86_64-unknown-linux-gnu");
+    fs::create_dir_all(&release_dir).expect("release dir should be created");
+    fs::create_dir_all(&package_root).expect("package root should be created");
+    let packaged_cli = package_root.join("sessionscope");
+    fs::write(
+        &packaged_cli,
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+format=""
+output_dir=""
+if [[ "$1" != "scan" ]]; then
+  exit 0
+fi
+shift
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --format)
+      format="$2"
+      shift 2
+      ;;
+    --output-dir)
+      output_dir="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+IFS=',' read -ra formats <<< "$format"
+for requested in "${formats[@]}"; do
+  case "$requested" in
+    json)
+      printf '{"summary":{"files_discovered":1,"files_scanned":1,"files_skipped":0},"lifecycle_paths":[],"findings":[]}\n' > "${output_dir}/sessionscope.json"
+      ;;
+    markdown)
+      printf '# SessionScope Report\n' > "${output_dir}/sessionscope.md"
+      ;;
+    sarif)
+      printf '{"version":"2.1.0","runs":[]}\n' > "${output_dir}/sessionscope.sarif"
+      ;;
+  esac
+done
+"#,
+    )
+    .expect("packaged fake cli should be written");
+    let mut cli_permissions = fs::metadata(&packaged_cli)
+        .expect("packaged fake cli metadata")
+        .permissions();
+    cli_permissions.set_mode(0o755);
+    fs::set_permissions(&packaged_cli, cli_permissions).expect("packaged fake cli executable");
+
+    let artifact = release_dir.join("sessionscope-0.1.0-x86_64-unknown-linux-gnu.tar.gz");
+    let tar_status = Command::new("tar")
+        .arg("-C")
+        .arg(temp.path().join("package"))
+        .arg("-czf")
+        .arg(&artifact)
+        .arg("sessionscope-0.1.0-x86_64-unknown-linux-gnu")
+        .status()
+        .expect("tar should run");
+    assert!(tar_status.success());
+    let checksum_output = Command::new("sha256sum")
+        .arg(&artifact)
+        .output()
+        .expect("sha256sum should run");
+    assert!(checksum_output.status.success());
+    let checksum = str::from_utf8(&checksum_output.stdout).expect("checksum should be UTF-8");
+    let checksum_sidecar =
+        release_dir.join("sessionscope-0.1.0-x86_64-unknown-linux-gnu.tar.gz.sha256");
+    fs::write(
+        checksum_sidecar,
+        checksum.replace(
+            artifact.to_str().expect("artifact path"),
+            "sessionscope-0.1.0-x86_64-unknown-linux-gnu.tar.gz",
+        ),
+    )
+    .expect("checksum sidecar should be written");
+
+    let fake_bin_dir = temp.path().join("bin");
+    fs::create_dir_all(&fake_bin_dir).expect("fake bin dir should be created");
+    let fake_gh = fake_bin_dir.join("gh");
+    fs::write(
+        &fake_gh,
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+echo "$*" >> "$SESSIONSCOPE_GH_LOG"
+destination=""
+patterns=()
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --dir)
+      destination="$2"
+      shift 2
+      ;;
+    -p)
+      patterns+=("$2")
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+mkdir -p "$destination"
+for pattern in "${patterns[@]}"; do
+  cp "$SESSIONSCOPE_RELEASE_FIXTURE_DIR/$pattern" "$destination/"
+done
+"#,
+    )
+    .expect("fake gh should be written");
+    let mut gh_permissions = fs::metadata(&fake_gh)
+        .expect("fake gh metadata")
+        .permissions();
+    gh_permissions.set_mode(0o755);
+    fs::set_permissions(&fake_gh, gh_permissions).expect("fake gh executable");
+
+    let reports_dir = temp.path().join("reports");
+    let gh_log = temp.path().join("gh.log");
+    let script = repo_root().join("scripts").join("github-action.sh");
+    let path = format!(
+        "{}:{}",
+        fake_bin_dir.display(),
+        std::env::var("PATH").expect("PATH should be set")
+    );
+    let output = Command::new("bash")
+        .arg(script)
+        .env_remove("SESSIONSCOPE_BIN")
+        .env_remove("GITHUB_OUTPUT")
+        .env_remove("GITHUB_STEP_SUMMARY")
+        .env("PATH", path)
+        .env("GITHUB_ACTION_PATH", repo_root())
+        .env("GITHUB_ACTION_REF", "v0.1.0")
+        .env(
+            "GITHUB_ACTION_REPOSITORY",
+            "Ozark-Security-Labs/SessionScope",
+        )
+        .env("RUNNER_OS", "Linux")
+        .env("RUNNER_ARCH", "X64")
+        .env("RUNNER_TEMP", temp.path())
+        .env("SESSIONSCOPE_RELEASE_FIXTURE_DIR", &release_dir)
+        .env("SESSIONSCOPE_GH_LOG", &gh_log)
+        .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
+        .env("INPUT_MODE", "advisory")
+        .env("INPUT_PATH", ".")
+        .env("INPUT_OUTPUT", "json")
+        .env("INPUT_FAIL_ON_FINDINGS", "false")
+        .output()
+        .expect("action script should run");
+
+    assert!(output.status.success());
+    assert!(reports_dir.join("sessionscope.json").exists());
+    let gh_calls = fs::read_to_string(gh_log).expect("gh log should be written");
+    assert!(gh_calls.contains("release download v0.1.0"));
+    assert!(gh_calls.contains("sessionscope-0.1.0-x86_64-unknown-linux-gnu.tar.gz"));
 }
 
 #[cfg(not(windows))]

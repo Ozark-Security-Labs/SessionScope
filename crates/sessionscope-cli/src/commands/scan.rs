@@ -26,8 +26,9 @@ pub fn run_capability(args: &[String], capability: CapabilityArea) -> CommandRes
 
 fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> CommandResult {
     let mut path = None;
-    let mut format = None;
+    let mut formats = None;
     let mut output = None;
+    let mut output_dir = None;
     let mut include_patterns = Vec::new();
     let mut exclude_patterns = Vec::new();
     let mut max_file_size_bytes = None;
@@ -48,17 +49,17 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
             }
             "--format" => {
                 index += 1;
-                let parsed = ReportFormat::parse(required_value(args, index, "--format")?)?;
-                if capability.is_some()
-                    && !matches!(parsed, ReportFormat::Json | ReportFormat::Markdown)
-                {
-                    return Err("unsupported capability format; expected markdown or json".into());
-                }
-                format = Some(parsed);
+                let parsed = parse_formats(required_value(args, index, "--format")?)?;
+                validate_capability_formats(&parsed, capability)?;
+                formats = Some(parsed);
             }
             "--output" => {
                 index += 1;
                 output = Some(PathBuf::from(required_value(args, index, "--output")?));
+            }
+            "--output-dir" => {
+                index += 1;
+                output_dir = Some(PathBuf::from(required_value(args, index, "--output-dir")?));
             }
             "--include" => {
                 index += 1;
@@ -130,12 +131,16 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
     let scan_root = path
         .or_else(|| project_config.first_scan_path().map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from("."));
-    let format = format
-        .or(project_config.first_format()?)
-        .unwrap_or(ReportFormat::Markdown);
-    if capability.is_some() && !matches!(format, ReportFormat::Json | ReportFormat::Markdown) {
-        return Err("unsupported capability format; expected markdown or json".into());
-    }
+    let formats = match formats {
+        Some(formats) => formats,
+        None => vec![
+            project_config
+                .first_format()?
+                .unwrap_or(ReportFormat::Markdown),
+        ],
+    };
+    validate_capability_formats(&formats, capability)?;
+    validate_output_options(&formats, output.as_ref(), output_dir.as_ref())?;
 
     let mut config = ScanConfig::new(scan_root);
     if let Some(config_include) = &project_config.include {
@@ -176,17 +181,36 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
     if let Some(capability) = capability {
         report = filter_report(&report, capability);
     }
-    let rendered = render(&report, format);
-
-    if let Some(output) = output {
-        fs::write(&output, rendered).map_err(|error| {
+    if let Some(output_dir) = output_dir {
+        fs::create_dir_all(&output_dir).map_err(|error| {
             format!(
-                "failed to write scan output to {}: {error}",
-                output.display()
+                "failed to create scan output directory {}: {error}",
+                output_dir.display()
             )
         })?;
+        for format in &formats {
+            let rendered = render(&report, *format);
+            let output_path = output_dir.join(output_filename(*format));
+            fs::write(&output_path, rendered).map_err(|error| {
+                format!(
+                    "failed to write scan output to {}: {error}",
+                    output_path.display()
+                )
+            })?;
+        }
     } else {
-        print!("{rendered}");
+        let format = formats[0];
+        let rendered = render(&report, format);
+        if let Some(output) = output {
+            fs::write(&output, rendered).map_err(|error| {
+                format!(
+                    "failed to write scan output to {}: {error}",
+                    output.display()
+                )
+            })?;
+        } else {
+            print!("{rendered}");
+        }
     }
 
     let enforcement_report = sanitized_report(&report);
@@ -198,6 +222,56 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
     }
 
     Ok(())
+}
+
+fn parse_formats(value: &str) -> Result<Vec<ReportFormat>, String> {
+    let formats = value
+        .split(',')
+        .map(str::trim)
+        .filter(|format| !format.is_empty())
+        .map(|format| ReportFormat::parse(format).map_err(|error| error.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    if formats.is_empty() {
+        return Err("format must include at least one report format".to_string());
+    }
+    Ok(formats)
+}
+
+fn validate_capability_formats(
+    formats: &[ReportFormat],
+    capability: Option<CapabilityArea>,
+) -> Result<(), String> {
+    if capability.is_some()
+        && formats
+            .iter()
+            .any(|format| !matches!(format, ReportFormat::Json | ReportFormat::Markdown))
+    {
+        return Err("unsupported capability format; expected markdown or json".to_string());
+    }
+    Ok(())
+}
+
+fn validate_output_options(
+    formats: &[ReportFormat],
+    output: Option<&PathBuf>,
+    output_dir: Option<&PathBuf>,
+) -> Result<(), String> {
+    if output.is_some() && output_dir.is_some() {
+        return Err("--output and --output-dir cannot be used together".to_string());
+    }
+    if formats.len() > 1 && output_dir.is_none() {
+        return Err("multiple formats require --output-dir".to_string());
+    }
+    Ok(())
+}
+
+fn output_filename(format: ReportFormat) -> &'static str {
+    match format {
+        ReportFormat::Json => "sessionscope.json",
+        ReportFormat::Markdown => "sessionscope.md",
+        ReportFormat::Sarif => "sessionscope.sarif",
+        ReportFormat::GithubSummary => "sessionscope-summary.md",
+    }
 }
 
 fn unknown_option_message(capability: Option<CapabilityArea>) -> &'static str {

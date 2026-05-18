@@ -8,12 +8,13 @@ SessionScope is a single binary, `sessionscope`. All commands operate on a local
 
 ```text
 sessionscope init [--force]
-sessionscope scan [--path PATH] [--include PATTERN] [--exclude PATTERN] [--max-file-size BYTES] [--format FORMAT] [--output PATH]
+sessionscope scan [--path PATH] [--include PATTERN] [--exclude PATTERN] [--max-file-size BYTES] [--format FORMAT[,FORMAT...]] [--output PATH|--output-dir DIR]
 sessionscope cookies [scan options]
 sessionscope claims [scan options]
 sessionscope logout [scan options]
 sessionscope refresh [scan options]
 sessionscope explain FINDING_ID --report REPORT.json
+sessionscope evaluate REPORT.json [--mode advisory|enforce] [policy options]
 sessionscope baseline create --from REPORT.json [--output BASELINE.json]
 sessionscope diff --baseline BASELINE.json --current REPORT.json [--format json|markdown] [--output PATH]
 sessionscope version
@@ -33,8 +34,13 @@ Flags:
 - `--include PATTERN` — glob to include. Repeatable, or comma-separated. Replaces config `include`.
 - `--exclude PATTERN` — glob to exclude. Repeatable, or comma-separated. Appends to config `exclude`.
 - `--max-file-size BYTES` — skip files larger than this. Defaults to the config value.
-- `--format FORMAT` — one of `markdown`, `json`, `sarif`, `github-summary`.
+- `--format FORMAT[,FORMAT...]` — one or more of `markdown`, `json`, `sarif`, `github-summary`.
 - `--output PATH` — write the report to this file. Defaults to stdout.
+- `--output-dir DIR` — write report files into a directory. Required when more than one format is requested.
+
+Multi-format scans walk the source tree once, then render each requested format.
+Output directory filenames are `sessionscope.json`, `sessionscope.md`,
+`sessionscope.sarif`, and `sessionscope-summary.md`.
 
 ### Capability aliases
 
@@ -43,6 +49,14 @@ Flags:
 ### `sessionscope explain FINDING_ID --report REPORT.json`
 
 Resolves any finding ID against a JSON scan report and prints the supporting context — artifacts, lifecycle paths, and linked evidence. Useful during PR review.
+
+### `sessionscope evaluate REPORT.json`
+
+Evaluates an existing JSON scan report with the same policy options accepted by
+`scan`: `--mode`, `--fail-severity`, `--fail-category`,
+`--include-finding-id`, `--exclude-finding-id`, and `--baseline`. This lets CI
+reuse a JSON report already produced by a scan instead of walking the source
+tree again.
 
 ### `sessionscope baseline create --from REPORT.json [--output BASELINE.json]`
 
@@ -58,7 +72,10 @@ Prints the CLI version and exits.
 
 ### Exit semantics
 
-`sessionscope` exits `0` on success and `1` on error. Findings do not affect exit status; severity-gated exits are tracked in [ROADMAP.md](ROADMAP.md).
+`sessionscope` exits `0` on successful advisory scans and `1` on errors. In
+enforce mode, `scan` writes requested reports before returning a failing status
+for findings that match policy. `evaluate` applies the same policy to an
+existing JSON report without scanning source files.
 
 ## Lifecycle stages
 

@@ -61,6 +61,132 @@ run_sessionscope() {
   fi
 }
 
+release_artifact_for_runner() {
+  local version="$1"
+  local host=""
+  local archive=""
+  local binary="sessionscope"
+
+  case "${RUNNER_OS:-}:${RUNNER_ARCH:-}" in
+    Linux:X64)
+      host="x86_64-unknown-linux-gnu"
+      archive="sessionscope-${version}-${host}.tar.gz"
+      ;;
+    Linux:ARM64)
+      host="aarch64-unknown-linux-gnu"
+      archive="sessionscope-${version}-${host}.tar.gz"
+      ;;
+    macOS:X64)
+      host="x86_64-apple-darwin"
+      archive="sessionscope-${version}-${host}.tar.gz"
+      ;;
+    macOS:ARM64)
+      host="aarch64-apple-darwin"
+      archive="sessionscope-${version}-${host}.tar.gz"
+      ;;
+    Windows:X64)
+      host="x86_64-pc-windows-msvc"
+      archive="sessionscope-${version}-${host}.zip"
+      binary="sessionscope.exe"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  printf '%s\t%s\n' "$archive" "$binary"
+}
+
+verify_checksum() {
+  local checksum_file="$1"
+  local checksum_dir
+  checksum_dir="$(dirname "$checksum_file")"
+  local checksum_name
+  checksum_name="$(basename "$checksum_file")"
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    (cd "$checksum_dir" && sha256sum -c "$checksum_name")
+  elif command -v shasum >/dev/null 2>&1; then
+    (cd "$checksum_dir" && shasum -a 256 -c "$checksum_name")
+  else
+    echo "sessionscope: no SHA-256 verifier found; falling back to cargo run" >&2
+    return 1
+  fi
+}
+
+resolve_release_binary() {
+  if [[ -n "${SESSIONSCOPE_BIN:-}" ]]; then
+    return 0
+  fi
+
+  local action_ref="${GITHUB_ACTION_REF:-}"
+  case "$action_ref" in
+    v[0-9]*.[0-9]*.[0-9]* | v[0-9]*.[0-9]*.[0-9]*-*) ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "sessionscope: gh is unavailable; falling back to cargo run" >&2
+    return 0
+  fi
+
+  local version="${action_ref#v}"
+  local artifact_info
+  if ! artifact_info="$(release_artifact_for_runner "$version")"; then
+    echo "sessionscope: no release binary mapping for ${RUNNER_OS:-unknown}/${RUNNER_ARCH:-unknown}; falling back to cargo run" >&2
+    return 0
+  fi
+
+  local archive="${artifact_info%%$'\t'*}"
+  local binary="${artifact_info#*$'\t'}"
+  local download_dir
+  download_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/sessionscope-release.XXXXXX")"
+  local repository="${GITHUB_ACTION_REPOSITORY:-Ozark-Security-Labs/SessionScope}"
+
+  if ! gh release download "$action_ref" -R "$repository" -p "$archive" -p "$archive.sha256" --dir "$download_dir"; then
+    echo "sessionscope: release binary ${archive} unavailable; falling back to cargo run" >&2
+    return 0
+  fi
+  if ! verify_checksum "$download_dir/$archive.sha256"; then
+    return 0
+  fi
+
+  local extract_dir="$download_dir/extract"
+  mkdir -p "$extract_dir"
+  case "$archive" in
+    *.zip)
+      if ! unzip -q "$download_dir/$archive" -d "$extract_dir"; then
+        echo "sessionscope: failed to extract ${archive}; falling back to cargo run" >&2
+        return 0
+      fi
+      ;;
+    *.tar.gz)
+      if ! tar -C "$extract_dir" -xzf "$download_dir/$archive"; then
+        echo "sessionscope: failed to extract ${archive}; falling back to cargo run" >&2
+        return 0
+      fi
+      ;;
+    *)
+      echo "sessionscope: unsupported release archive ${archive}; falling back to cargo run" >&2
+      return 0
+      ;;
+  esac
+
+  local resolved_bin
+  resolved_bin="$(find "$extract_dir" -name "$binary" -type f | head -n 1)"
+  if [[ -z "$resolved_bin" ]]; then
+    echo "sessionscope: release archive did not contain ${binary}; falling back to cargo run" >&2
+    return 0
+  fi
+  if [[ "${RUNNER_OS:-}" != "Windows" ]]; then
+    chmod +x "$resolved_bin"
+  fi
+  SESSIONSCOPE_BIN="$resolved_bin"
+  export SESSIONSCOPE_BIN
+}
+
 format_requested() {
   local requested="$1"
   IFS=',' read -ra formats <<< "$outputs"
@@ -155,6 +281,7 @@ PY
 }
 
 validate_requested_formats
+resolve_release_binary
 
 # Bash 3.x (macOS default) treats "${arr[@]}" as unbound when arr is empty
 # under `set -u`. Expansions of these arrays below use the
@@ -188,20 +315,26 @@ if format_requested json; then
   json_requested=true
   json_path="$reports_dir/sessionscope.json"
 else
-  json_path="$(mktemp "${RUNNER_TEMP:-/tmp}/sessionscope-json.XXXXXX")"
+  json_path="$reports_dir/sessionscope.json"
 fi
-
-run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory ${policy_args[@]+"${policy_args[@]}"} --format json --output "$json_path"
 
 markdown_path=""
 sarif_path=""
 if format_requested markdown; then
   markdown_path="$reports_dir/sessionscope.md"
-  run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory ${policy_args[@]+"${policy_args[@]}"} --format markdown --output "$markdown_path"
 fi
 if format_requested sarif; then
   sarif_path="$reports_dir/sessionscope.sarif"
-  run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory ${policy_args[@]+"${policy_args[@]}"} --format sarif --output "$sarif_path"
+fi
+
+scan_outputs="$outputs"
+if [[ "$json_requested" != "true" ]]; then
+  scan_outputs="${scan_outputs},json"
+fi
+
+run_sessionscope scan --path "$scan_path" --no-policy-config --mode advisory ${policy_args[@]+"${policy_args[@]}"} --format "$scan_outputs" --output-dir "$reports_dir"
+
+if [[ -n "$sarif_path" ]]; then
   prefix_sarif_uris "$sarif_path" "$scan_path"
 fi
 
@@ -299,20 +432,16 @@ if [[ "$fail_on_findings" == "true" ]]; then
 fi
 
 if [[ "$effective_mode" == "enforce" ]]; then
-  enforcement_path="$(mktemp "${RUNNER_TEMP:-/tmp}/sessionscope-enforcement.XXXXXX")"
   # Capture the enforcement status explicitly rather than relying on set -e:
   # bash 3.x (macOS) does not always propagate a function's nonzero exit
   # through an active EXIT trap, which would otherwise mask a real failure
   # here as exit 0.
   enforcement_status=0
-  run_sessionscope scan \
-    --path "$scan_path" \
-    --no-policy-config \
+  run_sessionscope evaluate \
+    "$json_path" \
     --mode enforce \
     --fail-severity "$effective_fail_severity" \
-    ${policy_args_without_severity[@]+"${policy_args_without_severity[@]}"} \
-    --format json \
-    --output "$enforcement_path" || enforcement_status=$?
+    ${policy_args_without_severity[@]+"${policy_args_without_severity[@]}"} || enforcement_status=$?
   if [[ $enforcement_status -ne 0 ]]; then
     exit "$enforcement_status"
   fi

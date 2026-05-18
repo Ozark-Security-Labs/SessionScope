@@ -35,7 +35,7 @@ Then bootstrap a config and scan:
 
 ```bash
 sessionscope init
-sessionscope scan --path . --format markdown --output sessions.md
+sessionscope scan --path . --format markdown,json,sarif --output-dir sessionscope-reports
 ```
 
 ## GitHub Action
@@ -75,7 +75,7 @@ jobs:
           category: sessionscope
 ```
 
-The action runs in advisory mode by default, writes a GitHub Actions step summary, and exposes report paths for artifact and SARIF upload steps.
+The action runs in advisory mode by default, downloads the matching release binary when used from a tag, writes a GitHub Actions step summary, and exposes report paths for artifact and SARIF upload steps. Requested report formats are produced from a single scan.
 
 To enforce policy in CI, start with `mode: advisory` while uploading Markdown, JSON, and SARIF reports. After the team has reviewed the initial findings, switch to `mode: enforce` with the default `fail-severity: high`. The legacy `fail-on-findings: "true"` input is still accepted and is equivalent to `mode: enforce` with `fail-severity: info`.
 

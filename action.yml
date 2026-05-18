@@ -59,10 +59,11 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
     - id: sessionscope
       shell: bash
       env:
+        GITHUB_ACTION_REF: ${{ github.action_ref }}
+        GITHUB_ACTION_REPOSITORY: ${{ github.action_repository }}
         INPUT_MODE: ${{ inputs.mode }}
         INPUT_PATH: ${{ inputs.path }}
         INPUT_OUTPUT: ${{ inputs.output }}
