@@ -1,286 +1,45 @@
-# SessionScope
+<p align="center">
+  <img src="docs/assets/sessionscope-banner.svg" alt="SessionScope" width="640">
+</p>
 
-SessionScope is a defensive product-security tool for auditing session, cookie, JWT, and token lifecycle behavior in application code.
+<p align="center"><strong>Session, cookie, JWT, and token lifecycle auditing for product-security review.</strong></p>
 
-It answers:
+<p align="center">
+  <a href="https://github.com/Ozark-Security-Labs/SessionScope/actions/workflows/rust.yml"><img alt="CI" src="https://github.com/Ozark-Security-Labs/SessionScope/actions/workflows/rust.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/Ozark-Security-Labs/SessionScope/actions/workflows/security.yml"><img alt="Security" src="https://github.com/Ozark-Security-Labs/SessionScope/actions/workflows/security.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/Ozark-Security-Labs/SessionScope/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/Ozark-Security-Labs/SessionScope/actions/workflows/codeql.yml/badge.svg?branch=main"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+</p>
 
-> How are authentication tokens issued, stored, validated, refreshed, revoked, and scoped?
+---
 
-SessionScope is intended for product-security teams and developers who need evidence-backed review of session management risks without attacking a live system. It is the umbrella capability model for four related review areas: cookie posture, claim and validation evidence, logout and revocation evidence, and refresh-token lifecycle evidence.
+SessionScope maps how authentication artifacts move through your application: how cookies, JWTs, refresh tokens, password-reset tokens, and provider-managed tokens are issued, stored, transmitted, validated, refreshed, revoked, expired, and introspected. It answers a foundational appsec question: **what controls each artifact actually has, and where they go missing?**
 
-## Problem
+SessionScope is intended for product-security teams and developers who need authorized, evidence-backed review of session management risks without attacking a live system.
 
-Session and token bugs are high-impact and common. Teams often rely on framework defaults, scattered middleware, or third-party libraries, but still accidentally introduce issues such as:
+## Quickstart
 
-- cookies missing `HttpOnly`, `Secure`, scoped lifetime, or `SameSite`
-- JWTs accepted without issuer or audience validation
-- refresh tokens that are never rotated
-- logout paths that do not revoke server-side state
-- long-lived tokens without expiry enforcement
-- tokens reused across trust boundaries
-- API keys or bearer tokens stored in unsafe places
-- password reset or email verification tokens without single-use semantics
+Install from source:
 
-Many checks can be reviewed statically by mapping token lifecycle paths and configuration evidence.
-
-## Product thesis
-
-Authentication security is not just "does login work?" It is a lifecycle problem.
-
-SessionScope builds a map of token issuance, storage, validation, refresh, revocation, and expiry so reviewers can see lifecycle gaps clearly.
-
-## Initial scope
-
-SessionScope is a CLI and CI-friendly analyzer for common web application patterns.
-
-Initial targets:
-
-- Express session/cookie/JWT middleware
-- Next.js auth/session patterns
-- FastAPI auth dependencies
-- Django sessions and signing utilities
-- JWT libraries in TypeScript and Python
-- Cookie-setting APIs
-
-Framework support is evidence-bound and pattern-based. The current supported and unsupported framework API matrix is documented in [`docs/FRAMEWORK_COVERAGE.md`](docs/FRAMEWORK_COVERAGE.md). Provider/library support is also evidence-bound and documented in [`docs/PROVIDER_LIBRARY_COVERAGE.md`](docs/PROVIDER_LIBRARY_COVERAGE.md).
-
-Initial outputs:
-
-- Markdown lifecycle report
-- JSON token-flow inventory
-- SARIF findings for high-confidence issues
-- GitHub Actions summary
-
-## Example report shape
-
-```text
-Token: access_jwt
-Issued at: src/auth/login.ts:44
-Validation evidence:
-  - jwt.verify(token, publicKey)
-  - issuer check: present
-  - audience check: missing
-  - expiry check: library default
-Storage evidence:
-  - Authorization bearer token expected
-Risk: review_required
-Reviewer question:
-  - Should this service enforce an audience claim?
+```bash
+cargo install --git https://github.com/Ozark-Security-Labs/SessionScope sessionscope-cli
 ```
 
-```text
-Cookie: session
-Set at: app/auth/session.py:71
-Attributes:
-  - HttpOnly: present
-  - Secure: missing
-  - SameSite: lax
-  - Max-Age: 30 days
-Risk: high_confidence_misconfiguration
-Suggested fix:
-  - Set Secure in production cookie configuration.
-```
-
-## Core concepts
-
-The versioned inventory and finding schema is documented in
-[`docs/SCHEMA.md`](docs/SCHEMA.md).
-
-### Capability areas
-
-SessionScope groups lifecycle evidence into four user-facing capabilities:
-
-- **Cookie posture**: cookie setting APIs, security attributes, lifetimes, scope, and browser storage signals.
-- **Claims and validation**: JWT issuer, audience, expiry, signature validation, identity-claim inventory, and trust-boundary hints.
-- **Logout and revocation**: logout handlers, cookie clearing, server-side session destruction, token revocation, and provider revoke calls.
-- **Refresh lifecycle**: refresh-token issue, storage, validation, rotation, reuse detection, expiry, and revocation.
-
-These capabilities share one scanner, inventory schema, redaction boundary, classifier pipeline, and reporting model.
-
-### Lifecycle stages
-
-SessionScope models auth artifacts through stages:
-
-- issue
-- store
-- transmit
-- validate
-- refresh
-- revoke
-- expire
-- introspect
-
-### Token types
-
-SessionScope classifies:
-
-- session cookies
-- signed cookies
-- access JWTs
-- refresh JWTs
-- opaque bearer tokens
-- API keys
-- service tokens
-- unknown token flows
-- password-reset tokens
-- email-verification tokens
-- device/session records
-- token scope and trust-boundary evidence
-
-### Evidence-bound findings
-
-SessionScope prefers precise statements:
-
-- "No audience validation evidence detected near JWT verification."
-- "This cookie-setting call does not set Secure."
-- "Refresh token rotation evidence was not found."
-
-It should avoid unsupported claims like "authentication bypass" unless proven by deterministic evidence.
-
-## CLI sketch
+Then bootstrap a config and scan:
 
 ```bash
 sessionscope init
 sessionscope scan --path . --format markdown --output sessions.md
-sessionscope scan --path . --include "src/**/*.ts" --exclude "**/*.test.ts" --format json --output sessions.json
-sessionscope scan --path . --format sarif --output sessions.sarif
-sessionscope scan --path . --max-file-size 1000000
-sessionscope cookies --path . --format markdown
-sessionscope claims --path . --format json
-sessionscope logout --path . --format markdown
-sessionscope refresh --path . --format json
-sessionscope explain FINDING_ID --report sessions.json
-sessionscope baseline create --from sessions.json --output sessionscope-baseline.json
-sessionscope diff --baseline sessionscope-baseline.json --current sessions.json --format markdown
-sessionscope scan --path . --mode enforce --fail-severity high --format json --output sessions.json
-sessionscope explain FINDING_ID
-sessionscope diff main...HEAD
-sessionscope baseline create
 ```
 
-`scan` is the current command for all capability areas. Focused aliases planned in #39 (`sessionscope cookies`, `sessionscope claims`, `sessionscope logout`, and `sessionscope refresh`) should route through the same scanner, detector registry, classifier, redaction, and reporting pipeline rather than becoming separate products or engines.
+## GitHub Action
 
-JSON reports are machine-readable inventories using the documented schema
-version. A compact cookie audit excerpt looks like:
-
-```json
-{
-  "schema_version": "0.5.0",
-  "summary": {
-    "files_discovered": 1,
-    "files_scanned": 1,
-    "files_skipped": 0,
-    "diagnostics": []
-  },
-  "artifacts": [
-    {
-      "id": "artifact_...",
-      "artifact_type": "session_cookie",
-      "display_name": "session",
-      "locations": [{ "path": "src/app.ts", "line": 12, "column": 3 }],
-      "lifecycle_evidence": {
-        "issue": [],
-        "store": ["evidence_cookie_store"],
-        "transmit": ["evidence_cookie_secure"],
-        "validate": [],
-        "refresh": [],
-        "revoke": [],
-        "expire": [],
-        "introspect": []
-      },
-      "confidence": "high",
-      "framework_hints": ["express"],
-      "cookie_attributes": {
-        "http_only": {
-          "state": "missing",
-          "evidence_ids": ["evidence_cookie_http_only"],
-          "confidence": "high"
-        },
-        "secure": {
-          "state": "present",
-          "value": "true",
-          "evidence_ids": ["evidence_cookie_secure"],
-          "confidence": "high"
-        },
-        "same_site": {
-          "state": "present",
-          "value": "lax",
-          "evidence_ids": ["evidence_cookie_same_site"],
-          "confidence": "high"
-        },
-        "max_age": {
-          "state": "missing",
-          "evidence_ids": ["evidence_cookie_max_age"],
-          "confidence": "high"
-        },
-        "expires": {
-          "state": "missing",
-          "evidence_ids": ["evidence_cookie_expires"],
-          "confidence": "high"
-        },
-        "path": {
-          "state": "framework_default",
-          "value": "/",
-          "evidence_ids": ["evidence_cookie_path"],
-          "confidence": "low"
-        },
-        "domain": {
-          "state": "missing",
-          "evidence_ids": ["evidence_cookie_domain"],
-          "confidence": "high"
-        }
-      }
-    }
-  ],
-  "evidence": [
-    {
-      "id": "evidence_cookie_store",
-      "lifecycle_stage": "store",
-      "location": { "path": "src/app.ts", "line": 12, "column": 3 },
-      "detector_id": "cookie.set",
-      "confidence": "high",
-      "excerpt": "response.cookie(\"session\", [REDACTED], ...)",
-      "dynamic": false,
-      "framework_default": false
-    }
-  ],
-  "lifecycle_paths": [
-    {
-      "id": "lifecycle_path_...",
-      "artifact_ids": ["artifact_..."],
-      "stages": [
-        {
-          "stage": "store",
-          "evidence_ids": ["evidence_cookie_store"]
-        }
-      ],
-      "confidence": "high",
-      "dynamic": false,
-      "reviewer_question": null
-    }
-  ],
-  "findings": [
-    {
-      "id": "finding_...",
-      "category": "high_confidence_misconfiguration",
-      "severity": "high",
-      "artifact_ids": ["artifact_..."],
-      "evidence_ids": ["evidence_cookie_http_only"],
-      "title": "Session-like cookie `session` does not set HttpOnly",
-      "description": "No HttpOnly attribute evidence was detected for this cookie-setting call.",
-      "suggested_fix": "Set HttpOnly on session cookies so client-side scripts cannot read them.",
-      "reviewer_question": "Is this cookie intended to be inaccessible to browser JavaScript?"
-    }
-  ],
-  "files": []
-}
-```
-
-## GitHub Action sketch
+SessionScope ships a composite GitHub Action:
 
 ```yaml
 name: SessionScope
-on: [pull_request]
+on:
+  pull_request:
 
 permissions:
   contents: read
@@ -310,92 +69,177 @@ jobs:
           category: sessionscope
 ```
 
-The action runs in advisory mode by default, writes a GitHub Actions step
-summary, and exposes report paths for artifact and SARIF upload steps.
+The action runs in advisory mode by default, writes a GitHub Actions step summary, and exposes report paths for artifact and SARIF upload steps.
 
-To enforce policy in CI, start by keeping `mode: advisory` while uploading
-Markdown, JSON, and SARIF reports as artifacts. After the team has reviewed the
-initial findings, switch to `mode: enforce` with the default `fail-severity:
-high`. Tighten to `medium`, category-specific blocking, or exact finding ID
-includes only after the remaining backlog is understood. The legacy
-`fail-on-findings: "true"` input is still accepted and is equivalent to
-`mode: enforce` with `fail-severity: info`.
+To enforce policy in CI, start with `mode: advisory` while uploading Markdown, JSON, and SARIF reports. After the team has reviewed the initial findings, switch to `mode: enforce` with the default `fail-severity: high`. The legacy `fail-on-findings: "true"` input is still accepted and is equivalent to `mode: enforce` with `fail-severity: info`.
 
-Enforce mode writes reports before returning a failing status. A finding blocks
-when it meets the severity threshold and optional category filter, or when its
-ID is listed in `include-finding-id`. IDs listed in `exclude-finding-id` never
-block. `baseline` points to a prior SessionScope JSON report, or any JSON
-object with a top-level `findings` array, and suppresses matching finding IDs.
-This is read-only suppression; creating and maintaining baseline files remains
-separate from `sessionscope baseline create`.
+## Sample output
+
+A scan flags a session cookie missing `HttpOnly` with the evidence that supports the call:
+
+```text
+Cookie: session
+Set at: app/auth/session.py:71
+Attributes:
+  - HttpOnly: missing
+  - Secure: present
+  - SameSite: lax
+  - Max-Age: 30 days
+Risk: high_confidence_misconfiguration
+Suggested fix:
+  - Set HttpOnly on session cookies so client-side scripts cannot read them.
+```
+
+The same scan emits JSON for automation, including artifact context, linked evidence, and a reviewer question:
+
+```json
+{
+  "id": "finding_0001",
+  "category": "high_confidence_misconfiguration",
+  "severity": "high",
+  "artifact_ids": ["artifact_0001"],
+  "evidence_ids": ["evidence_cookie_http_only"],
+  "title": "Session-like cookie `session` does not set HttpOnly",
+  "description": "No HttpOnly attribute evidence was detected for this cookie-setting call.",
+  "suggested_fix": "Set HttpOnly on session cookies so client-side scripts cannot read them.",
+  "reviewer_question": "Is this cookie intended to be inaccessible to browser JavaScript?"
+}
+```
+
+The full JSON contract is documented in [docs/SCHEMA.md](docs/SCHEMA.md); end-to-end examples live in [docs/USAGE.md](docs/USAGE.md).
+
+## What you get
+
+**Evidence-bound lifecycle map.** SessionScope models auth artifacts through eight stages: `issue`, `store`, `transmit`, `validate`, `refresh`, `revoke`, `expire`, and `introspect`. Reports state precise things such as "No audience validation evidence detected near JWT verification" and avoid unsupported impact claims.
+
+**Four review capabilities.** The CLI groups lifecycle evidence into cookie posture, claim and validation evidence, logout and revocation evidence, and refresh-token lifecycle evidence. Focused aliases route through the same scanner, detector registry, classifier, redaction, and reporting pipeline.
+
+**Reviewer workflows in CI.** Capture a JSON baseline of accepted findings, diff future scans against it, and resolve any finding ID back to supporting context.
+
+```bash
+sessionscope scan --path . --format json --output sessions.json
+sessionscope baseline create --from sessions.json --output sessionscope-baseline.json
+sessionscope diff --baseline sessionscope-baseline.json --current sessions.json --format markdown
+sessionscope explain finding_0001 --report sessions.json
+```
+
+**Multi-framework, multi-language coverage.** SessionScope covers session, cookie, JWT, refresh-token, OAuth/OIDC, and identity-provider patterns across Express, Next.js, FastAPI, Django, generic JS/TS/Python JWT libraries, and selected provider SDKs. Coverage is evidence-bound and pattern-based; see [docs/FRAMEWORK_COVERAGE.md](docs/FRAMEWORK_COVERAGE.md) and [docs/PROVIDER_LIBRARY_COVERAGE.md](docs/PROVIDER_LIBRARY_COVERAGE.md).
+
+**Defensive by design.** SessionScope is offline-only and never prints token values, private keys, bearer strings, or cookie values. Source text passes through `sessionscope-core::redaction` before it reaches any report. The full trust boundary is documented in [docs/DATA_HANDLING.md](docs/DATA_HANDLING.md).
+
+## Supported frameworks
+
+| Framework | Language(s) |
+| --------- | ----------- |
+| Express | Node.js / TypeScript |
+| Next.js (App Router) | TypeScript |
+| FastAPI | Python |
+| Django | Python |
+| Generic JWT handling | TypeScript, JavaScript, Python |
+| OAuth/OIDC and provider SDK patterns | TypeScript, JavaScript, Python |
+
+Detectors are heuristics that look for known middleware, decorators, library calls, provider configuration, token operations, and cookie-setting APIs. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detector and classifier contracts.
+
+## CLI overview
+
+| Command | Purpose |
+| ------- | ------- |
+| `sessionscope init` | Generate a checked-in `sessionscope.toml` |
+| `sessionscope scan` | Run the full analyzer against a path |
+| `sessionscope cookies` / `claims` / `logout` / `refresh` | Focused views over `scan`, filtered to one capability area (Markdown or JSON only) |
+| `sessionscope explain FINDING_ID --report REPORT.json` | Print supporting context for any finding ID |
+| `sessionscope baseline create --from REPORT.json` | Snapshot the current finding set as a baseline |
+| `sessionscope diff --baseline BASELINE.json --current REPORT.json` | Compare a fresh scan against a saved baseline |
+| `sessionscope version` | Print the CLI version |
+
+Full flags, exit semantics, enforcement options, and the complete check catalog are in [docs/USAGE.md](docs/USAGE.md). Configuration lives in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+
+## Output formats
+
+| Format | Use it for |
+| ------ | ---------- |
+| Markdown | Human review, PR comments, GitHub Actions job summaries |
+| JSON | Automation and downstream tooling (schema v0.5.0 contract) |
+| SARIF | GitHub / GitLab code scanning, advisory alerts |
+| GitHub summary | CI job summaries on `pull_request` runs |
+
+The canonical JSON contract is documented in [docs/SCHEMA.md](docs/SCHEMA.md).
+
+## CI enforcement
+
+`sessionscope` exits `0` on successful advisory scans and `1` on errors. In enforce mode it writes requested reports before returning a failing status for findings that match policy.
+
+Blocking policy can be controlled with:
+
+- `--mode advisory|enforce`
+- `--fail-severity high|medium|low|info`
+- `--fail-category CATEGORY`
+- `--include-finding-id ID`
+- `--exclude-finding-id ID`
+- `--baseline PATH`
+
+`baseline` suppresses matching finding IDs from a prior SessionScope JSON report, or any JSON object with a top-level `findings` array. This is read-only suppression; creating and maintaining baseline files remains separate from `sessionscope baseline create`.
 
 ## Configuration
 
-Run `sessionscope init` to create a checked-in `sessionscope.toml` file. The
-command is non-interactive, does not require network access, and refuses to
-overwrite an existing config unless `--force` is passed.
-
-Example initialized config:
-
-```toml
-# SessionScope configuration
-# Generated by `sessionscope init`. Safe to check in.
-# Do not put token values, private keys, bearer strings, cookie values, or
-# environment-specific secrets in this file.
-
-scan_paths = ["."]
-include = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.py", "**/*.json", "**/*.yaml", "**/*.yml", "**/*.toml"]
-exclude = ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"]
-formats = ["markdown"]
-mode = "advisory"
-fail_severity = "high"
-fail_categories = []
-include_finding_ids = []
-exclude_finding_ids = []
-# baseline = "sessionscope-baseline.json"
-max_file_size_bytes = 1000000
-framework_hints = ["express", "nextjs", "fastapi", "django"]
-provider_hints = ["authjs", "nextauth", "passport", "oauth", "oidc", "auth0", "okta", "cognito", "supabase", "clerk"]
-```
+Run `sessionscope init` to create a checked-in `sessionscope.toml` file. The command is non-interactive, does not require network access, and refuses to overwrite an existing config unless `--force` is passed.
 
 Config precedence is:
 
-1. CLI flags such as `--path`, `--include`, `--exclude`, `--format`,
-   `--max-file-size`, `--mode`, `--fail-severity`, `--fail-category`,
-   `--include-finding-id`, `--exclude-finding-id`, and `--baseline`
-2. `sessionscope.toml`
-3. Built-in defaults
+1. CLI flags such as `--path`, `--include`, `--exclude`, `--format`, `--max-file-size`, `--mode`, `--fail-severity`, `--fail-category`, `--include-finding-id`, `--exclude-finding-id`, and `--baseline`.
+2. `sessionscope.toml`.
+3. Built-in defaults.
 
-`--include` replaces configured include patterns, while `--exclude` appends to
-configured excludes. SessionScope also respects `.gitignore` where practical,
-applies built-in dependency/vendor/build excludes, and skips sensitive paths
-such as env files and private-key material before source loading.
+`--include` replaces configured include patterns, while `--exclude` appends to configured excludes. SessionScope also respects `.gitignore` where practical, applies built-in dependency/vendor/build excludes, and skips sensitive paths such as env files and private-key material before source loading.
 
-## Potential checks
+## Project status
 
-Cookie posture:
+- **Milestone:** v0.8.0 - reviewer workflows (current branch). MVP is imminent.
+- **Complete:** v0.1 foundation, v0.2 cookie audit, v0.3 JWT validation, v0.4 lifecycle mapping, v0.5 expanded token handling, v0.6 framework/provider coverage, v0.7 CI SARIF/enforcement, v0.8 reviewer workflows.
+- **Schema:** JSON contract v0.5.0.
+- **Rust:** edition 2024. MSRV is not yet pinned.
+- **Platforms:** Linux, macOS, and Windows are covered by CI where workflow support exists.
+- **Versioning:** workspace `Cargo.toml` is still `0.1.0`. Tagged releases will land after MVP.
 
-- Cookie missing `HttpOnly`
-- Cookie missing `Secure`
-- Unsafe or review-required cookie posture, including excessive lifetime, broad Domain/Path scope, and `SameSite=None` handling
+Phase plan and upcoming work are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
 
-Claims and validation:
+## Documentation
 
-- JWT verification without issuer validation
-- JWT verification without audience validation
-- Tokens issued without explicit expiry
-- Token accepted from query parameters
-- Review-required token reuse across services, environments, or trust boundaries
+| Document | Contents |
+| -------- | -------- |
+| [docs/USAGE.md](docs/USAGE.md) | End-to-end CLI usage, lifecycle stages, token types, check catalog |
+| [docs/SCHEMA.md](docs/SCHEMA.md) | JSON inventory and finding schema (v0.5.0), baselines, diffs |
+| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | `sessionscope.toml` reference and precedence rules |
+| [docs/DATA_HANDLING.md](docs/DATA_HANDLING.md) | Redaction trust boundary and report sensitivity |
+| [docs/FRAMEWORK_COVERAGE.md](docs/FRAMEWORK_COVERAGE.md) | Supported and unsupported framework API evidence |
+| [docs/PROVIDER_LIBRARY_COVERAGE.md](docs/PROVIDER_LIBRARY_COVERAGE.md) | Provider and identity-library evidence coverage |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Pipeline, crate layout, and detector contract |
+| [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md) | Rationale for config, defaults, confidence levels |
+| [docs/PRODUCT_BRIEF.md](docs/PRODUCT_BRIEF.md) | Product framing, target users, MVP criteria |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Phase plan and future milestones |
 
-Logout and revocation:
+## Security
 
-- Logout without revocation evidence
-- Session fixation risk signals around authentication transitions
+SessionScope is intended for authorized, defensive analysis of code that you own or are explicitly approved to review. Report vulnerabilities privately via [SECURITY.md](SECURITY.md).
 
-Refresh lifecycle:
+Supply-chain posture:
 
-- Refresh tokens without rotation evidence
-- Password reset tokens without expiry or single-use evidence
+- `Cargo.lock` is committed and reviewed.
+- GitHub Actions in security-critical workflows are pinned to full commit SHAs.
+- CI runs `cargo test`, `security.yml`, `codeql.yml`, and dependency-determinism checks on every PR.
+
+## Contributing
+
+Design-first contributions are welcome: new framework detectors, lifecycle evidence, classifier improvements, and documentation.
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) - how to propose and submit changes
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - community standards
+- [GOVERNANCE.md](GOVERNANCE.md) - maintainer and decision-making model
+- [SUPPORT.md](SUPPORT.md) - getting help
+
+## Sibling projects
+
+Part of [Ozark Security Labs](https://github.com/Ozark-Security-Labs). See also [AuthMap](https://github.com/Ozark-Security-Labs/AuthMap), authorization coverage mapping for application code.
 
 ## Non-goals
 
@@ -407,55 +251,6 @@ SessionScope is not intended to:
 - steal or decode secrets
 - replace manual security review
 
-## Development
+## License
 
-SessionScope is scaffolded as a Rust Cargo workspace using the Rust 2024
-edition. Install the stable Rust toolchain from <https://rustup.rs/> before
-running local checks.
-
-The workspace is split into focused crates for the CLI, core scanner pipeline,
-shared model, detectors, classifiers, reporters, and test helpers. The CLI
-binary is named `sessionscope`.
-
-Canonical local checks:
-
-```bash
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo check --workspace
-cargo test --workspace --all-targets
-```
-
-Useful CLI commands while developing:
-
-```bash
-cargo run -p sessionscope-cli -- --help
-cargo run -p sessionscope-cli -- version
-cargo run -p sessionscope-cli -- scan --path . --format markdown
-cargo run -p sessionscope-cli -- scan --path . --include "src/**/*.ts" --exclude "**/*.test.ts" --max-file-size 1000000 --format json
-```
-
-The scanner is defensive and offline-only. Do not add analyzer behavior that
-prints token values, private keys, bearer strings, cookie values, or other
-runtime secrets.
-
-## Redaction Trust Boundary
-
-SessionScope treats source text and detector output as untrusted until it has
-passed through `sessionscope-core::redaction`. Evidence excerpts and rendered
-reports should keep source locations, finding IDs, lifecycle stages, claim
-names, and attribute names, but token values, cookie values, bearer strings,
-private keys, and high-entropy secret-like literals must be replaced with
-`[REDACTED]`.
-
-Redaction is a best-effort static safeguard, not a guarantee that arbitrary
-source is secret-free. Stable IDs and source locations are preserved for
-reviewability and must never be generated from runtime token values, private
-keys, bearer strings, cookie values, or other secrets.
-
-## Status
-
-This repository contains the initial product documentation and Rust workspace
-scaffold. The CLI, pipeline, detector, classifier, reporter, and test-helper
-crates are present, with detector and classifier behavior to be implemented in
-the next milestones.
+SessionScope is licensed under the [MIT License](LICENSE).

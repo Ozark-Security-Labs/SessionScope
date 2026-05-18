@@ -621,127 +621,6 @@ fn scan_advisory_mode_with_findings_exits_zero() {
 }
 
 #[test]
-fn claims_json_filters_to_identity_claim_inventory() {
-    let fixture = fixture_path(&["generic-ts", "jwt-validation"]);
-
-    let output = run_sessionscope(&[
-        "claims",
-        "--path",
-        fixture.to_str().expect("fixture path should be UTF-8"),
-        "--format",
-        "json",
-    ]);
-
-    assert!(output.status.success());
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&output.stdout).expect("claims JSON should parse");
-    assert!(
-        parsed["artifacts"]
-            .as_array()
-            .expect("artifacts")
-            .iter()
-            .any(
-                |artifact| artifact["jwt_attributes"]["identity_claims"]["subject"]["state"]
-                    == "present"
-            )
-    );
-    assert!(
-        parsed["evidence"]
-            .as_array()
-            .expect("evidence")
-            .iter()
-            .any(|evidence| evidence["detector_id"] == "jwt.attribute.subject")
-    );
-    let serialized = String::from_utf8_lossy(&output.stdout);
-    assert!(!serialized.contains("has no explicit expiry evidence"));
-    assert!(!serialized.contains("does not show signature verification"));
-    assert!(!serialized.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
-}
-
-#[test]
-fn logout_markdown_filters_to_logout_capability() {
-    let fixture = fixture_path(&["express", "clear-cookie-only-logout"]);
-
-    let output = run_sessionscope(&[
-        "logout",
-        "--path",
-        fixture.to_str().expect("fixture path should be UTF-8"),
-        "--format",
-        "markdown",
-    ]);
-
-    assert!(output.status.success());
-    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
-    assert!(stdout.contains("logout.cookie\\_clear") || stdout.contains("logout.cookie_clear"));
-    assert!(stdout.contains("cleared on logout"));
-    assert!(!stdout.contains("has no explicit expiry evidence"));
-    assert!(!stdout.contains("PLACEHOLDER_RESET_TOKEN"));
-}
-
-#[test]
-fn refresh_json_filters_to_refresh_capability() {
-    let fixture = fixture_path(&["express", "refresh-without-rotation"]);
-
-    let output = run_sessionscope(&[
-        "refresh",
-        "--path",
-        fixture.to_str().expect("fixture path should be UTF-8"),
-        "--format",
-        "json",
-    ]);
-
-    assert!(output.status.success());
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&output.stdout).expect("refresh JSON should parse");
-    assert!(
-        parsed["artifacts"]
-            .as_array()
-            .expect("artifacts")
-            .iter()
-            .any(|artifact| artifact["artifact_type"] == "refresh_jwt"
-                || artifact["display_name"]
-                    .as_str()
-                    .is_some_and(|name| name.contains("refresh")))
-    );
-    assert!(
-        parsed["findings"]
-            .as_array()
-            .expect("findings")
-            .iter()
-            .any(|finding| finding["title"]
-                .as_str()
-                .is_some_and(|title| title.contains("refresh evidence")))
-    );
-}
-
-#[test]
-fn capability_aliases_reject_unsupported_formats_and_unknown_options() {
-    let sarif = run_sessionscope(&["cookies", "--format", "sarif"]);
-    assert!(!sarif.status.success());
-    assert!(
-        str::from_utf8(&sarif.stderr)
-            .expect("stderr should be UTF-8")
-            .contains("unsupported capability format")
-    );
-
-    let github_summary = run_sessionscope(&["refresh", "--format", "github-summary"]);
-    assert!(!github_summary.status.success());
-    assert!(
-        str::from_utf8(&github_summary.stderr)
-            .expect("stderr should be UTF-8")
-            .contains("unsupported capability format")
-    );
-
-    let unknown = run_sessionscope(&["logout", "--typo"]);
-    assert!(!unknown.status.success());
-    assert!(
-        str::from_utf8(&unknown.stderr)
-            .expect("stderr should be UTF-8")
-            .contains("unknown capability option")
-    );
-}
-
-#[test]
 fn scan_enforce_default_blocks_high_findings_after_output() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     let output_path = temp.path().join("sessionscope.json");
@@ -957,6 +836,127 @@ fn scan_no_finding_enforce_exits_zero() {
     ]);
 
     assert!(output.status.success());
+}
+
+#[test]
+fn claims_json_filters_to_identity_claim_inventory() {
+    let fixture = fixture_path(&["generic-ts", "jwt-validation"]);
+
+    let output = run_sessionscope(&[
+        "claims",
+        "--path",
+        fixture.to_str().expect("fixture path should be UTF-8"),
+        "--format",
+        "json",
+    ]);
+
+    assert!(output.status.success());
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("claims JSON should parse");
+    assert!(
+        parsed["artifacts"]
+            .as_array()
+            .expect("artifacts")
+            .iter()
+            .any(
+                |artifact| artifact["jwt_attributes"]["identity_claims"]["subject"]["state"]
+                    == "present"
+            )
+    );
+    assert!(
+        parsed["evidence"]
+            .as_array()
+            .expect("evidence")
+            .iter()
+            .any(|evidence| evidence["detector_id"] == "jwt.attribute.subject")
+    );
+    let serialized = String::from_utf8_lossy(&output.stdout);
+    assert!(!serialized.contains("has no explicit expiry evidence"));
+    assert!(!serialized.contains("does not show signature verification"));
+    assert!(!serialized.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+}
+
+#[test]
+fn logout_markdown_filters_to_logout_capability() {
+    let fixture = fixture_path(&["express", "clear-cookie-only-logout"]);
+
+    let output = run_sessionscope(&[
+        "logout",
+        "--path",
+        fixture.to_str().expect("fixture path should be UTF-8"),
+        "--format",
+        "markdown",
+    ]);
+
+    assert!(output.status.success());
+    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("logout.cookie\\_clear") || stdout.contains("logout.cookie_clear"));
+    assert!(stdout.contains("cleared on logout"));
+    assert!(!stdout.contains("has no explicit expiry evidence"));
+    assert!(!stdout.contains("PLACEHOLDER_RESET_TOKEN"));
+}
+
+#[test]
+fn refresh_json_filters_to_refresh_capability() {
+    let fixture = fixture_path(&["express", "refresh-without-rotation"]);
+
+    let output = run_sessionscope(&[
+        "refresh",
+        "--path",
+        fixture.to_str().expect("fixture path should be UTF-8"),
+        "--format",
+        "json",
+    ]);
+
+    assert!(output.status.success());
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("refresh JSON should parse");
+    assert!(
+        parsed["artifacts"]
+            .as_array()
+            .expect("artifacts")
+            .iter()
+            .any(|artifact| artifact["artifact_type"] == "refresh_jwt"
+                || artifact["display_name"]
+                    .as_str()
+                    .is_some_and(|name| name.contains("refresh")))
+    );
+    assert!(
+        parsed["findings"]
+            .as_array()
+            .expect("findings")
+            .iter()
+            .any(|finding| finding["title"]
+                .as_str()
+                .is_some_and(|title| title.contains("refresh evidence")))
+    );
+}
+
+#[test]
+fn capability_aliases_reject_unsupported_formats_and_unknown_options() {
+    let sarif = run_sessionscope(&["cookies", "--format", "sarif"]);
+    assert!(!sarif.status.success());
+    assert!(
+        str::from_utf8(&sarif.stderr)
+            .expect("stderr should be UTF-8")
+            .contains("unsupported capability format")
+    );
+
+    let github_summary = run_sessionscope(&["refresh", "--format", "github-summary"]);
+    assert!(!github_summary.status.success());
+    assert!(
+        str::from_utf8(&github_summary.stderr)
+            .expect("stderr should be UTF-8")
+            .contains("unsupported capability format")
+    );
+
+    let unknown = run_sessionscope(&["logout", "--typo"]);
+    assert!(!unknown.status.success());
+    assert!(
+        str::from_utf8(&unknown.stderr)
+            .expect("stderr should be UTF-8")
+            .contains("unknown capability option")
+    );
 }
 
 #[test]
