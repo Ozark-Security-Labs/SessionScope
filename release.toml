@@ -1,0 +1,32 @@
+# cargo-release workspace config.
+#
+# Dry-run first:
+#
+#   cargo release patch --dry-run
+#
+# Execute only after the release checklist is complete:
+#
+#   cargo release patch --execute
+#
+# See RELEASING.md for the end-to-end runbook.
+
+allow-branch = ["main"]
+
+# SessionScope publishes GitHub Release artifacts only. crates.io publishing
+# needs a separate reviewed policy because the workspace contains internal
+# crates and source-analysis fixtures.
+publish = false
+
+# Branch protection requires release commits to move through a PR before the tag
+# is pushed. cargo-release creates the local commit and tag; maintainers move the
+# commit to a release/vX.Y.Z branch, merge without squashing, then push the tag.
+push = false
+
+sign-tag = false
+sign-commit = false
+
+tag-name = "v{{version}}"
+tag-message = "Release {{tag_name}}"
+pre-release-commit-message = "chore: release {{version}}"
+
+pre-release-hook = ["cargo", "test", "--workspace", "--locked"]

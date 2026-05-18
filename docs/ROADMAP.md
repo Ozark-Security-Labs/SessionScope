@@ -67,9 +67,10 @@ cookies, claims, logout, and refresh while keeping findings evidence-bound.
 
 ## Current capability issue map
 
-- Cookie posture: cookie detector/classifier work, expanded cookie posture fixtures, and framework cookie APIs.
-- Claims and validation: #35 and JWT validation work, plus future AuthMap/rulepath interoperability where explicitly designed.
-- Logout and revocation: #37 and lifecycle linking/classification in #17.
-- Refresh lifecycle: #38 and lifecycle linking/classification in #17.
-- Framework and provider coverage: #18 and #27 feed all four capability areas.
-- Focused command aliases: #39 should expose capability-oriented entry points while preserving the shared scan/config/reporting pipeline.
+- Cookie posture: cookie detector/classifier work, expanded cookie posture fixtures, framework cookie APIs, and closed expanded posture work in #36.
+- Claims and validation: closed JWT schema and identity-claim inventory work in #35, plus future AuthMap/rulepath interoperability where explicitly designed.
+- Logout and revocation: closed logout/revocation detector work in #37 and lifecycle linking/classification in #17.
+- Refresh lifecycle: closed refresh-token lifecycle detector work in #38 and lifecycle linking/classification in #17.
+- Framework and provider coverage: #18 and #27 feed all four capability areas, with umbrella capability documentation completed in #40.
+- Focused command aliases: #39 exposes capability-oriented entry points while preserving the shared scan/config/reporting pipeline.
+- Stable CLI release: #28 tracks release packaging, versioning, installation workflow, and final readiness; #41 tracks this folded capability model without creating duplicate v1.1-v1.4 milestone tracks.

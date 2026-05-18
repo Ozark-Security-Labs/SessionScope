@@ -13,9 +13,14 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.95"
+description = "Defensive session, cookie, JWT, and token lifecycle auditing for product-security review."
 license = "MIT"
 repository = "https://github.com/Ozark-Security-Labs/SessionScope"
+homepage = "https://github.com/Ozark-Security-Labs/SessionScope"
+documentation = "https://github.com/Ozark-Security-Labs/SessionScope/tree/main/docs"
+categories = ["command-line-utilities", "development-tools"]
+keywords = ["appsec", "authentication", "cli", "security", "static-analysis"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
-

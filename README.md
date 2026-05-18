@@ -9,6 +9,7 @@
   <a href="https://github.com/Ozark-Security-Labs/SessionScope/actions/workflows/security.yml"><img alt="Security" src="https://github.com/Ozark-Security-Labs/SessionScope/actions/workflows/security.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/Ozark-Security-Labs/SessionScope/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/Ozark-Security-Labs/SessionScope/actions/workflows/codeql.yml/badge.svg?branch=main"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <a href="https://github.com/Ozark-Security-Labs/SessionScope/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/Ozark-Security-Labs/SessionScope?sort=semver&display_name=tag"></a>
 </p>
 
 ---
@@ -19,7 +20,12 @@ SessionScope is intended for product-security teams and developers who need auth
 
 ## Quickstart
 
-Install from source:
+Download a prebuilt binary archive from the
+[GitHub Releases](https://github.com/Ozark-Security-Labs/SessionScope/releases)
+page, unpack it, and move `sessionscope` into a directory on your `PATH`.
+On Windows, use `sessionscope.exe` from the `.zip` archive.
+
+You can also install from source:
 
 ```bash
 cargo install --git https://github.com/Ozark-Security-Labs/SessionScope sessionscope-cli
@@ -51,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: sessionscope
-        uses: Ozark-Security-Labs/SessionScope@v0
+        uses: Ozark-Security-Labs/SessionScope@v0.1.0
         with:
           mode: advisory
           path: .
@@ -194,12 +200,12 @@ Config precedence is:
 
 ## Project status
 
-- **Milestone:** v0.8.0 - reviewer workflows (current branch). MVP is imminent.
+- **Release target:** v0.1.0 first packaged release through GitHub Releases. Release packaging, versioning, and installation workflow are tracked in #28.
 - **Complete:** v0.1 foundation, v0.2 cookie audit, v0.3 JWT validation, v0.4 lifecycle mapping, v0.5 expanded token handling, v0.6 framework/provider coverage, v0.7 CI SARIF/enforcement, v0.8 reviewer workflows.
 - **Schema:** JSON contract v0.5.0.
-- **Rust:** edition 2024. MSRV is not yet pinned.
+- **Rust:** edition 2024. MSRV is 1.95.
 - **Platforms:** Linux, macOS, and Windows are covered by CI where workflow support exists.
-- **Versioning:** workspace `Cargo.toml` is still `0.1.0`. Tagged releases will land after MVP.
+- **Versioning:** workspace `Cargo.toml` is `0.1.0`; release tags use `vMAJOR.MINOR.PATCH`.
 
 Phase plan and upcoming work are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
 
@@ -211,6 +217,8 @@ Phase plan and upcoming work are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
 | [docs/SCHEMA.md](docs/SCHEMA.md) | JSON inventory and finding schema (v0.5.0), baselines, diffs |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | `sessionscope.toml` reference and precedence rules |
 | [docs/DATA_HANDLING.md](docs/DATA_HANDLING.md) | Redaction trust boundary and report sensitivity |
+| [docs/RELEASES.md](docs/RELEASES.md) | Versioning, compatibility, changelog, and release automation policy |
+| [docs/VERIFYING_RELEASES.md](docs/VERIFYING_RELEASES.md) | Release checksum, SLSA provenance, and binary smoke-test guidance |
 | [docs/FRAMEWORK_COVERAGE.md](docs/FRAMEWORK_COVERAGE.md) | Supported and unsupported framework API evidence |
 | [docs/PROVIDER_LIBRARY_COVERAGE.md](docs/PROVIDER_LIBRARY_COVERAGE.md) | Provider and identity-library evidence coverage |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Pipeline, crate layout, and detector contract |
@@ -225,7 +233,9 @@ SessionScope is intended for authorized, defensive analysis of code that you own
 Supply-chain posture:
 
 - `Cargo.lock` is committed and reviewed.
-- GitHub Actions in security-critical workflows are pinned to full commit SHAs.
+- GitHub Actions in security-critical workflows are pinned to full commit SHAs,
+  except the SLSA generic reusable workflow, which upstream requires to use a
+  semantic version ref.
 - CI runs `cargo test`, `security.yml`, `codeql.yml`, and dependency-determinism checks on every PR.
 
 ## Contributing
