@@ -1,0 +1,295 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      tag: ${{ steps.release-context.outputs.tag }}
+      version: ${{ steps.release-context.outputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+      - id: release-context
+        name: Validate release tag and workspace version
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          tag="${REF_NAME}"
+          if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag must look like vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+
+          version="$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; data=json.load(sys.stdin); print(next(p["version"] for p in data["packages"] if p["name"] == "sessionscope-cli"))')"
+          if [ "${tag#v}" != "${version}" ]; then
+            echo "Tag ${tag} does not match sessionscope-cli package version ${version}" >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          tag_commit="$(git rev-list -n 1 "${tag}")"
+          if ! git merge-base --is-ancestor "${tag_commit}" refs/remotes/origin/main; then
+            echo "Release tag ${tag} does not point at a commit reachable from origin/main" >&2
+            exit 1
+          fi
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    name: Build ${{ matrix.os }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - blacksmith-4vcpu-ubuntu-2404
+          - blacksmith-6vcpu-macos-latest
+          - blacksmith-4vcpu-windows-2025
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TERM_COLOR: always
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+        with:
+          toolchain: "1.95"
+      - name: Test workspace
+        run: cargo test --workspace --all-targets --locked
+      - name: Build CLI
+        run: cargo build --package sessionscope-cli --bin sessionscope --release --locked
+      - name: Package artifact
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist package
+          host="$(rustc -vV | awk '/^host: / { print $2 }')"
+          base="sessionscope-${RELEASE_VERSION}-${host}"
+          mkdir -p "package/${base}"
+          cp README.md LICENSE "package/${base}/"
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            cp target/release/sessionscope.exe "package/${base}/sessionscope.exe"
+            (cd package && powershell -NoProfile -Command "Compress-Archive -Path '${base}' -DestinationPath '../dist/${base}.zip' -Force")
+            artifact="dist/${base}.zip"
+          else
+            cp target/release/sessionscope "package/${base}/sessionscope"
+            tar -C package -czf "dist/${base}.tar.gz" "${base}"
+            artifact="dist/${base}.tar.gz"
+          fi
+          echo "artifact=${artifact}" >> "${GITHUB_OUTPUT}"
+      - name: Smoke test packaged CLI
+        shell: bash
+        env:
+          ARTIFACT: ${{ steps.package.outputs.artifact }}
+        run: |
+          set -euo pipefail
+          smoke_dir="${RUNNER_TEMP}/sessionscope-release-smoke"
+          rm -rf "${smoke_dir}"
+          mkdir -p "${smoke_dir}"
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            powershell -NoProfile -Command "Expand-Archive -Path '${ARTIFACT}' -DestinationPath '${smoke_dir}' -Force"
+            sessionscope_bin="$(find "${smoke_dir}" -name sessionscope.exe -type f | head -n 1)"
+          else
+            tar -C "${smoke_dir}" -xzf "${ARTIFACT}"
+            sessionscope_bin="$(find "${smoke_dir}" -name sessionscope -type f | head -n 1)"
+          fi
+          if [ -z "${sessionscope_bin}" ]; then
+            echo "packaged sessionscope binary was not found" >&2
+            exit 1
+          fi
+
+          archive_root="$(dirname "${sessionscope_bin}")"
+          if find "${archive_root}" \( -path '*/fixtures/*' -o -path '*/target/*' -o -path '*/dist/*' -o -name '.env' -o -name '*.sarif' \) | grep -q .; then
+            echo "release archive contains forbidden fixture, build, report, or env paths" >&2
+            exit 1
+          fi
+          if grep -IR "PLACEHOLDER_.*\\(TOKEN\\|SECRET\\|KEY\\)\\|BEGIN PRIVATE KEY\\|Authorization: Bearer" "${archive_root}"; then
+            echo "release archive contains secret-like sample text" >&2
+            exit 1
+          fi
+
+          "${sessionscope_bin}" --help
+          "${sessionscope_bin}" version
+
+          report_dir="${smoke_dir}/reports"
+          mkdir -p "${report_dir}"
+          "${sessionscope_bin}" scan --path fixtures/generic-ts/jwt-validation --format json --output "${report_dir}/sessionscope.json"
+          "${sessionscope_bin}" scan --path fixtures/express/cookie-session-lifecycle --format markdown --output "${report_dir}/sessionscope.md"
+          "${sessionscope_bin}" scan --path fixtures/express/cookie-session-lifecycle --format sarif --output "${report_dir}/sessionscope.sarif"
+          "${sessionscope_bin}" baseline create --from "${report_dir}/sessionscope.json" --output "${report_dir}/sessionscope-baseline.json"
+          "${sessionscope_bin}" diff --baseline "${report_dir}/sessionscope-baseline.json" --current "${report_dir}/sessionscope.json" --format json --output "${report_dir}/sessionscope-diff.json"
+      - name: Upload release archive to workflow
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-archive-${{ matrix.os }}
+          path: ${{ steps.package.outputs.artifact }}
+          retention-days: 7
+          if-no-files-found: error
+
+  source:
+    name: Build source archive
+    needs: prepare
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    env:
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
+      - name: Assemble source tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="sessionscope-${VERSION}-source/" \
+            -o "dist/sessionscope-${VERSION}-source.tar.gz" "${RELEASE_TAG}"
+      - name: Upload source archive to workflow
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-archive-source
+          path: dist/sessionscope-${{ env.VERSION }}-source.tar.gz
+          retention-days: 7
+          if-no-files-found: error
+
+  subjects:
+    name: Compute release subjects
+    needs:
+      - prepare
+      - build
+      - source
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+      version: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Download release archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: release-archive-*
+          path: dist
+          merge-multiple: true
+      - name: Generate SHA-256 sidecars and SLSA subjects
+        id: hash
+        shell: bash
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          for artifact in sessionscope-*; do
+            case "${artifact}" in
+              *.tar.gz|*.zip) sha256sum "$artifact" > "$artifact.sha256" ;;
+            esac
+          done
+          hashes="$(for artifact in sessionscope-*; do case "${artifact}" in *.tar.gz|*.zip) sha256sum "$artifact" ;; esac; done | base64 -w0)"
+          echo "hashes=${hashes}" >> "${GITHUB_OUTPUT}"
+      - name: Upload checksum sidecars to workflow
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-checksums
+          path: dist/*.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+  provenance:
+    name: Generate SLSA provenance
+    needs: subjects
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@5a775b367a56d5bd118a224a811bba288150a563
+    with:
+      base64-subjects: ${{ needs.subjects.outputs.hashes }}
+      upload-assets: true
+      provenance-name: sessionscope-${{ needs.subjects.outputs.version }}.intoto.jsonl
+
+  release:
+    name: Publish GitHub release
+    needs:
+      - prepare
+      - build
+      - source
+      - subjects
+      - provenance
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+      - name: Download release archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: release-archive-*
+          path: dist
+          merge-multiple: true
+      - name: Download checksum sidecars
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-checksums
+          path: dist
+      - name: Verify checksum sidecars
+        shell: bash
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum -c ./*.sha256
+      - name: Extract release notes from CHANGELOG.md
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > release-notes.md
+          from pathlib import Path
+          import os
+          import re
+          import sys
+
+          version = os.environ["VERSION"]
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          pattern = re.compile(rf"^## {re.escape(version)}(?:\\s+-.*)?$", re.MULTILINE)
+          match = pattern.search(changelog)
+          if not match:
+              print(f"CHANGELOG.md does not contain a section for {version}", file=sys.stderr)
+              sys.exit(1)
+          next_match = re.search(r"^## ", changelog[match.end():], re.MULTILINE)
+          end = match.end() + next_match.start() if next_match else len(changelog)
+          notes = changelog[match.end():end].strip()
+          if not notes:
+              print(f"CHANGELOG.md section for {version} is empty", file=sys.stderr)
+              sys.exit(1)
+          print(notes)
+          PY
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: SessionScope ${{ needs.prepare.outputs.version }}
+          body_path: release-notes.md
+          files: |
+            dist/sessionscope-*
+            dist/*.sha256
+          draft: false
+          prerelease: ${{ contains(needs.prepare.outputs.tag, '-') }}
+          fail_on_unmatched_files: true
