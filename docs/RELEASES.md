@@ -4,7 +4,8 @@ SessionScope releases package the defensive CLI, JSON schema contract, report
 renderers, and composite GitHub Action behavior that users rely on in local
 review and CI. Releases should be reproducible from a protected git tag and
 should include enough compatibility notes for users to decide whether to
-upgrade immediately.
+upgrade immediately. Official releases require an active GitHub repository tag
+ruleset named `Protect release tags` protecting `refs/tags/v*`.
 
 ## Versioning model
 
@@ -100,17 +101,20 @@ Before creating a release tag, maintainers should verify:
    `sessionscope --help` and `sessionscope version`.
 8. Release binary archives do not include fixtures, generated reports, local
    baselines, credentials, private keys, or scanned target source code.
+9. The repository has an active `Protect release tags` ruleset protecting
+   `refs/tags/v*`.
 
 ## Automated release workflow
 
 The release workflow runs on pushed `v*` tags. Maintainers use `cargo-release`
 locally after `v0.1.0` to create the version-bump commit and tag, move the
 release commit through a protected-branch PR, then push the tag after verifying
-the tag commit is reachable from `main`. The step-by-step runbook is in
+the tag commit is reachable from `main` and `refs/tags/v*` is protected by an
+active repository ruleset. The step-by-step runbook is in
 [../RELEASING.md](../RELEASING.md).
 
 The workflow checks that the tag matches the workspace version, runs locked
-tests, builds platform binaries, creates a source archive, generates
+tests, builds platform binaries, verifies release tag protection, generates
 per-artifact SHA-256 sidecars, creates SLSA provenance, and publishes a GitHub
 Release from the changelog section for that version.
 
@@ -123,9 +127,12 @@ approval.
 Release artifacts include:
 
 - platform-specific `sessionscope` binaries packaged as archives;
-- a `sessionscope-VERSION-source.tar.gz` source archive;
-- one `.sha256` sidecar per archive; and
+- one `.sha256` sidecar per binary archive; and
 - `sessionscope-VERSION.intoto.jsonl` SLSA provenance.
+
+GitHub may expose automatic source snapshots for tags. Those snapshots are not
+curated install artifacts and are not covered by the binary archive hygiene
+promise.
 
 Users can verify release artifacts with
 [VERIFYING_RELEASES.md](VERIFYING_RELEASES.md).

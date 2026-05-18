@@ -18,6 +18,27 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
+      - name: Verify release tag protection
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          ruleset_name=""
+          while IFS= read -r ruleset_id; do
+            candidate="$(gh api "repos/${GITHUB_REPOSITORY}/rulesets/${ruleset_id}" \
+              --jq 'select(.name == "Protect release tags" and .target == "tag" and .enforcement == "active" and ((.conditions.ref_name.include // []) | index("refs/tags/v*"))) | .name')"
+            if [ -n "${candidate}" ]; then
+              ruleset_name="${candidate}"
+              break
+            fi
+          done < <(gh api "repos/${GITHUB_REPOSITORY}/rulesets" \
+            --jq '.[] | select(.target == "tag" and .enforcement == "active") | .id')
+          if [ -z "${ruleset_name}" ]; then
+            echo "Release tags must be protected by an active repository ruleset named Protect release tags that includes refs/tags/v*" >&2
+            exit 1
+          fi
       - id: release-context
         name: Validate release tag and workspace version
         shell: bash
@@ -143,39 +164,11 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  source:
-    name: Build source archive
-    needs: prepare
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    env:
-      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
-      VERSION: ${{ needs.prepare.outputs.version }}
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          fetch-depth: 0
-          ref: ${{ env.RELEASE_TAG }}
-      - name: Assemble source tarball
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          git archive --format=tar.gz --prefix="sessionscope-${VERSION}-source/" \
-            -o "dist/sessionscope-${VERSION}-source.tar.gz" "${RELEASE_TAG}"
-      - name: Upload source archive to workflow
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: release-archive-source
-          path: dist/sessionscope-${{ env.VERSION }}-source.tar.gz
-          retention-days: 7
-          if-no-files-found: error
-
   subjects:
     name: Compute release subjects
     needs:
       - prepare
       - build
-      - source
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
@@ -215,7 +208,8 @@ jobs:
       actions: read
       id-token: write
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@5a775b367a56d5bd118a224a811bba288150a563
+    # The generic SLSA reusable workflow requires a semantic version ref.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: ${{ needs.subjects.outputs.hashes }}
       upload-assets: true
@@ -226,7 +220,6 @@ jobs:
     needs:
       - prepare
       - build
-      - source
       - subjects
       - provenance
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -268,7 +261,7 @@ jobs:
 
           version = os.environ["VERSION"]
           changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-          pattern = re.compile(rf"^## {re.escape(version)}(?:\\s+-.*)?$", re.MULTILINE)
+          pattern = re.compile(rf"^## {re.escape(version)}(?:\s+-.*)?$", re.MULTILINE)
           match = pattern.search(changelog)
           if not match:
               print(f"CHANGELOG.md does not contain a section for {version}", file=sys.stderr)

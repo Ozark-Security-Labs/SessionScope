@@ -12,6 +12,10 @@ SessionScope uses a semi-manual release flow:
 4. `.github/workflows/release.yml` builds artifacts, checksums, provenance, and
    the GitHub Release.
 
+Release tags are part of the release authorization boundary. The repository
+must have an active GitHub ruleset named `Protect release tags` that protects
+`refs/tags/v*` before any release tag is pushed.
+
 ## One-time setup
 
 ```sh
@@ -39,12 +43,25 @@ Before tagging:
 - You are on an up-to-date `main`: `git switch main && git pull --ff-only`.
 - The working tree is clean.
 - `CHANGELOG.md` has accurate user-facing notes under `## 0.1.0 - YYYY-MM-DD`.
+- `refs/tags/v*` is protected by an active repository ruleset.
 - No PR is mid-merge.
 
 Create and push the first tag only after those checks are true:
 
 ```sh
 git tag -a v0.1.0 -m "Release v0.1.0"
+
+ruleset_name=""
+while IFS= read -r ruleset_id; do
+  candidate="$(gh api "repos/Ozark-Security-Labs/SessionScope/rulesets/${ruleset_id}" \
+    --jq 'select(.name == "Protect release tags" and .target == "tag" and .enforcement == "active" and ((.conditions.ref_name.include // []) | index("refs/tags/v*"))) | .name')"
+  if [ -n "${candidate}" ]; then
+    ruleset_name="${candidate}"
+    break
+  fi
+done < <(gh api repos/Ozark-Security-Labs/SessionScope/rulesets \
+  --jq '.[] | select(.target == "tag" and .enforcement == "active") | .id')
+test "${ruleset_name}" = "Protect release tags"
 
 git merge-base --is-ancestor v0.1.0 main \
   && echo "tag commit reachable from main" \
@@ -67,7 +84,19 @@ For releases after `v0.1.0`, use `cargo-release`.
 - You are on an up-to-date `main`: `git switch main && git pull --ff-only`.
 - The working tree is clean.
 - `CHANGELOG.md` has accurate user-facing notes under `## Unreleased`.
+- `refs/tags/v*` is protected by an active repository ruleset.
 - No PR is mid-merge.
+
+Move the changelog entries into the release section before running
+`cargo-release`:
+
+```sh
+VERSION=0.1.1
+DATE=$(date +%F)
+
+# Edit CHANGELOG.md so it contains an empty "## Unreleased" section followed by:
+# ## ${VERSION} - ${DATE}
+```
 
 ## Dry-run
 
@@ -76,8 +105,7 @@ cargo release patch --dry-run
 ```
 
 Use `minor` or `major` instead of `patch` when the release scope requires it.
-Read the version bump, changelog rewrite, commit message, and tag name before
-continuing.
+Read the version bump, commit message, and tag name before continuing.
 
 ## Cut the local release commit and tag
 
@@ -86,8 +114,8 @@ cargo release patch --execute
 ```
 
 The release config runs `cargo test --workspace --locked`, bumps the shared
-workspace version, rewrites `CHANGELOG.md`, commits `chore: release X.Y.Z`, and
-creates local tag `vX.Y.Z`. It does not push.
+workspace version, commits `chore: release X.Y.Z`, and creates local tag
+`vX.Y.Z`. It does not push and does not rewrite `CHANGELOG.md`.
 
 ## Move the release commit through a PR
 
@@ -101,11 +129,12 @@ git push -u origin "release/v${VERSION}"
 
 gh pr create --base main --head "release/v${VERSION}" \
   --title "chore: release ${VERSION}" \
-  --body "Release commit + local v${VERSION} tag. Merge with rebase or a merge commit. NEVER squash."
+  --body "Release commit + local v${VERSION} tag. Merge with a merge commit only. NEVER squash or rebase."
 ```
 
-Merge the PR with rebase or a merge commit. Never squash. The local tag points
-at the release commit SHA, and that SHA must remain reachable from `main`.
+Merge the PR with a merge commit only. Never squash or rebase. The local tag
+points at the release commit SHA, and that SHA must remain reachable from
+`main`.
 
 ## Push the tag
 
@@ -114,6 +143,18 @@ After the PR merges:
 ```sh
 git switch main
 git pull --ff-only
+
+ruleset_name=""
+while IFS= read -r ruleset_id; do
+  candidate="$(gh api "repos/Ozark-Security-Labs/SessionScope/rulesets/${ruleset_id}" \
+    --jq 'select(.name == "Protect release tags" and .target == "tag" and .enforcement == "active" and ((.conditions.ref_name.include // []) | index("refs/tags/v*"))) | .name')"
+  if [ -n "${candidate}" ]; then
+    ruleset_name="${candidate}"
+    break
+  fi
+done < <(gh api repos/Ozark-Security-Labs/SessionScope/rulesets \
+  --jq '.[] | select(.target == "tag" and .enforcement == "active") | .id')
+test "${ruleset_name}" = "Protect release tags"
 
 git merge-base --is-ancestor "v${VERSION}" main \
   && echo "tag commit reachable from main" \
@@ -132,19 +173,21 @@ Watch the release workflow:
 gh run watch -R Ozark-Security-Labs/SessionScope
 ```
 
-After the release publishes, verify at least one binary archive and the source
-archive:
+After the release publishes, verify at least one binary archive:
 
 ```sh
 TAG=v0.1.0
+HOST=x86_64-unknown-linux-gnu
 gh release download "$TAG" -R Ozark-Security-Labs/SessionScope \
   -p '*.tar.gz' -p '*.zip' -p '*.sha256' -p '*.intoto.jsonl'
+
+sha256sum --check "sessionscope-${TAG#v}-${HOST}.tar.gz.sha256"
 
 slsa-verifier verify-artifact \
   --provenance-path "sessionscope-${TAG#v}.intoto.jsonl" \
   --source-uri github.com/Ozark-Security-Labs/SessionScope \
   --source-tag "$TAG" \
-  "sessionscope-${TAG#v}-source.tar.gz"
+  "sessionscope-${TAG#v}-${HOST}.tar.gz"
 ```
 
 Unpack one platform archive and run:

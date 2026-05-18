@@ -28,11 +28,12 @@ go install github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest
 
 ```sh
 TAG=v0.1.0
+HOST=x86_64-unknown-linux-gnu
 
 gh release download "$TAG" -R Ozark-Security-Labs/SessionScope \
   -p '*.tar.gz' -p '*.zip' -p '*.sha256' -p '*.intoto.jsonl'
 
-sha256sum --check "sessionscope-${TAG#v}-source.tar.gz.sha256"
+sha256sum --check "sessionscope-${TAG#v}-${HOST}.tar.gz.sha256"
 ```
 
 For macOS or Windows archives, check the matching
@@ -45,17 +46,7 @@ slsa-verifier verify-artifact \
   --provenance-path "sessionscope-${TAG#v}.intoto.jsonl" \
   --source-uri github.com/Ozark-Security-Labs/SessionScope \
   --source-tag "$TAG" \
-  "sessionscope-${TAG#v}-source.tar.gz"
-```
-
-Repeat the command for the platform archive you plan to run, for example:
-
-```sh
-slsa-verifier verify-artifact \
-  --provenance-path "sessionscope-${TAG#v}.intoto.jsonl" \
-  --source-uri github.com/Ozark-Security-Labs/SessionScope \
-  --source-tag "$TAG" \
-  "sessionscope-${TAG#v}-x86_64-unknown-linux-gnu.tar.gz"
+  "sessionscope-${TAG#v}-${HOST}.tar.gz"
 ```
 
 A successful run ends with `PASSED: SLSA verification passed`.
