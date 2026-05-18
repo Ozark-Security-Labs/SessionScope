@@ -66,6 +66,12 @@ outputs should remain stable within a major release after `v1.0.0`. New optional
 inputs are non-breaking. Removing inputs, changing defaults, changing artifact
 behavior, or requiring new workflow permissions requires a compatibility note.
 
+When the action is used from a release tag, it downloads the matching
+`sessionscope` release archive for the runner OS and architecture, verifies the
+`.sha256` sidecar, and runs that binary. `SESSIONSCOPE_BIN` remains an override
+for tests and local workflows. Non-tag refs, unsupported platforms, or missing
+release artifacts fall back to the source checkout path.
+
 ## Changelog discipline
 
 Every user-visible change should update `CHANGELOG.md` under `Unreleased`
