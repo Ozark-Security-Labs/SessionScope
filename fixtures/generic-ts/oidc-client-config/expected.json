@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-ts.oidc-client-config",
+  "framework": "generic-ts",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["oidc:refresh_token", "oidc:unknown_token"],
+  "expected_lifecycle_stages": ["refresh", "revoke", "transmit", "introspect"],
+  "expected_findings": ["provider_boundary_review"],
+  "notes": "Covers OAuth/OIDC client configuration, issuer/audience/scope/callback evidence, refresh, and revocation without contacting providers."
+}

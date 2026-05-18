@@ -1,0 +1,15 @@
+{
+  "fixture_id": "express.session-middleware",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["session_cookie:sid", "signed_cookie:session", "access_jwt", "refresh_cookie:refresh_token", "session_record:session"],
+  "expected_lifecycle_stages": ["issue", "store", "transmit", "validate", "refresh", "revoke", "expire"],
+  "expected_findings": [
+    "express_session_cookie_config_evidence_present",
+    "cookie_session_config_evidence_present",
+    "session_regenerate_evidence_present",
+    "session_destroy_evidence_present",
+    "refresh_rotation_evidence_present"
+  ],
+  "notes": "Covers express-session and cookie-session middleware configuration, login regeneration, JWT issue, refresh rotation, and logout/session destroy evidence."
+}

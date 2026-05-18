@@ -13,9 +13,9 @@
 
 ---
 
-SessionScope maps how authentication artifacts move through your application — how cookies, JWTs, refresh tokens, and password-reset tokens are issued, stored, transmitted, validated, refreshed, revoked, expired, and introspected. It answers a foundational appsec question — **what controls each artifact actually has, and where they go missing?** — by building an evidence-bound lifecycle inventory you can review before code ships.
+SessionScope maps how authentication artifacts move through your application: how cookies, JWTs, refresh tokens, password-reset tokens, and provider-managed tokens are issued, stored, transmitted, validated, refreshed, revoked, expired, and introspected. It answers a foundational appsec question: **what controls each artifact actually has, and where they go missing?**
 
-Authentication security is a lifecycle problem, not a login problem. SessionScope gives you the lifecycle inventory.
+SessionScope is intended for product-security teams and developers who need authorized, evidence-backed review of session management risks without attacking a live system.
 
 ## Quickstart
 
@@ -32,19 +32,46 @@ sessionscope init
 sessionscope scan --path . --format markdown --output sessions.md
 ```
 
-### GitHub Action — coming soon
+## GitHub Action
 
-A first-party GitHub Action is on the roadmap. When it ships, CI integration will look like this:
+SessionScope ships a composite GitHub Action:
 
 ```yaml
-- uses: actions/checkout@v4
-- uses: Ozark-Security-Labs/SessionScope@v0
-  with:
-    mode: advisory
-    output: markdown,sarif
+name: SessionScope
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  sessionscope:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: sessionscope
+        uses: Ozark-Security-Labs/SessionScope@v0
+        with:
+          mode: advisory
+          path: .
+          output: markdown,json,sarif
+          fail-on-findings: "false"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sessionscope-reports
+          path: ${{ steps.sessionscope.outputs.reports-dir }}
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always() && steps.sessionscope.outputs.sarif-path != ''
+        with:
+          sarif_file: ${{ steps.sessionscope.outputs.sarif-path }}
+          category: sessionscope
 ```
 
-Tracked in [docs/ROADMAP.md](docs/ROADMAP.md). Until then, run `sessionscope` directly in a CI job — see [CI integration](#ci-integration) below.
+The action runs in advisory mode by default, writes a GitHub Actions step summary, and exposes report paths for artifact and SARIF upload steps.
+
+To enforce policy in CI, start with `mode: advisory` while uploading Markdown, JSON, and SARIF reports. After the team has reviewed the initial findings, switch to `mode: enforce` with the default `fail-severity: high`. The legacy `fail-on-findings: "true"` input is still accepted and is equivalent to `mode: enforce` with `fail-severity: info`.
 
 ## Sample output
 
@@ -83,9 +110,11 @@ The full JSON contract is documented in [docs/SCHEMA.md](docs/SCHEMA.md); end-to
 
 ## What you get
 
-**Evidence-bound lifecycle map.** SessionScope models auth artifacts through eight stages — `issue`, `store`, `transmit`, `validate`, `refresh`, `revoke`, `expire`, `introspect` — and ties every finding to detector evidence with stable IDs. Reports state precise things ("No audience validation evidence detected near JWT verification.") and avoid unsupported claims.
+**Evidence-bound lifecycle map.** SessionScope models auth artifacts through eight stages: `issue`, `store`, `transmit`, `validate`, `refresh`, `revoke`, `expire`, and `introspect`. Reports state precise things such as "No audience validation evidence detected near JWT verification" and avoid unsupported impact claims.
 
-**Reviewer workflows in CI.** Capture a JSON baseline of accepted findings, diff future scans against it, and resolve any finding ID back to its supporting context. Useful for PR review and slow burndown of legacy posture.
+**Four review capabilities.** The CLI groups lifecycle evidence into cookie posture, claim and validation evidence, logout and revocation evidence, and refresh-token lifecycle evidence. Focused aliases route through the same scanner, detector registry, classifier, redaction, and reporting pipeline.
+
+**Reviewer workflows in CI.** Capture a JSON baseline of accepted findings, diff future scans against it, and resolve any finding ID back to supporting context.
 
 ```bash
 sessionscope scan --path . --format json --output sessions.json
@@ -94,7 +123,7 @@ sessionscope diff --baseline sessionscope-baseline.json --current sessions.json 
 sessionscope explain finding_0001 --report sessions.json
 ```
 
-**Multi-framework, multi-language.** One tool covers session, cookie, JWT, and refresh-token patterns across Express, Next.js, FastAPI, Django, and generic JS/TS/Python JWT libraries — so the same lifecycle issue is detectable wherever it lives.
+**Multi-framework, multi-language coverage.** SessionScope covers session, cookie, JWT, refresh-token, OAuth/OIDC, and identity-provider patterns across Express, Next.js, FastAPI, Django, generic JS/TS/Python JWT libraries, and selected provider SDKs. Coverage is evidence-bound and pattern-based; see [docs/FRAMEWORK_COVERAGE.md](docs/FRAMEWORK_COVERAGE.md) and [docs/PROVIDER_LIBRARY_COVERAGE.md](docs/PROVIDER_LIBRARY_COVERAGE.md).
 
 **Defensive by design.** SessionScope is offline-only and never prints token values, private keys, bearer strings, or cookie values. Source text passes through `sessionscope-core::redaction` before it reaches any report. The full trust boundary is documented in [docs/DATA_HANDLING.md](docs/DATA_HANDLING.md).
 
@@ -107,8 +136,9 @@ sessionscope explain finding_0001 --report sessions.json
 | FastAPI | Python |
 | Django | Python |
 | Generic JWT handling | TypeScript, JavaScript, Python |
+| OAuth/OIDC and provider SDK patterns | TypeScript, JavaScript, Python |
 
-Detectors are heuristics that look for known middleware, decorators, library calls, and cookie-setting APIs. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detector and classifier contracts.
+Detectors are heuristics that look for known middleware, decorators, library calls, provider configuration, token operations, and cookie-setting APIs. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detector and classifier contracts.
 
 ## CLI overview
 
@@ -122,7 +152,7 @@ Detectors are heuristics that look for known middleware, decorators, library cal
 | `sessionscope diff --baseline BASELINE.json --current REPORT.json` | Compare a fresh scan against a saved baseline |
 | `sessionscope version` | Print the CLI version |
 
-Full flags, exit semantics, and the complete check catalog are in [docs/USAGE.md](docs/USAGE.md). Configuration lives in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+Full flags, exit semantics, enforcement options, and the complete check catalog are in [docs/USAGE.md](docs/USAGE.md). Configuration lives in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 ## Output formats
 
@@ -135,50 +165,54 @@ Full flags, exit semantics, and the complete check catalog are in [docs/USAGE.md
 
 The canonical JSON contract is documented in [docs/SCHEMA.md](docs/SCHEMA.md).
 
-## CI integration
+## CI enforcement
 
-Until the first-party Action ships, run `sessionscope` directly:
+`sessionscope` exits `0` on successful advisory scans and `1` on errors. In enforce mode it writes requested reports before returning a failing status for findings that match policy.
 
-```yaml
-name: SessionScope
-on:
-  pull_request:
+Blocking policy can be controlled with:
 
-permissions:
-  contents: read
+- `--mode advisory|enforce`
+- `--fail-severity high|medium|low|info`
+- `--fail-category CATEGORY`
+- `--include-finding-id ID`
+- `--exclude-finding-id ID`
+- `--baseline PATH`
 
-jobs:
-  sessionscope:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo install --git https://github.com/Ozark-Security-Labs/SessionScope sessionscope-cli
-      - run: sessionscope scan --path . --format markdown --output sessions.md
-      - run: cat sessions.md >> "$GITHUB_STEP_SUMMARY"
-```
+`baseline` suppresses matching finding IDs from a prior SessionScope JSON report, or any JSON object with a top-level `findings` array. This is read-only suppression; creating and maintaining baseline files remains separate from `sessionscope baseline create`.
 
-`sessionscope` exits `0` on success and `1` on error; findings do not affect exit status. Severity-gated exits are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
+## Configuration
+
+Run `sessionscope init` to create a checked-in `sessionscope.toml` file. The command is non-interactive, does not require network access, and refuses to overwrite an existing config unless `--force` is passed.
+
+Config precedence is:
+
+1. CLI flags such as `--path`, `--include`, `--exclude`, `--format`, `--max-file-size`, `--mode`, `--fail-severity`, `--fail-category`, `--include-finding-id`, `--exclude-finding-id`, and `--baseline`.
+2. `sessionscope.toml`.
+3. Built-in defaults.
+
+`--include` replaces configured include patterns, while `--exclude` appends to configured excludes. SessionScope also respects `.gitignore` where practical, applies built-in dependency/vendor/build excludes, and skips sensitive paths such as env files and private-key material before source loading.
 
 ## Project status
 
-- **Milestone:** v0.8.0 — reviewer workflows (current branch). MVP is imminent.
-- **Complete:** v0.1 foundation, v0.2 cookie audit, v0.3 JWT validation, v0.4 lifecycle mapping, v0.5 expanded token handling, v0.8 reviewer workflows (`baseline create`, `diff`, `explain`, capability aliases for `cookies` / `claims` / `logout` / `refresh`).
+- **Milestone:** v0.8.0 - reviewer workflows (current branch). MVP is imminent.
+- **Complete:** v0.1 foundation, v0.2 cookie audit, v0.3 JWT validation, v0.4 lifecycle mapping, v0.5 expanded token handling, v0.6 framework/provider coverage, v0.7 CI SARIF/enforcement, v0.8 reviewer workflows.
 - **Schema:** JSON contract v0.5.0.
 - **Rust:** edition 2024. MSRV is not yet pinned.
-- **Platforms:** developed on Linux. macOS and Windows are not yet covered in CI.
+- **Platforms:** Linux, macOS, and Windows are covered by CI where workflow support exists.
 - **Versioning:** workspace `Cargo.toml` is still `0.1.0`. Tagged releases will land after MVP.
 
-Phase plan and upcoming work in [docs/ROADMAP.md](docs/ROADMAP.md).
+Phase plan and upcoming work are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Documentation
 
 | Document | Contents |
 | -------- | -------- |
 | [docs/USAGE.md](docs/USAGE.md) | End-to-end CLI usage, lifecycle stages, token types, check catalog |
-| [docs/SCHEMA.md](docs/SCHEMA.md) | JSON inventory and finding schema (v0.5.0) |
+| [docs/SCHEMA.md](docs/SCHEMA.md) | JSON inventory and finding schema (v0.5.0), baselines, diffs |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | `sessionscope.toml` reference and precedence rules |
 | [docs/DATA_HANDLING.md](docs/DATA_HANDLING.md) | Redaction trust boundary and report sensitivity |
+| [docs/FRAMEWORK_COVERAGE.md](docs/FRAMEWORK_COVERAGE.md) | Supported and unsupported framework API evidence |
+| [docs/PROVIDER_LIBRARY_COVERAGE.md](docs/PROVIDER_LIBRARY_COVERAGE.md) | Provider and identity-library evidence coverage |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Pipeline, crate layout, and detector contract |
 | [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md) | Rationale for config, defaults, confidence levels |
 | [docs/PRODUCT_BRIEF.md](docs/PRODUCT_BRIEF.md) | Product framing, target users, MVP criteria |
@@ -196,16 +230,16 @@ Supply-chain posture:
 
 ## Contributing
 
-Design-first contributions are welcome — new framework detectors, lifecycle evidence, classifier improvements, and documentation.
+Design-first contributions are welcome: new framework detectors, lifecycle evidence, classifier improvements, and documentation.
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) — how to propose and submit changes
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community standards
-- [GOVERNANCE.md](GOVERNANCE.md) — maintainer and decision-making model
-- [SUPPORT.md](SUPPORT.md) — getting help
+- [CONTRIBUTING.md](CONTRIBUTING.md) - how to propose and submit changes
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - community standards
+- [GOVERNANCE.md](GOVERNANCE.md) - maintainer and decision-making model
+- [SUPPORT.md](SUPPORT.md) - getting help
 
 ## Sibling projects
 
-Part of [Ozark Security Labs](https://github.com/Ozark-Security-Labs). See also [AuthMap](https://github.com/Ozark-Security-Labs/AuthMap) — authorization coverage mapping for application code.
+Part of [Ozark Security Labs](https://github.com/Ozark-Security-Labs). See also [AuthMap](https://github.com/Ozark-Security-Labs/AuthMap), authorization coverage mapping for application code.
 
 ## Non-goals
 

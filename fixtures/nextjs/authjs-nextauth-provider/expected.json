@@ -1,0 +1,9 @@
+{
+  "fixture_id": "nextjs.authjs-nextauth-provider",
+  "framework": "nextjs",
+  "source_files": ["route.ts"],
+  "expected_artifacts": ["nextauth:refresh_token", "auth0:unknown_token"],
+  "expected_lifecycle_stages": ["refresh", "revoke", "transmit", "introspect"],
+  "expected_findings": ["provider_managed_dynamic_review"],
+  "notes": "Covers Auth.js/NextAuth provider configuration, JWT/session callbacks, provider-managed refresh, and logout revocation as offline dynamic review evidence."
+}

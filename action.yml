@@ -1,0 +1,75 @@
+name: SessionScope
+description: Run SessionScope in GitHub Actions and publish advisory scan reports.
+
+inputs:
+  mode:
+    description: Policy mode. Use advisory to report only or enforce to fail on matching findings.
+    required: false
+    default: advisory
+  path:
+    description: Repository-relative path to scan.
+    required: false
+    default: .
+  output:
+    description: Comma-separated report formats to produce: markdown, json, sarif.
+    required: false
+    default: markdown,sarif
+  fail-on-findings:
+    description: Backward-compatible shortcut for mode=enforce with fail-severity=info.
+    required: false
+    default: "false"
+  fail-severity:
+    description: Minimum severity that fails enforce mode: high, medium, low, or info.
+    required: false
+    default: high
+  fail-category:
+    description: Comma-separated finding categories that fail enforce mode. Empty means all categories.
+    required: false
+    default: ""
+  include-finding-id:
+    description: Comma-separated finding IDs that always fail unless excluded.
+    required: false
+    default: ""
+  exclude-finding-id:
+    description: Comma-separated finding IDs that never fail.
+    required: false
+    default: ""
+  baseline:
+    description: Path to a prior SessionScope JSON report whose finding IDs are suppressed.
+    required: false
+    default: ""
+
+outputs:
+  reports-dir:
+    description: Directory containing generated SessionScope reports.
+    value: ${{ steps.sessionscope.outputs.reports-dir }}
+  markdown-path:
+    description: Path to the generated Markdown report, when requested.
+    value: ${{ steps.sessionscope.outputs.markdown-path }}
+  json-path:
+    description: Path to the generated JSON report, when requested.
+    value: ${{ steps.sessionscope.outputs.json-path }}
+  sarif-path:
+    description: Path to the generated SARIF report, when requested.
+    value: ${{ steps.sessionscope.outputs.sarif-path }}
+  summary-path:
+    description: Path to the generated GitHub summary Markdown.
+    value: ${{ steps.sessionscope.outputs.summary-path }}
+
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+    - id: sessionscope
+      shell: bash
+      env:
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+        INPUT_FAIL_SEVERITY: ${{ inputs.fail-severity }}
+        INPUT_FAIL_CATEGORY: ${{ inputs.fail-category }}
+        INPUT_INCLUDE_FINDING_ID: ${{ inputs.include-finding-id }}
+        INPUT_EXCLUDE_FINDING_ID: ${{ inputs.exclude-finding-id }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/github-action.sh"
