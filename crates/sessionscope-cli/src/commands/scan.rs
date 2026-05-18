@@ -4,9 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use sessionscope_classifier::classify;
-use sessionscope_core::{CapabilityArea, ScanConfig, filter_report, scan_path};
 use sessionscope_core::redaction::sanitized_report;
-use sessionscope_core::{ScanConfig, scan_path};
+use sessionscope_core::{CapabilityArea, ScanConfig, filter_report, scan_path};
 use sessionscope_detectors::DetectorRegistry;
 use sessionscope_reporters::{ReportFormat, render};
 
@@ -77,7 +76,6 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
                     "--max-file-size",
                 )?)?);
             }
-            _ => return Err(unknown_option_message(capability).into()),
             "--mode" => {
                 index += 1;
                 mode = Some(parse_mode(required_value(args, index, "--mode")?)?);
@@ -122,7 +120,7 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
             "--no-policy-config" => {
                 use_policy_config = false;
             }
-            _ => return Err("unknown scan option; run `sessionscope --help`".into()),
+            _ => return Err(unknown_option_message(capability).into()),
         }
 
         index += 1;
@@ -208,6 +206,8 @@ fn unknown_option_message(capability: Option<CapabilityArea>) -> &'static str {
     } else {
         "unknown scan option; run `sessionscope --help`"
     }
+}
+
 struct EnforcementArgs {
     mode: Option<EnforcementMode>,
     fail_severity: Option<sessionscope_model::Severity>,

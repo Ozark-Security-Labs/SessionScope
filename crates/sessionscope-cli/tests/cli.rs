@@ -565,11 +565,6 @@ fn cookies_json_filters_to_cookie_capability() {
             "const apiKey = \"PLACEHOLDER_API_KEY_DO_NOT_USE\";\n",
             "localStorage.setItem(\"api_key\", apiKey);\n"
         ),
-fn scan_advisory_mode_with_findings_exits_zero() {
-    let temp = tempfile::tempdir().expect("tempdir should be created");
-    fs::write(
-        temp.path().join("app.ts"),
-        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
     )
     .expect("app source should be written");
 
@@ -577,11 +572,6 @@ fn scan_advisory_mode_with_findings_exits_zero() {
         "cookies",
         "--path",
         temp.path().to_str().expect("temp path should be UTF-8"),
-        "scan",
-        "--path",
-        temp.path().to_str().expect("temp path should be UTF-8"),
-        "--mode",
-        "advisory",
         "--format",
         "json",
     ]);
@@ -603,6 +593,31 @@ fn scan_advisory_mode_with_findings_exits_zero() {
     let serialized = String::from_utf8_lossy(&output.stdout);
     assert!(!serialized.contains("PLACEHOLDER_RESET_TOKEN"));
     assert!(!serialized.contains("PLACEHOLDER_API_KEY_DO_NOT_USE"));
+}
+
+#[test]
+fn scan_advisory_mode_with_findings_exits_zero() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("app.ts"),
+        r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
+    )
+    .expect("app source should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--mode",
+        "advisory",
+        "--format",
+        "json",
+    ]);
+
+    assert!(output.status.success());
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
+    assert!(!parsed["findings"].as_array().unwrap().is_empty());
 }
 
 #[test]
@@ -724,8 +739,6 @@ fn capability_aliases_reject_unsupported_formats_and_unknown_options() {
             .expect("stderr should be UTF-8")
             .contains("unknown capability option")
     );
-        serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
-    assert!(!parsed["findings"].as_array().unwrap().is_empty());
 }
 
 #[test]
