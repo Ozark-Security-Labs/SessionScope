@@ -1,4 +1,5 @@
 pub mod artifact;
+pub mod baseline;
 pub mod evidence;
 pub mod finding;
 pub mod lifecycle;
@@ -10,6 +11,10 @@ pub use artifact::{
     CookieAttributes, JwtAttributeObservation, JwtAttributeState, JwtAttributes, JwtIdentityClaims,
     LifecycleEvidence, TokenBoundaryAttributeState, TokenBoundaryAttributes,
     TokenBoundaryObservation,
+};
+pub use baseline::{
+    BASELINE_SCHEMA_VERSION, Baseline, BaselineFinding, DIFF_SCHEMA_VERSION, DiffChangeKind,
+    DiffFindingChange, DiffReport, DiffSummary,
 };
 pub use evidence::{Confidence, Evidence, EvidenceId, SanitizedExcerpt, SourceLocation};
 pub use finding::{Finding, FindingCategory, FindingId, Severity};

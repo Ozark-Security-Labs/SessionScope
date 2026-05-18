@@ -26,7 +26,7 @@ SessionScope is one product with four source-analysis capability areas:
 - **Logout and revocation** covers logout handlers, cookie clearing, server-side session destruction, token revocation, provider revocation, and lifecycle-gap classification for clear-cookie-only paths.
 - **Refresh lifecycle** covers refresh-token issue, store, validate, refresh, rotate, reuse-detect, revoke, and expire evidence, including provider-managed behavior as dynamic review context.
 
-These areas share the same discovery, source loading, detector registry, redaction boundary, deterministic merge, lifecycle linking, classifier, and reporters. Planned focused commands such as `cookies`, `claims`, `logout`, and `refresh` should filter or present this shared inventory rather than fork the scanner pipeline.
+These areas share the same discovery, source loading, detector registry, redaction boundary, deterministic merge, lifecycle linking, classifier, and reporters. Focused commands such as `cookies`, `claims`, `logout`, and `refresh` filter this shared inventory rather than fork the scanner pipeline.
 
 ## Pipeline
 
@@ -156,10 +156,18 @@ Initial commands:
 
 - `sessionscope init`
 - `sessionscope scan`
-- `sessionscope explain FINDING_ID`
-- `sessionscope baseline create`
-- `sessionscope diff <base...head>`
+- `sessionscope cookies`
+- `sessionscope claims`
+- `sessionscope logout`
+- `sessionscope refresh`
+- `sessionscope explain FINDING_ID --report REPORT.json`
+- `sessionscope baseline create --from REPORT.json --output BASELINE.json`
+- `sessionscope diff --baseline BASELINE.json --current REPORT.json`
 - `sessionscope version`
+
+The focused capability commands are aliases over `sessionscope scan`. They use
+the same discovery, detector registry, classifier, redaction, and reporter
+pipeline, then apply a deterministic report filter for the requested capability.
 
 ### `sessionscope-core`
 

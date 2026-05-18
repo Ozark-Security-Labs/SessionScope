@@ -323,6 +323,16 @@ fixes, and optional reviewer questions.
 
 Supported severities are `info`, `low`, `medium`, and `high`.
 
+Individual findings can be explained from a JSON report:
+
+```bash
+sessionscope explain FINDING_ID --report sessions.json
+```
+
+Explain output is a presentation view over existing report data. It should use
+the finding text, linked evidence records, confidence, suggested fix, and
+reviewer question without adding unsupported runtime impact claims.
+
 ## Reports
 
 A scan report contains:
@@ -334,6 +344,11 @@ A scan report contains:
 - merged evidence
 - lifecycle paths
 - findings
+
+Focused capability commands such as `sessionscope cookies`, `sessionscope
+claims`, `sessionscope logout`, and `sessionscope refresh` serialize the same
+report shape after filtering artifacts, evidence, lifecycle paths, and findings
+to the requested capability area. They do not change the schema version.
 
 Skipped file reasons are serialized as non-sensitive categories: `binary`,
 `too_large`, `unsupported`, `excluded`, `ignored`, `sensitive_path`, or
@@ -351,3 +366,43 @@ Reports must not rely on redaction to fix unsafe identifiers. Stable artifact,
 evidence, and finding IDs should always be derived from non-secret facts rather
 than token values, private keys, bearer strings, cookie values, or runtime
 secrets.
+
+## Baselines
+
+Baseline files capture findings that a team has accepted for incremental
+review. They are created from sanitized JSON scan reports:
+
+```bash
+sessionscope baseline create --from sessions.json --output sessionscope-baseline.json
+```
+
+The baseline schema is versioned independently from scan reports. Current
+baseline files use `schema_version: "0.1.0"` and include the source
+`report_schema_version`, deterministic finding entries, semantic fingerprints,
+evidence fingerprints, related artifact/evidence IDs, and source locations.
+
+Baselines are safe to store with project review artifacts when generated from
+sanitized reports. They must not be edited to add token values, private keys,
+bearer strings, cookie values, signing secrets, API keys, or raw JWT contents.
+
+## Diffs
+
+Diff reports compare a current JSON scan report against a baseline:
+
+```bash
+sessionscope diff --baseline sessionscope-baseline.json --current sessions.json --format json
+sessionscope diff --baseline sessionscope-baseline.json --current sessions.json --format markdown
+```
+
+Diff output uses `schema_version: "0.1.0"` and groups findings into:
+
+- `new`
+- `unchanged`
+- `changed`
+- `moved`
+- `resolved`
+
+Comparison is deterministic and file-based. Findings match by stable finding ID
+first, then by semantic and evidence fingerprints so source moves can be
+reviewed without re-triaging unchanged finding content. Diff output is advisory
+for CI workflows; it does not change process exit policy by itself.
