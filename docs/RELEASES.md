@@ -118,6 +118,11 @@ tests, builds platform binaries, verifies release tag protection, generates
 per-artifact SHA-256 sidecars, creates SLSA provenance, and publishes a GitHub
 Release from the changelog section for that version.
 
+The SLSA generic reusable workflow is intentionally referenced with a semantic
+version tag because the upstream generator requires that form. The release
+workflow keeps a narrow dependency-determinism allowlist for that single
+reference; other external GitHub Actions stay pinned to full commit SHAs.
+
 The workflow publishes GitHub Release artifacts only. It does not publish crates
 to crates.io or any package registry. Cargo package artifacts are used to review
 package contents while SessionScope's internal crates remain unpublished.

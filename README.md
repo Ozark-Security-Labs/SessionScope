@@ -233,7 +233,9 @@ SessionScope is intended for authorized, defensive analysis of code that you own
 Supply-chain posture:
 
 - `Cargo.lock` is committed and reviewed.
-- GitHub Actions in security-critical workflows are pinned to full commit SHAs.
+- GitHub Actions in security-critical workflows are pinned to full commit SHAs,
+  except the SLSA generic reusable workflow, which upstream requires to use a
+  semantic version ref.
 - CI runs `cargo test`, `security.yml`, `codeql.yml`, and dependency-determinism checks on every PR.
 
 ## Contributing
