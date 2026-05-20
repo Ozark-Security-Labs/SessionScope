@@ -143,14 +143,16 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
     validate_output_options(&formats, output.as_ref(), output_dir.as_ref())?;
 
     let mut config = ScanConfig::new(scan_root);
-    if let Some(config_include) = &project_config.include {
-        config.set_include_patterns(config_include.clone());
-    }
-    if let Some(config_exclude) = &project_config.exclude {
-        config.add_exclude_patterns(config_exclude.clone());
-    }
-    if let Some(config_max_file_size_bytes) = project_config.max_file_size_bytes {
-        config.set_max_file_size_bytes(config_max_file_size_bytes);
+    if use_policy_config {
+        if let Some(config_include) = &project_config.include {
+            config.set_include_patterns(config_include.clone());
+        }
+        if let Some(config_exclude) = &project_config.exclude {
+            config.add_exclude_patterns(config_exclude.clone());
+        }
+        if let Some(config_max_file_size_bytes) = project_config.max_file_size_bytes {
+            config.set_max_file_size_bytes(config_max_file_size_bytes);
+        }
     }
 
     if !include_patterns.is_empty() {

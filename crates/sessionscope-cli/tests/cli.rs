@@ -2158,6 +2158,36 @@ fn scan_cli_exclude_appends_to_config_excludes() {
 }
 
 #[test]
+fn scan_no_policy_config_ignores_project_scope_controls() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::create_dir_all(temp.path().join("src")).expect("src dir should be created");
+    fs::write(temp.path().join("src/app.ts"), "const app = true;")
+        .expect("app source should be written");
+    fs::write(
+        temp.path().join("sessionscope.toml"),
+        concat!(
+            "scan_paths = [\"src\"]\n",
+            "include = [\"does-not-match/**\"]\n",
+            "exclude = [\"**/*\"]\n",
+            "max_file_size_bytes = 1\n",
+            "formats = [\"json\"]\n",
+        ),
+    )
+    .expect("config should be written");
+
+    let output = run_sessionscope_in(
+        temp.path(),
+        &["scan", "--path", "src", "--format", "json", "--no-policy-config"],
+    );
+
+    assert!(output.status.success());
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("scan JSON should parse");
+    assert_eq!(parsed["summary"]["files_scanned"], 1);
+    assert_eq!(parsed["summary"]["files_skipped"], 0);
+}
+
+#[test]
 fn scan_rejects_invalid_project_config() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     fs::write(temp.path().join("sessionscope.toml"), "mode = \"block\"\n")
