@@ -26,6 +26,23 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+      - name: Compute advisory-db cache key date
+        id: date
+        shell: bash
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "${GITHUB_OUTPUT}"
+      - name: Cache cargo-audit advisory database
+        # F-28: Cache ~/.cargo/advisory-db so cargo audit does not re-clone the
+        # RustSec advisory-db on every run. Keyed on the UTC date so the cache
+        # rolls over daily, which keeps audit data fresh while removing per-run
+        # network flake on the advisory-db fetch. The retry loop below remains
+        # in place so a cache miss or partially restored DB still recovers via
+        # cargo-audit's normal git fetch.
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: ~/.cargo/advisory-db
+          key: cargo-audit-db-${{ steps.date.outputs.date }}
+          restore-keys: |
+            cargo-audit-db-
       - name: Install cargo-audit
         run: cargo install cargo-audit --version 0.22.1 --locked
       - name: Audit dependencies
