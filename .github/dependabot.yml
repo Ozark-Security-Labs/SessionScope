@@ -23,24 +23,10 @@ updates:
     labels:
       - dependencies
       - github-actions
-
-  # F-25: Watch the SLSA generic reusable workflow used in release.yml so
-  # maintainers explicitly review version bumps to the one external workflow
-  # we intentionally reference by semver tag (see RELEASING.md "SLSA reusable
-  # workflow trust decision"). The reusable workflow is consumed via `uses:`
-  # in .github/workflows/release.yml; Dependabot watches the source repo.
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-      time: "09:45"
-      timezone: America/Chicago
-    open-pull-requests-limit: 5
-    labels:
-      - dependencies
-      - github-actions
-      - slsa
+    # F-25: Watch the SLSA generic reusable workflow used in release.yml so
+    # maintainers explicitly review version bumps to the one external workflow
+    # we intentionally reference by semver tag (see RELEASING.md "SLSA reusable
+    # workflow trust decision"). The reusable workflow is consumed via `uses:`
+    # in .github/workflows/release.yml; Dependabot watches the source repo.
     allow:
       - dependency-name: "slsa-framework/slsa-github-generator"
-

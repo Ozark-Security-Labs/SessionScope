@@ -29,9 +29,13 @@ pub struct EnforcementOverrides {
     pub use_policy_config: bool,
 }
 
-/// Load `sessionscope.toml` if present and validate it.
-pub fn load_project_config() -> Result<ProjectConfig, String> {
-    ProjectConfig::load_default().map_err(|error| error.to_string())
+/// Load `sessionscope.toml` if policy config is enabled, otherwise use an empty config.
+pub fn load_project_config(use_policy_config: bool) -> Result<ProjectConfig, String> {
+    if use_policy_config {
+        ProjectConfig::load_default().map_err(|error| error.to_string())
+    } else {
+        Ok(ProjectConfig::empty())
+    }
 }
 
 /// Merge project config enforcement values and CLI overrides into a single

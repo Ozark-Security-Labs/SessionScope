@@ -135,7 +135,7 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
         index += 1;
     }
 
-    let project_config = load_project_config()?;
+    let project_config = load_project_config(use_policy_config)?;
     let scan_root = path
         .or_else(|| project_config.first_scan_path().map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from("."));

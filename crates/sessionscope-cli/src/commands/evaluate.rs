@@ -83,7 +83,7 @@ pub fn run(args: &[String]) -> CommandResult {
         index += 1;
     }
 
-    let project_config = load_project_config()?;
+    let project_config = load_project_config(use_policy_config)?;
     let options = build_enforcement_options(
         &project_config,
         EnforcementOverrides {
