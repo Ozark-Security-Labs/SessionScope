@@ -8,7 +8,7 @@ repository.workspace = true
 [dependencies]
 regex = "1.11"
 sessionscope-model = { path = "../sessionscope-model" }
-tree-sitter = "0.26.8"
+tree-sitter = "0.26.9"
 tree-sitter-javascript = "0.25.0"
 tree-sitter-python = "0.25.0"
 tree-sitter-typescript = "0.23.2"
