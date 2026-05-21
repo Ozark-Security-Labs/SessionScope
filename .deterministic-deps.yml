@@ -1,4 +1,4 @@
 allowlist:
   - file: .github/workflows/release.yml
     ruleId: github-actions/sha-pin
-    line: 212
+    line: 325
