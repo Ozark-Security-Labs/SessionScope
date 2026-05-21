@@ -38,7 +38,7 @@ pub const DEFAULT_CONFIG: &str = concat!(
     "exclude_finding_ids = []\n",
     "# baseline = \"sessionscope-baseline.json\"\n",
     "\n",
-    "max_file_size_bytes = 1000000\n",
+    "max_file_size_bytes = 512000\n",
     "\n",
     "# Hints are parsed for future detectors and have no runtime effect yet.\n",
     "framework_hints = [\"express\", \"nextjs\", \"fastapi\", \"django\"]\n",
@@ -247,7 +247,7 @@ mod tests {
                 .as_ref()
                 .is_some_and(|values| values.is_empty())
         );
-        assert_eq!(config.max_file_size_bytes, Some(1_000_000));
+        assert_eq!(config.max_file_size_bytes, Some(512_000));
         assert!(
             config
                 .include

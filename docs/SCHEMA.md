@@ -351,8 +351,17 @@ report shape after filtering artifacts, evidence, lifecycle paths, and findings
 to the requested capability area. They do not change the schema version.
 
 Skipped file reasons are serialized as non-sensitive categories: `binary`,
-`too_large`, `unsupported`, `excluded`, `ignored`, `sensitive_path`, or
-`read_error`.
+`too_large`, `unsupported`, `excluded`, `ignored`, `sensitive_path`,
+`read_error`, or `timeout`. `timeout` indicates that detectors collectively
+exceeded the per-file CPU budget on that file; SessionScope records the
+skip and continues with the rest of the scan.
+
+The scan summary also includes `skipped_by_reason`, a map keyed by the
+`SkippedReasonKind` variant tag (e.g. `{"too_large": 3, "timeout": 1}`). The
+map is omitted from JSON when empty. `ScanReport::has_critical_failures()`
+returns true when permission errors dominate the skipped files; CI
+integrations can use it to surface a "scan was crippled" signal even when no
+findings were produced.
 
 JSON report output serializes the full `ScanReport` model. Reporters should not
 receive raw secret-bearing source snippets, and output formats should continue

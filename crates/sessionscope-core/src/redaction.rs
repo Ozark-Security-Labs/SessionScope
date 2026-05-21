@@ -698,14 +698,14 @@ mod tests {
         ] {
             let excerpt = safe_excerpt_with_context(source, 200, context);
             assert!(
-                excerpt.0.contains("[REDACTED]"),
+                excerpt.as_str().contains("[REDACTED]"),
                 "{context:?} excerpt did not redact: {}",
-                excerpt.0
+                excerpt.as_str()
             );
             assert!(
-                !excerpt.0.contains("abcDEF12345678901234"),
+                !excerpt.as_str().contains("abcDEF12345678901234"),
                 "{context:?} excerpt leaked literal: {}",
-                excerpt.0
+                excerpt.as_str()
             );
         }
     }
@@ -719,9 +719,9 @@ mod tests {
         let excerpt = safe_excerpt_with_context(source, 200, RedactionContext::Generic);
 
         assert!(
-            excerpt.0.contains("abcDEF12345678901234"),
+            excerpt.as_str().contains("abcDEF12345678901234"),
             "Generic context unexpectedly redacted literal: {}",
-            excerpt.0
+            excerpt.as_str()
         );
     }
 
@@ -747,11 +747,11 @@ mod tests {
                 .expect("fixture file should be readable");
             let excerpt = safe_excerpt_with_context(&source, 4_000, context);
             assert!(
-                !excerpt.0.contains("abcDEF12345678901234"),
+                !excerpt.as_str().contains("abcDEF12345678901234"),
                 "{file} leaked literal under {context:?}: {}",
-                excerpt.0
+                excerpt.as_str()
             );
-            assert!(excerpt.0.contains("[REDACTED]"));
+            assert!(excerpt.as_str().contains("[REDACTED]"));
         }
     }
 

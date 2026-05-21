@@ -70,9 +70,8 @@ pub fn read_source(path: &Path, max_file_size_bytes: u64) -> Result<String, Skip
         }
     }
 
-    String::from_utf8(bytes).map_err(|_| {
-        SkippedReason::ReadError(format!("{}", io::ErrorKind::InvalidData))
-    })
+    String::from_utf8(bytes)
+        .map_err(|_| SkippedReason::ReadError(format!("{}", io::ErrorKind::InvalidData)))
 }
 
 fn io_kind_skipped_reason(error: io::Error) -> SkippedReason {
