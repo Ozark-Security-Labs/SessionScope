@@ -45,3 +45,10 @@ This project should report evidence-bound hypotheses unless a finding is mechani
 Fixtures, tests, reports, and documentation examples must use obvious
 placeholders only. Do not add real tokens, API keys, private keys, production
 cookies, customer code, or copied vulnerability data to this repository.
+
+## Third-party dependency reviews
+
+Security-relevant manual reviews of transitive crate dependencies are recorded
+in [`docs/DEPENDENCY_REVIEW.md`](docs/DEPENDENCY_REVIEW.md). Reviewers should
+update that log when introducing, removing, or pinning a sensitive
+dependency.
