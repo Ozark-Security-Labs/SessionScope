@@ -3,6 +3,7 @@ pub mod diff;
 pub mod evaluate;
 pub mod explain;
 pub mod init;
+pub mod policy;
 pub mod scan;
 
 use std::error::Error;
