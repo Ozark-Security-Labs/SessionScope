@@ -674,6 +674,7 @@ mod tests {
                 files_scanned: 1,
                 files_skipped: 0,
                 diagnostics: Vec::new(),
+                worker_panic_count: 0,
             },
             files: vec![FileScanResult::skipped(
                 "ignored.ts".to_string(),

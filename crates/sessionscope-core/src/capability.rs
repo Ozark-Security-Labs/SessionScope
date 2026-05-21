@@ -349,6 +349,7 @@ fn summarize_files(files: &[FileScanResult]) -> ScanSummary {
             .iter()
             .flat_map(|file| file.diagnostics.iter().cloned())
             .collect(),
+        worker_panic_count: 0,
     }
 }
 

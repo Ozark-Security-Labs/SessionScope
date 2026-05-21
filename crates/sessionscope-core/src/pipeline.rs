@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt;
+use std::panic::{self, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
@@ -33,7 +34,10 @@ pub fn scan_path(
 ) -> Result<ScanReport, ScanError> {
     let discovery = discover_files(&config).map_err(ScanError::Discovery)?;
     let files_discovered = discovery.files.len() + discovery.skipped.len();
-    let mut results = scan_files(config, registry, discovery.files);
+    let ScanFilesOutcome {
+        mut results,
+        worker_panic_count,
+    } = scan_files(config, registry, discovery.files);
     results.extend(discovery.skipped);
     results.sort_by(|left, right| left.path.cmp(&right.path));
 
@@ -57,6 +61,7 @@ pub fn scan_path(
             files_scanned,
             files_skipped,
             diagnostics: Vec::new(),
+            worker_panic_count,
         },
         files: results,
         artifacts,
@@ -66,11 +71,16 @@ pub fn scan_path(
     })
 }
 
+struct ScanFilesOutcome {
+    results: Vec<FileScanResult>,
+    worker_panic_count: u32,
+}
+
 fn scan_files(
     config: ScanConfig,
     registry: Arc<DetectorRegistry>,
     files: Vec<PathBuf>,
-) -> Vec<FileScanResult> {
+) -> ScanFilesOutcome {
     let worker_count = thread::available_parallelism().map_or(1, usize::from);
     let chunk_size = files.len().div_ceil(worker_count).max(1);
 
@@ -83,17 +93,59 @@ fn scan_files(
             let registry = Arc::clone(&registry);
 
             handles.push(scope.spawn(move || {
-                chunk
-                    .into_iter()
-                    .map(|path| scan_file(&config, &registry, path))
-                    .collect::<Vec<_>>()
+                let mut local_results = Vec::with_capacity(chunk.len());
+                let mut local_panics: u32 = 0;
+                for path in chunk {
+                    let display_path = path
+                        .strip_prefix(&config.root)
+                        .map_or_else(|_| normalize_path(&path), normalize_path);
+                    let language = classify_language(&path);
+
+                    // Catch detector / per-file panics so a single misbehaving
+                    // file cannot tear down the worker thread (and the scan).
+                    // The panic payload is intentionally discarded — it may
+                    // contain source text or secrets harvested before the
+                    // panic.
+                    let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
+                        scan_file(&config, &registry, path)
+                    }));
+                    match outcome {
+                        Ok(result) => local_results.push(result),
+                        Err(_) => {
+                            local_panics = local_panics.saturating_add(1);
+                            local_results.push(FileScanResult::skipped(
+                                display_path,
+                                language,
+                                SkippedReason::ReadError("detector panic".into()),
+                            ));
+                        }
+                    }
+                }
+                (local_results, local_panics)
             }));
         }
 
-        handles
-            .into_iter()
-            .flat_map(|handle| handle.join().expect("file scan worker panicked"))
-            .collect()
+        let mut results: Vec<FileScanResult> = Vec::new();
+        let mut worker_panic_count: u32 = 0;
+        for handle in handles {
+            // A worker that itself panicked (outside our catch_unwind, e.g. an
+            // allocation failure between the catch and the push) yields an
+            // empty result set and contributes one panic to the counter.
+            match handle.join() {
+                Ok((mut worker_results, worker_panics)) => {
+                    results.append(&mut worker_results);
+                    worker_panic_count = worker_panic_count.saturating_add(worker_panics);
+                }
+                Err(_) => {
+                    worker_panic_count = worker_panic_count.saturating_add(1);
+                }
+            }
+        }
+
+        ScanFilesOutcome {
+            results,
+            worker_panic_count,
+        }
     })
 }
 
@@ -208,5 +260,72 @@ mod tests {
         assert!(serialized.contains("[REDACTED]"));
         assert!(!serialized.contains("abcdefghijklmnopqrstuvwxyzABCDEF0123456789"));
         assert_eq!(report.files[0].evidence, report.evidence);
+    }
+
+    /// Detector that always panics with a payload containing fake-secret-like
+    /// text. The scan pipeline must catch the panic, report the file as a
+    /// `ReadError("detector panic")` skip, and never let the panic payload
+    /// surface in the report (it could contain attacker-controlled source).
+    struct PanickingDetector;
+
+    impl Detector for PanickingDetector {
+        fn id(&self) -> &'static str {
+            "test.panic"
+        }
+
+        fn detect(&self, _input: &DetectorInput<'_>) -> DetectionOutput {
+            panic!("simulated detector crash secret=PAYLOAD_DO_NOT_LEAK");
+        }
+    }
+
+    #[test]
+    fn worker_panics_are_caught_and_counted() {
+        let temp = tempdir().expect("tempdir should be created");
+        std::fs::write(temp.path().join("a.ts"), "const a = 1;").expect("source should be written");
+
+        // Suppress the default panic hook for the duration of the scan so the
+        // test output is clean. The catch_unwind in the pipeline is what
+        // actually contains the panic; the hook only governs printing.
+        let previous_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+
+        let registry =
+            Arc::new(DetectorRegistry::empty().with_detector(Box::new(PanickingDetector)));
+        let report = scan_path(ScanConfig::new(temp.path()), registry)
+            .expect("scan should return a report even when detectors panic");
+
+        std::panic::set_hook(previous_hook);
+
+        // At least one file was skipped because of the panic.
+        let panicked_files: Vec<_> = report
+            .files
+            .iter()
+            .filter(|file| {
+                matches!(
+                    file.skipped_reason,
+                    Some(sessionscope_model::SkippedReason::ReadError(ref msg)) if msg == "detector panic"
+                )
+            })
+            .collect();
+        assert!(
+            !panicked_files.is_empty(),
+            "expected at least one file marked as a detector-panic skip; got files={:?}",
+            report.files,
+        );
+
+        // The summary counter tracks the panic(s).
+        assert!(
+            report.summary.worker_panic_count >= 1,
+            "expected worker_panic_count >= 1, got {}",
+            report.summary.worker_panic_count,
+        );
+
+        // The panic payload must not leak into the serialized report.
+        let serialized =
+            serde_json::to_string(&report).expect("scan report should serialize to JSON");
+        assert!(
+            !serialized.contains("PAYLOAD_DO_NOT_LEAK"),
+            "panic payload must not appear in the report",
+        );
     }
 }
