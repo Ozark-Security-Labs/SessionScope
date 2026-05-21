@@ -8,7 +8,7 @@ SessionScope is a single binary, `sessionscope`. All commands operate on a local
 
 ```text
 sessionscope init [--force]
-sessionscope scan [--path PATH] [--include PATTERN] [--exclude PATTERN] [--max-file-size BYTES] [--format FORMAT[,FORMAT...]] [--output PATH|--output-dir DIR]
+sessionscope scan [--path PATH] [--include PATTERN] [--exclude PATTERN] [--max-file-size BYTES] [--format FORMAT[,FORMAT...]] [--output PATH|--output-dir DIR] [--mode advisory|enforce] [policy options]
 sessionscope cookies [scan options]
 sessionscope claims [scan options]
 sessionscope logout [scan options]
@@ -37,6 +37,12 @@ Flags:
 - `--format FORMAT[,FORMAT...]` — one or more of `markdown`, `json`, `sarif`, `github-summary`.
 - `--output PATH` — write the report to this file. Defaults to stdout.
 - `--output-dir DIR` — write report files into a directory. Required when more than one format is requested.
+- `--mode advisory|enforce` — report only, or fail after writing reports when findings match policy.
+- `--fail-severity high|medium|low|info` — minimum severity that fails enforce mode.
+- `--fail-category CATEGORY` — category that fails enforce mode. Repeat with comma-separated values for multiple categories.
+- `--include-finding-id ID` — finding ID that always fails in enforce mode unless excluded.
+- `--exclude-finding-id ID` — finding ID that never fails.
+- `--baseline PATH` — prior SessionScope JSON report or baseline-like JSON with finding IDs to suppress.
 
 Multi-format scans walk the source tree once, then render each requested format.
 Output directory filenames are `sessionscope.json`, `sessionscope.md`,

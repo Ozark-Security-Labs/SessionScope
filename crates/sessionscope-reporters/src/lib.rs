@@ -367,7 +367,7 @@ mod tests {
 
         assert!(output.contains("### Key findings"));
         assert!(output.contains("`high` `high_confidence_misconfiguration`"));
-        assert!(output.contains("[REDACTED]"));
+        assert!(output.contains("\\[REDACTED\\]"));
         assert!(!output.contains(SECRET));
     }
 }

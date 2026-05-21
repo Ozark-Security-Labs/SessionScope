@@ -20,9 +20,10 @@ confirmed vulnerability.
 The release pipeline additionally runs a reproducible-build verification job
 that produces the release binary twice on a single Linux runner (cold and warm
 `target/`) under a stable `SOURCE_DATE_EPOCH` derived from the tagged commit
-timestamp. The job fails the release if the two builds do not match
-byte-for-byte, so the published Linux artifact has been shown to reproduce
-deterministically at release time.
+timestamp. The job fails the release if those two verification builds do not
+match byte-for-byte. This is a same-run determinism check for the release
+source; published archives are still authenticated by checksum and SLSA
+provenance.
 
 ## Install tools
 

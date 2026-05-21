@@ -83,34 +83,102 @@ pub struct JwtAttributeObservation {
     pub confidence: Confidence,
 }
 
+impl Default for JwtAttributeObservation {
+    fn default() -> Self {
+        Self {
+            state: JwtAttributeState::Unknown,
+            value: None,
+            evidence_ids: Vec::new(),
+            confidence: Confidence::Low,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JwtIdentityClaims {
+    #[serde(default)]
     pub subject: JwtAttributeObservation,
+    #[serde(default)]
     pub user_id: JwtAttributeObservation,
+    #[serde(default)]
     pub tenant_id: JwtAttributeObservation,
+    #[serde(default)]
     pub org_id: JwtAttributeObservation,
+    #[serde(default)]
     pub workspace_id: JwtAttributeObservation,
+    #[serde(default)]
     pub roles: JwtAttributeObservation,
+    #[serde(default)]
     pub scopes: JwtAttributeObservation,
+    #[serde(default)]
     pub groups: JwtAttributeObservation,
+    #[serde(default)]
     pub email: JwtAttributeObservation,
+    #[serde(default)]
     pub email_verified: JwtAttributeObservation,
+    #[serde(default)]
     pub auth_method: JwtAttributeObservation,
+    #[serde(default)]
     pub auth_class: JwtAttributeObservation,
+}
+
+impl Default for JwtIdentityClaims {
+    fn default() -> Self {
+        let unknown = JwtAttributeObservation::default();
+        Self {
+            subject: unknown.clone(),
+            user_id: unknown.clone(),
+            tenant_id: unknown.clone(),
+            org_id: unknown.clone(),
+            workspace_id: unknown.clone(),
+            roles: unknown.clone(),
+            scopes: unknown.clone(),
+            groups: unknown.clone(),
+            email: unknown.clone(),
+            email_verified: unknown.clone(),
+            auth_method: unknown.clone(),
+            auth_class: unknown,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JwtAttributes {
+    #[serde(default)]
     pub operation: JwtAttributeObservation,
+    #[serde(default)]
     pub algorithm: JwtAttributeObservation,
+    #[serde(default)]
     pub key_reference: JwtAttributeObservation,
+    #[serde(default)]
     pub issuer: JwtAttributeObservation,
+    #[serde(default)]
     pub audience: JwtAttributeObservation,
+    #[serde(default)]
     pub expiration: JwtAttributeObservation,
+    #[serde(default)]
     pub signature_verification: JwtAttributeObservation,
+    #[serde(default)]
     pub expiry_enforcement: JwtAttributeObservation,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identity_claims: Option<JwtIdentityClaims>,
+}
+
+impl Default for JwtAttributes {
+    fn default() -> Self {
+        let unknown = JwtAttributeObservation::default();
+        Self {
+            operation: unknown.clone(),
+            algorithm: unknown.clone(),
+            key_reference: unknown.clone(),
+            issuer: unknown.clone(),
+            audience: unknown.clone(),
+            expiration: unknown.clone(),
+            signature_verification: unknown.clone(),
+            expiry_enforcement: unknown,
+            identity_claims: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

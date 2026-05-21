@@ -38,6 +38,7 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
             path,
             &evidence_by_id,
         ));
+        findings.extend(classify_reset_without_expiry(artifact, path));
         findings.extend(classify_reset_without_single_use(artifact, path));
         findings.extend(classify_clear_cookie_only_logout(
             artifact,
@@ -360,6 +361,10 @@ fn classify_refresh_without_revoke(
         return None;
     }
 
+    if !is_refresh_artifact(artifact) && !has_refresh_detector_evidence(path, evidence_by_id) {
+        return None;
+    }
+
     let name = artifact.display_name.as_deref().unwrap_or("token");
     if has_dynamic_or_provider_refresh(path, evidence_by_id) {
         return Some(finding(
@@ -409,6 +414,19 @@ fn classify_refresh_without_revoke(
     ))
 }
 
+fn has_refresh_detector_evidence(
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    evidence_ids_for_stage(path, LifecycleStage::Refresh)
+        .iter()
+        .any(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| evidence.detector_id.starts_with("refresh."))
+        })
+}
+
 fn classify_reset_without_single_use(artifact: &Artifact, path: &LifecyclePath) -> Option<Finding> {
     if !matches!(
         artifact.artifact_type,
@@ -437,6 +455,35 @@ fn classify_reset_without_single_use(artifact: &Artifact, path: &LifecyclePath) 
             reviewer_question:
                 "Where is this reset or verification token consumed so it cannot be reused?"
                     .to_string(),
+        },
+    ))
+}
+
+fn classify_reset_without_expiry(artifact: &Artifact, path: &LifecyclePath) -> Option<Finding> {
+    if !matches!(
+        artifact.artifact_type,
+        ArtifactType::PasswordResetToken | ArtifactType::EmailVerificationToken
+    ) || !has_stage(path, LifecycleStage::Issue)
+        || has_stage(path, LifecycleStage::Expire)
+    {
+        return None;
+    }
+
+    let name = artifact.display_name.as_deref().unwrap_or("reset token");
+    Some(finding(
+        artifact,
+        path,
+        FindingSpec {
+            rule_id: "lifecycle_reset_without_expiry",
+            category: FindingCategory::LifecycleGap,
+            severity: Severity::Low,
+            evidence_ids: fallback_path_ids(path),
+            title: format!("Token `{name}` has no linked expiry evidence"),
+            description: "Reset or verification token evidence was linked, but no source-bound expiry or TTL evidence was linked for the same artifact."
+                .to_string(),
+            suggested_fix: "Store reset and verification tokens with a short expiry."
+                .to_string(),
+            reviewer_question: "Where is this reset or verification token expired?".to_string(),
         },
     ))
 }
@@ -1453,6 +1500,39 @@ mod tests {
     }
 
     #[test]
+    fn session_regeneration_refresh_stage_is_not_refresh_token_gap() {
+        let report = classified_report(
+            artifact(
+                "artifact_session_record",
+                ArtifactType::SessionRecord,
+                "session",
+                LifecycleEvidence {
+                    refresh: vec![EvidenceId("evidence_regenerate".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            ),
+            vec![evidence_with_detector(
+                "evidence_regenerate",
+                LifecycleStage::Refresh,
+                "session.regenerate",
+                10,
+                false,
+            )],
+        );
+
+        let findings = classify(&report);
+
+        assert!(!findings.iter().any(|finding| {
+            finding
+                .title
+                .contains("refresh evidence without linked revocation")
+                || finding
+                    .title
+                    .contains("dynamic refresh behavior without linked revocation")
+        }));
+    }
+
+    #[test]
     fn reset_token_with_expire_and_revoke_has_no_gap() {
         let report = classified_report(
             artifact(
@@ -1503,6 +1583,35 @@ mod tests {
 
         assert_eq!(finding.severity, Severity::Low);
         assert!(finding.reviewer_question.is_some());
+    }
+
+    #[test]
+    fn reset_token_missing_expiry_is_reviewable_gap() {
+        let report = classified_report(
+            artifact(
+                "artifact_reset",
+                ArtifactType::PasswordResetToken,
+                "password_reset_token",
+                LifecycleEvidence {
+                    issue: vec![EvidenceId("evidence_issue".to_string())],
+                    revoke: vec![EvidenceId("evidence_single_use".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            ),
+            vec![
+                evidence("evidence_issue", LifecycleStage::Issue, 10, false),
+                evidence("evidence_single_use", LifecycleStage::Revoke, 12, false),
+            ],
+        );
+
+        let findings = classify(&report);
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("no linked expiry evidence"))
+            .expect("reset token expiry gap finding");
+
+        assert_eq!(finding.category, FindingCategory::LifecycleGap);
+        assert_eq!(finding.severity, Severity::Low);
     }
 
     #[test]

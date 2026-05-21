@@ -30,7 +30,29 @@ pub fn classify_language(path: &Path) -> Language {
 /// All I/O errors surface only the `io::ErrorKind` label, never the full OS
 /// error message (which on some platforms leaks absolute paths or usernames).
 pub fn read_source(path: &Path, max_file_size_bytes: u64) -> Result<String, SkippedReason> {
+    read_source_checked(path, max_file_size_bytes, None)
+}
+
+/// Read source only when `path` is still a regular file inside the canonical
+/// scan root. This repeats discovery's symlink/containment checks at source
+/// load time so a hostile target cannot swap an accepted file for a symlink
+/// between discovery and reading.
+pub fn read_source_under_root(
+    path: &Path,
+    max_file_size_bytes: u64,
+    canonical_root: &Path,
+) -> Result<String, SkippedReason> {
+    read_source_checked(path, max_file_size_bytes, Some(canonical_root))
+}
+
+fn read_source_checked(
+    path: &Path,
+    max_file_size_bytes: u64,
+    canonical_root: Option<&Path>,
+) -> Result<String, SkippedReason> {
+    validate_source_path(path, canonical_root)?;
     let mut file = fs::File::open(path).map_err(io_kind_skipped_reason)?;
+    validate_source_path(path, canonical_root)?;
 
     let file_size = file.metadata().map_err(io_kind_skipped_reason)?.len();
 
@@ -74,6 +96,23 @@ pub fn read_source(path: &Path, max_file_size_bytes: u64) -> Result<String, Skip
         .map_err(|_| SkippedReason::ReadError(format!("{}", io::ErrorKind::InvalidData)))
 }
 
+fn validate_source_path(path: &Path, canonical_root: Option<&Path>) -> Result<(), SkippedReason> {
+    let metadata = fs::symlink_metadata(path).map_err(io_kind_skipped_reason)?;
+    if metadata.file_type().is_symlink() {
+        return Err(SkippedReason::Symlink);
+    }
+    if !metadata.file_type().is_file() {
+        return Err(SkippedReason::Unsupported);
+    }
+    if let Some(canonical_root) = canonical_root {
+        let canonical_path = fs::canonicalize(path).map_err(io_kind_skipped_reason)?;
+        if !canonical_path.starts_with(canonical_root) {
+            return Err(SkippedReason::Symlink);
+        }
+    }
+    Ok(())
+}
+
 fn io_kind_skipped_reason(error: io::Error) -> SkippedReason {
     // Stringify only the ErrorKind label (e.g. "permission denied",
     // "not found") rather than the full os-error message, which on some
@@ -88,7 +127,7 @@ mod tests {
     use sessionscope_model::SkippedReason;
     use tempfile::tempdir;
 
-    use super::read_source;
+    use super::{read_source, read_source_under_root};
 
     #[test]
     fn skips_large_files_before_reading_source_text() {
@@ -110,6 +149,42 @@ mod tests {
         let result = read_source(&path, 1_000);
 
         assert_eq!(result, Err(SkippedReason::Binary));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlink_source_reads() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().expect("tempdir should be created");
+        let target = temp.path().join("target.ts");
+        let link = temp.path().join("link.ts");
+        fs::write(&target, "const token = 'do-not-read';").expect("target file should be written");
+        symlink(&target, &link).expect("symlink should be created");
+
+        assert_eq!(read_source(&link, 1_000), Err(SkippedReason::Symlink));
+        assert_eq!(
+            read_source_under_root(&link, 1_000, temp.path()),
+            Err(SkippedReason::Symlink)
+        );
+    }
+
+    #[test]
+    fn root_bounded_read_rejects_paths_outside_canonical_root() {
+        let root = tempdir().expect("root tempdir should be created");
+        let outside = tempdir().expect("outside tempdir should be created");
+        let outside_file = outside.path().join("outside.ts");
+        fs::write(&outside_file, "const secret = 'do-not-read';")
+            .expect("outside file should be written");
+
+        let canonical_root = root
+            .path()
+            .canonicalize()
+            .expect("root should canonicalize");
+        assert_eq!(
+            read_source_under_root(&outside_file, 1_000, &canonical_root),
+            Err(SkippedReason::Symlink)
+        );
     }
 
     #[test]

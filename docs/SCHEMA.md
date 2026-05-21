@@ -234,6 +234,8 @@ Each JWT observation includes:
 
 JWT attribute values must be safe static identifiers or redacted placeholders,
 not token values, private keys, signing secrets, or runtime JWT contents.
+Missing JWT attribute fields deserialize as `unknown` observations so compact
+partial reports and examples round-trip without changing schema version.
 `expiration` describes issued-token expiry evidence; `expiry_enforcement`
 describes verification-time expiry behavior.
 
@@ -381,9 +383,11 @@ to the requested capability area. They do not change the schema version.
 
 Skipped file reasons are serialized as non-sensitive categories: `binary`,
 `too_large`, `unsupported`, `excluded`, `ignored`, `sensitive_path`,
-`read_error`, or `timeout`. `timeout` indicates that detectors collectively
-exceeded the per-file CPU budget on that file; SessionScope records the
-skip and continues with the rest of the scan.
+`symlink`, `read_error`, or `timeout`. `symlink` indicates that SessionScope
+refused a symbolic-link entry or a source path that resolved outside the scan
+root. `timeout` indicates that detectors collectively exceeded the per-file CPU
+budget on that file; SessionScope records the skip and continues with the rest
+of the scan.
 
 The scan summary also includes `skipped_by_reason`, a map keyed by the
 `SkippedReasonKind` variant tag (e.g. `{"too_large": 3, "timeout": 1}`). The

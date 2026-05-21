@@ -392,6 +392,47 @@ mod tests {
     }
 
     #[test]
+    fn jwt_attribute_inventory_accepts_documented_partial_objects() {
+        let attributes: JwtAttributes = serde_json::from_value(json!({
+            "issuer": {
+                "state": "present",
+                "value": "ISSUER",
+                "evidence_ids": ["evidence_jwt_attribute_issuer"],
+                "confidence": "high"
+            },
+            "audience": {
+                "state": "present",
+                "value": "AUDIENCE",
+                "evidence_ids": ["evidence_jwt_attribute_audience"],
+                "confidence": "high"
+            },
+            "identity_claims": {
+                "subject": {
+                    "state": "present",
+                    "value": "userId",
+                    "evidence_ids": ["evidence_jwt_attribute_subject"],
+                    "confidence": "high"
+                },
+                "roles": {
+                    "state": "present",
+                    "value": "[literal]",
+                    "evidence_ids": ["evidence_jwt_attribute_roles"],
+                    "confidence": "high"
+                }
+            }
+        }))
+        .expect("partial documented JWT attributes should deserialize");
+
+        assert_eq!(attributes.issuer.state, JwtAttributeState::Present);
+        assert_eq!(attributes.algorithm.state, JwtAttributeState::Unknown);
+        let claims = attributes
+            .identity_claims
+            .expect("identity claims object should remain");
+        assert_eq!(claims.subject.state, JwtAttributeState::Present);
+        assert_eq!(claims.tenant_id.state, JwtAttributeState::Unknown);
+    }
+
+    #[test]
     fn ids_are_transparent_strings_and_stable() {
         let id = ArtifactId("artifact_abc123".to_string());
         assert_eq!(

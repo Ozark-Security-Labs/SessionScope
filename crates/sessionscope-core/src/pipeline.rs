@@ -15,7 +15,7 @@ use sessionscope_model::{
 use crate::ScanConfig;
 use crate::discovery::{discover_files, normalize_path};
 use crate::redaction::sanitize_detection_output;
-use crate::source::{classify_language, read_source};
+use crate::source::{classify_language, read_source_under_root};
 
 /// F-10 — upper bound on in-flight file bodies. Capping the worker count at
 /// this value transitively caps how many source buffers live in memory at
@@ -116,6 +116,8 @@ fn scan_files(
         .min(MAX_CONCURRENT_FILE_WORKERS);
     let chunk_size = files.len().div_ceil(worker_count).max(1);
 
+    let _panic_hook = SuppressedPanicHook::install();
+
     thread::scope(|scope| {
         let mut handles = Vec::new();
 
@@ -181,6 +183,30 @@ fn scan_files(
     })
 }
 
+type PanicHook = Box<dyn Fn(&panic::PanicHookInfo<'_>) + Sync + Send + 'static>;
+
+struct SuppressedPanicHook {
+    previous: Option<PanicHook>,
+}
+
+impl SuppressedPanicHook {
+    fn install() -> Self {
+        let previous = panic::take_hook();
+        panic::set_hook(Box::new(|_| {}));
+        Self {
+            previous: Some(previous),
+        }
+    }
+}
+
+impl Drop for SuppressedPanicHook {
+    fn drop(&mut self) {
+        if let Some(previous) = self.previous.take() {
+            panic::set_hook(previous);
+        }
+    }
+}
+
 fn scan_file(config: &ScanConfig, registry: &DetectorRegistry, path: PathBuf) -> FileScanResult {
     let language = classify_language(&path);
     let display_path = path
@@ -192,10 +218,11 @@ fn scan_file(config: &ScanConfig, registry: &DetectorRegistry, path: PathBuf) ->
     }
 
     let started_at = Instant::now();
-    let source = match read_source(&path, config.max_file_size_bytes) {
-        Ok(source) => source,
-        Err(reason) => return FileScanResult::skipped(display_path, language, reason),
-    };
+    let source =
+        match read_source_under_root(&path, config.max_file_size_bytes, &config.canonical_root) {
+            Ok(source) => source,
+            Err(reason) => return FileScanResult::skipped(display_path, language, reason),
+        };
 
     // F-10: minified files (very few newlines for their byte count) can blow
     // through the budget by themselves because each detector regex must walk
@@ -420,9 +447,9 @@ mod tests {
         let registry =
             Arc::new(DetectorRegistry::empty().with_detector(Box::new(StallingDetector)));
         let mut config = ScanConfig::new(temp.path());
-        // Zero budget guarantees the deadline check fires before the
-        // detector runs.
-        config.set_per_file_budget(std::time::Duration::from_millis(0));
+        // Nonzero budget verifies that a detector overrun is noticed after
+        // the detector returns, not only before the first detector starts.
+        config.set_per_file_budget(std::time::Duration::from_millis(10));
 
         let report = scan_path(config, registry).expect("scan should succeed");
         assert!(report.files.iter().any(|file| matches!(

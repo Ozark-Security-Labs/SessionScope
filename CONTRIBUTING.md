@@ -20,8 +20,9 @@ This repository is early-stage and design-first. Contributions should preserve t
 
 ## Development status
 
-The current repository contains initial product documentation, architecture
-notes, and a Rust Cargo workspace scaffold.
+The current repository contains the initial SessionScope Rust CLI, detector,
+classifier, reporter, fixture, and release-automation workspace for the
+v0.1.0 release line.
 
 ## Development setup
 
@@ -38,7 +39,7 @@ cargo check --workspace
 cargo test --workspace --all-targets
 ```
 
-Run the scaffolded CLI during development:
+Run the CLI during development:
 
 ```bash
 cargo run -p sessionscope-cli -- --help
@@ -46,6 +47,6 @@ cargo run -p sessionscope-cli -- version
 cargo run -p sessionscope-cli -- scan --path . --format markdown
 ```
 
-CLI commands may be placeholders while the project is early, but they should
-remain deterministic, offline-only, and safe to run on source trees. Do not
-print raw tokens, private keys, bearer strings, cookie values, or other secrets.
+CLI commands should remain deterministic, offline-only, and safe to run on
+source trees. Do not print raw tokens, private keys, bearer strings, cookie
+values, or other secrets.

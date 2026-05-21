@@ -172,7 +172,8 @@ approval.
 Release artifacts include:
 
 - platform-specific `sessionscope` binaries packaged as archives;
-- one `.sha256` sidecar per binary archive; and
+- one `.sha256` sidecar per binary archive;
+- `sessionscope-VERSION.cdx.json` CycloneDX SBOM plus its `.sha256` sidecar; and
 - `sessionscope-VERSION.intoto.jsonl` SLSA provenance.
 
 GitHub may expose automatic source snapshots for tags. Those snapshots are not

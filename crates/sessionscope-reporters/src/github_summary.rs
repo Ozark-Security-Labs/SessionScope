@@ -1,3 +1,4 @@
+use crate::markdown_escape::inline_text;
 use sessionscope_model::{FindingCategory, ScanReport, Severity};
 
 pub fn render(report: &ScanReport) -> String {
@@ -42,16 +43,6 @@ pub fn render(report: &ScanReport) -> String {
     }
 
     output
-}
-
-fn inline_text(value: &str) -> String {
-    value
-        .replace('\\', "\\\\")
-        .replace('`', "\\`")
-        .replace('|', "\\|")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('\n', " ")
 }
 
 fn format_severity(severity: Severity) -> &'static str {

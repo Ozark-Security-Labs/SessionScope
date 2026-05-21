@@ -85,7 +85,7 @@ fn read_json<T: serde::de::DeserializeOwned>(path: &Path, label: &str) -> Result
     let contents = fs::read_to_string(path)
         .map_err(|error| format!("failed to read {label} from {}: {error}", path.display()))?;
     serde_json::from_str(&contents)
-        .map_err(|error| format!("failed to parse {label} from {}: {error}", path.display()))
+        .map_err(|_| format!("failed to parse {label} from {} as JSON", path.display()))
 }
 
 fn required_value<'a>(args: &'a [String], index: usize, flag: &str) -> Result<&'a str, String> {

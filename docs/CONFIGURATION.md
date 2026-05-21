@@ -12,24 +12,32 @@ Run `sessionscope init` to generate a fresh config. The command is non-interacti
 # Do not put token values, private keys, bearer strings, cookie values, or
 # environment-specific secrets in this file.
 
+# Scan roots are repository-relative. v0.1.0 uses the first path.
 scan_paths = ["."]
-include = [
-    "**/*.js",
-    "**/*.jsx",
-    "**/*.ts",
-    "**/*.tsx",
-    "**/*.py",
-    "**/*.json",
-    "**/*.yaml",
-    "**/*.yml",
-    "**/*.toml",
-]
+
+# Include patterns form the allowlist for source/config discovery.
+include = ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.py", "**/*.json", "**/*.yaml", "**/*.yml", "**/*.toml"]
+
+# Exclude patterns are applied after includes and in addition to .gitignore
+# and built-in dependency/vendor/build/sensitive-path skips.
 exclude = ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"]
+
+# v0.1.0 uses the first configured format unless --format is passed.
 formats = ["markdown"]
+
+# Policy defaults keep scans advisory. Use enforce mode in CI after reviewing reports.
 mode = "advisory"
+fail_severity = "high"
+fail_categories = []
+include_finding_ids = []
+exclude_finding_ids = []
+# baseline = "sessionscope-baseline.json"
+
 max_file_size_bytes = 512000
+
+# Hints are parsed for future detectors and have no runtime effect yet.
 framework_hints = ["express", "nextjs", "fastapi", "django"]
-provider_hints = []
+provider_hints = ["authjs", "nextauth", "passport", "oauth", "oidc", "auth0", "okta", "cognito", "supabase", "clerk"]
 ```
 
 ## Fields
@@ -41,9 +49,14 @@ provider_hints = []
 | `exclude` | Glob patterns to exclude. Appended to by `--exclude`. |
 | `formats` | Default output formats. The first value is used unless `--format` is passed. |
 | `mode` | Default policy mode. Overridden by `--mode`. |
+| `fail_severity` | Minimum severity that fails enforce mode. Overridden by `--fail-severity`. |
+| `fail_categories` | Finding categories that fail enforce mode. Empty means all categories. Overridden by `--fail-category`. |
+| `include_finding_ids` | Finding IDs that always fail in enforce mode unless excluded. Overridden by `--include-finding-id`. |
+| `exclude_finding_ids` | Finding IDs that never fail. Overridden by `--exclude-finding-id`. |
+| `baseline` | Optional JSON report/baseline path whose finding IDs are suppressed. Overridden by `--baseline`. |
 | `max_file_size_bytes` | Skip files larger than this; overridden by `--max-file-size`. Default `512000` (lowered from `1000000` in v0.1.0 to cap per-worker memory). |
-| `framework_hints` | Hints to bias detectors and classifiers toward specific frameworks. |
-| `provider_hints` | Hints for auth providers (e.g., identity SaaS); reserved for future detectors. |
+| `framework_hints` | Parsed for future framework-specific tuning. v0.1.0 built-in detectors infer frameworks from source patterns and do not use this value yet. |
+| `provider_hints` | Parsed for future provider-specific tuning. v0.1.0 built-in detectors infer provider evidence from source patterns and do not use this value yet. |
 
 ## Precedence
 
@@ -70,6 +83,6 @@ These defaults are protective — even with a permissive `include`, secret-beari
 SessionScope enforces two budgets per file to keep the scan bounded:
 
 - **Memory** — `max_file_size_bytes` defaults to `512000` (512 KB). Files larger than this are skipped with reason `too_large`. The pipeline additionally caps simultaneous in-flight file bodies at `min(available_parallelism(), 4)` so a single scan never holds more than four file buffers in memory at once.
-- **CPU** — `per_file_budget` defaults to `2s`. When detectors collectively exceed this on a single file, the file is skipped with reason `timeout` and the rest of the scan continues. Files that look minified (`source.lines() < source.len() / 200`) have their budget halved to keep one large bundle from blocking a worker.
+- **CPU** — `per_file_budget` defaults to `2s`. The detector registry checks the elapsed budget before and after each detector. When detectors collectively exceed this budget on a single file, the file is skipped with reason `timeout` and the rest of the scan continues. Files that look minified (`source.lines() < source.len() / 200`) have their budget halved to keep one large bundle from blocking a worker.
 
-These defaults are intended as safety rails, not knobs to tune for performance. Lower the size cap when scanning constrained CI runners; the CPU budget is currently fixed in code.
+These defaults are intended as safety rails, not knobs to tune for performance. Lower the size cap when scanning constrained CI runners; the CPU budget is currently fixed in code. Timeout enforcement is cooperative at detector boundaries; a detector that never returns cannot be preempted mid-call.

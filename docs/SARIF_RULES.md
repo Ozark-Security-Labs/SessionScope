@@ -32,7 +32,7 @@ The `0.x` series is the pre-1.0 stabilization window for SessionScope.
 The next breaking opportunity for rule IDs is `1.0.0`, and any such
 change will be called out in `CHANGELOG.md` and `docs/RELEASES.md`.
 
-Rule IDs are also persisted in finding `partialFingerprints` via the
+Finding IDs are also persisted in `partialFingerprints` via the
 `sessionscopeFindingId` field, so deduplication and triage state in
 SARIF consumers remain stable across rule-ID-preserving releases.
 
