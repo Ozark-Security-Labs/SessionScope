@@ -9,5 +9,5 @@ pub mod reset_tokens;
 pub mod sessions;
 pub mod traits;
 
-pub use registry::DetectorRegistry;
+pub use registry::{DetectorRegistry, RunOutcome};
 pub use traits::{DetectionOutput, Detector, DetectorInput};

@@ -1,17 +1,27 @@
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
+use std::time::Instant;
 
-use sessionscope_detectors::{DetectorInput, DetectorRegistry};
-use sessionscope_model::{FileScanResult, SCHEMA_VERSION, ScanReport, ScanSummary, SkippedReason};
+use sessionscope_detectors::{DetectorInput, DetectorRegistry, RunOutcome};
+use sessionscope_model::{
+    FileScanResult, SCHEMA_VERSION, ScanReport, ScanSummary, SkippedReason, SkippedReasonKind,
+};
 
 use crate::ScanConfig;
 use crate::discovery::{discover_files, normalize_path};
 use crate::redaction::sanitize_detection_output;
 use crate::source::{classify_language, read_source};
+
+/// F-10 — upper bound on in-flight file bodies. Capping the worker count at
+/// this value transitively caps how many source buffers live in memory at
+/// once: each worker reads and discards one file at a time before pulling the
+/// next entry from its chunk.
+const MAX_CONCURRENT_FILE_WORKERS: usize = 4;
 
 #[derive(Debug)]
 pub enum ScanError {
@@ -49,9 +59,13 @@ pub fn scan_path(
 
     let mut artifacts = Vec::new();
     let mut evidence = Vec::new();
+    let mut skipped_by_reason: BTreeMap<SkippedReasonKind, u32> = BTreeMap::new();
     for result in &results {
         artifacts.extend(result.artifacts.clone());
         evidence.extend(result.evidence.clone());
+        if let Some(reason) = &result.skipped_reason {
+            *skipped_by_reason.entry(reason.kind()).or_insert(0) += 1;
+        }
     }
 
     Ok(ScanReport {
@@ -62,6 +76,7 @@ pub fn scan_path(
             files_skipped,
             diagnostics: Vec::new(),
             worker_panic_count,
+            skipped_by_reason,
         },
         files: results,
         artifacts,
@@ -81,7 +96,14 @@ fn scan_files(
     registry: Arc<DetectorRegistry>,
     files: Vec<PathBuf>,
 ) -> ScanFilesOutcome {
-    let worker_count = thread::available_parallelism().map_or(1, usize::from);
+    // F-10: cap the worker count at MAX_CONCURRENT_FILE_WORKERS so we never
+    // hold more than that many file bodies in memory simultaneously. We do
+    // not have a portable `std::sync::Semaphore`; capping worker count gives
+    // the same coarse-grained memory bound because each worker reads one
+    // file at a time before moving to the next.
+    let worker_count = thread::available_parallelism()
+        .map_or(1, usize::from)
+        .min(MAX_CONCURRENT_FILE_WORKERS);
     let chunk_size = files.len().div_ceil(worker_count).max(1);
 
     thread::scope(|scope| {
@@ -159,9 +181,20 @@ fn scan_file(config: &ScanConfig, registry: &DetectorRegistry, path: PathBuf) ->
         return FileScanResult::skipped(display_path, language, SkippedReason::Unsupported);
     }
 
+    let started_at = Instant::now();
     let source = match read_source(&path, config.max_file_size_bytes) {
         Ok(source) => source,
         Err(reason) => return FileScanResult::skipped(display_path, language, reason),
+    };
+
+    // F-10: minified files (very few newlines for their byte count) can blow
+    // through the budget by themselves because each detector regex must walk
+    // huge logical lines. Halve the budget for them so a single minified
+    // bundle cannot stall the worker for two seconds.
+    let budget = if looks_minified(&source) {
+        config.per_file_budget / 2
+    } else {
+        config.per_file_budget
     };
 
     let detector_input = DetectorInput {
@@ -169,13 +202,29 @@ fn scan_file(config: &ScanConfig, registry: &DetectorRegistry, path: PathBuf) ->
         language,
         source: &source,
     };
-    let detection = sanitize_detection_output(registry.run(&detector_input));
+    let detection = match registry.run_with_deadline(&detector_input, started_at, budget) {
+        RunOutcome::Completed(output) => sanitize_detection_output(output),
+        RunOutcome::TimedOut => {
+            return FileScanResult::skipped(display_path, language, SkippedReason::Timeout);
+        }
+    };
 
     let mut result = FileScanResult::scanned(display_path, language);
     result.artifacts = detection.artifacts;
     result.evidence = detection.evidence;
     result.diagnostics = detection.diagnostics;
     result
+}
+
+/// Heuristic from F-10: when there are fewer than `source.len() / 200` lines
+/// the file is treated as minified. The denominator (200) is the smallest
+/// average characters-per-line we expect from human-written code; anything
+/// noticeably denser is almost certainly a bundle or generated artifact.
+fn looks_minified(source: &str) -> bool {
+    // `count()` on `lines()` is O(n) but the result is a single pass over the
+    // already-loaded buffer, so this stays cheap relative to detector work.
+    let lines = source.lines().count();
+    lines < source.len() / 200
 }
 
 #[cfg(test)]
@@ -327,5 +376,118 @@ mod tests {
             !serialized.contains("PAYLOAD_DO_NOT_LEAK"),
             "panic payload must not appear in the report",
         );
+    }
+
+    // F-10 (heuristic): the minification check fires on dense one-line files.
+    #[test]
+    fn looks_minified_recognises_dense_one_liners() {
+        let minified = "a".repeat(2_001);
+        assert!(super::looks_minified(&minified));
+
+        let humanlike = "x = 1;\n".repeat(50);
+        assert!(!super::looks_minified(&humanlike));
+    }
+
+    // F-10: a detector that always exceeds the budget should cause its file
+    // to be reported as Timeout-skipped rather than completing.
+    #[test]
+    fn over_budget_detector_produces_timeout_skip() {
+        struct StallingDetector;
+        impl Detector for StallingDetector {
+            fn id(&self) -> &'static str {
+                "test.stalling"
+            }
+            fn detect(&self, _input: &DetectorInput<'_>) -> DetectionOutput {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                DetectionOutput::default()
+            }
+        }
+
+        let temp = tempdir().expect("tempdir should be created");
+        std::fs::write(temp.path().join("a.ts"), "const safe = true;\n")
+            .expect("source should be written");
+
+        let registry =
+            Arc::new(DetectorRegistry::empty().with_detector(Box::new(StallingDetector)));
+        let mut config = ScanConfig::new(temp.path());
+        // Zero budget guarantees the deadline check fires before the
+        // detector runs.
+        config.set_per_file_budget(std::time::Duration::from_millis(0));
+
+        let report = scan_path(config, registry).expect("scan should succeed");
+        assert!(report.files.iter().any(|file| matches!(
+            file.skipped_reason,
+            Some(sessionscope_model::SkippedReason::Timeout)
+        )));
+        assert!(
+            report
+                .summary
+                .skipped_by_reason
+                .contains_key(&sessionscope_model::SkippedReasonKind::Timeout)
+        );
+    }
+
+    // F-13: has_critical_failures returns true when permission errors
+    // dominate the skip set.
+    #[test]
+    fn has_critical_failures_flags_dominant_permission_errors() {
+        use sessionscope_model::{FileScanResult, Language, SkippedReason, SkippedReasonKind};
+        let mut report = sessionscope_model::ScanReport {
+            schema_version: sessionscope_model::SCHEMA_VERSION.to_string(),
+            summary: sessionscope_model::ScanSummary::default(),
+            files: Vec::new(),
+            artifacts: Vec::new(),
+            evidence: Vec::new(),
+            lifecycle_paths: Vec::new(),
+            findings: Vec::new(),
+        };
+        for _ in 0..3 {
+            report.files.push(FileScanResult::skipped(
+                "src/x.ts".to_string(),
+                Language::TypeScript,
+                SkippedReason::ReadError(format!("{}", std::io::ErrorKind::PermissionDenied)),
+            ));
+            *report
+                .summary
+                .skipped_by_reason
+                .entry(SkippedReasonKind::ReadError)
+                .or_insert(0) += 1;
+        }
+        report.files.push(FileScanResult::skipped(
+            "lib.ts".to_string(),
+            Language::TypeScript,
+            SkippedReason::Excluded,
+        ));
+        *report
+            .summary
+            .skipped_by_reason
+            .entry(SkippedReasonKind::Excluded)
+            .or_insert(0) += 1;
+
+        assert!(report.has_critical_failures());
+    }
+
+    #[test]
+    fn has_critical_failures_returns_false_for_routine_skip_mix() {
+        use sessionscope_model::{FileScanResult, Language, SkippedReason, SkippedReasonKind};
+        let mut report = sessionscope_model::ScanReport {
+            schema_version: sessionscope_model::SCHEMA_VERSION.to_string(),
+            summary: sessionscope_model::ScanSummary::default(),
+            files: vec![FileScanResult::skipped(
+                "lib.ts".to_string(),
+                Language::TypeScript,
+                SkippedReason::Excluded,
+            )],
+            artifacts: Vec::new(),
+            evidence: Vec::new(),
+            lifecycle_paths: Vec::new(),
+            findings: Vec::new(),
+        };
+        report
+            .summary
+            .skipped_by_reason
+            .insert(SkippedReasonKind::Excluded, 1);
+
+        assert!(!report.has_critical_failures());
     }
 }

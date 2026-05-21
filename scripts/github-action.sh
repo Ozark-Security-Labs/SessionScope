@@ -329,8 +329,24 @@ if [[ -n "$exclude_finding_id" ]]; then
   policy_args_without_severity+=(--exclude-finding-id "$exclude_finding_id")
 fi
 if [[ -n "$baseline" ]]; then
-  policy_args+=(--baseline "$baseline")
-  policy_args_without_severity+=(--baseline "$baseline")
+  # Reject baseline values that look like CLI option injection. An attacker who
+  # controls the with: baseline input would otherwise pass --output etc.
+  # through to the CLI by prefixing the value with `-`. Newlines are also
+  # rejected — getopt-style parsers can be confused by them.
+  case "$baseline" in
+    -*)
+      echo "sessionscope: baseline must not start with '-'; got '$baseline'" >&2
+      exit 2
+      ;;
+  esac
+  if [[ "$baseline" == *$'\n'* ]]; then
+    echo "sessionscope: baseline must not contain newline characters" >&2
+    exit 2
+  fi
+  # Pass `--` between --baseline and the value so the CLI treats the path as a
+  # positional value even if it ever contained another `-` prefix.
+  policy_args+=(--baseline -- "$baseline")
+  policy_args_without_severity+=(--baseline -- "$baseline")
 fi
 
 json_requested=false
@@ -460,8 +476,12 @@ if [[ "$effective_mode" == "enforce" ]]; then
   # through an active EXIT trap, which would otherwise mask a real failure
   # here as exit 0.
   enforcement_status=0
+  # --no-policy-config: action inputs are authoritative during CI; do not let
+  # a checked-in sessionscope.toml relax (or tighten) what the workflow asked
+  # for. Matches the same flag used on `scan` above.
   run_sessionscope evaluate \
     "$json_path" \
+    --no-policy-config \
     --mode enforce \
     --fail-severity "$effective_fail_severity" \
     ${policy_args_without_severity[@]+"${policy_args_without_severity[@]}"} || enforcement_status=$?

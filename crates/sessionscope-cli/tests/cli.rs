@@ -1753,7 +1753,9 @@ JSON
     assert!(args.contains("--fail-category high_confidence_misconfiguration"));
     assert!(args.contains("--include-finding-id finding_include"));
     assert!(args.contains("--exclude-finding-id finding_exclude"));
-    assert!(args.contains("--baseline sessionscope-baseline.json"));
+    // F-11: the action wrapper passes baselines via `--baseline -- VALUE`
+    // so a value starting with `-` cannot smuggle in CLI flags.
+    assert!(args.contains("--baseline -- sessionscope-baseline.json"));
 }
 
 #[cfg(not(windows))]
@@ -2028,6 +2030,36 @@ fn github_action_script_rejects_parent_traversal_input_path() {
     }
 }
 
+// F-11: the action shim must reject baseline inputs that look like CLI option
+// injection or contain newlines before forwarding them to the CLI.
+#[cfg(not(windows))]
+#[test]
+fn github_action_script_rejects_baseline_starting_with_dash() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let reports_dir = temp.path().join("reports");
+    let script = repo_root().join("scripts").join("github-action.sh");
+    let output = Command::new("bash")
+        .arg(script)
+        .env_remove("GITHUB_OUTPUT")
+        .env_remove("GITHUB_STEP_SUMMARY")
+        .env("SESSIONSCOPE_BIN", "/bin/false")
+        .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
+        .env("INPUT_MODE", "advisory")
+        .env("INPUT_PATH", ".")
+        .env("INPUT_OUTPUT", "sarif")
+        .env("INPUT_FAIL_ON_FINDINGS", "false")
+        .env("INPUT_BASELINE", "--output=/etc/passwd")
+        .output()
+        .expect("action script should run");
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(
+        stderr.contains("baseline must not start with '-'"),
+        "expected baseline rejection, got stderr: {stderr}"
+    );
+}
+
 #[test]
 fn scan_rejects_invalid_max_file_size() {
     let output = run_sessionscope(&["scan", "--max-file-size", "0"]);
@@ -2223,6 +2255,179 @@ fn scan_invalid_toml_error_does_not_echo_secret_values() {
     assert!(stderr.contains("line 1"));
     assert!(!stderr.contains("client_secret"));
     assert!(!stderr.contains("super-secret-value"));
+}
+
+// F-11: --baseline accepts a `--` terminator so a value beginning with `-`
+// is treated as a positional path rather than parsed as a flag.
+#[test]
+fn scan_accepts_double_dash_before_baseline_value() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(temp.path().join("app.ts"), "const app = true;")
+        .expect("app source should be written");
+    let baseline_path = temp.path().join("-baseline.json");
+    fs::write(
+        &baseline_path,
+        "{\"schema_version\":\"0.1.0\",\"report_schema_version\":\"0.5.0\",\"findings\":[]}",
+    )
+    .expect("baseline should be written");
+
+    let output = run_sessionscope(&[
+        "scan",
+        "--path",
+        temp.path().to_str().expect("temp path should be UTF-8"),
+        "--format",
+        "json",
+        "--baseline",
+        "--",
+        baseline_path
+            .to_str()
+            .expect("baseline path should be UTF-8"),
+    ]);
+
+    assert!(
+        output.status.success(),
+        "scan with `--baseline -- VALUE` should succeed; stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+// F-12: evaluate must honour sessionscope.toml enforcement settings.
+#[test]
+fn evaluate_honours_enforce_mode_from_project_config() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("sessionscope.toml"),
+        "mode = \"enforce\"\nfail_severity = \"medium\"\n",
+    )
+    .expect("project config should be written");
+    let report_path = temp.path().join("sessionscope.json");
+    fs::write(
+        &report_path,
+        scan_report_json(&[finding_json(
+            "finding_existing",
+            "Existing finding",
+            "description",
+            "evidence_existing",
+            7,
+        )])
+        .to_string(),
+    )
+    .expect("scan report should be written");
+
+    let output = run_sessionscope_in(
+        temp.path(),
+        &[
+            "evaluate",
+            report_path.to_str().expect("report path should be UTF-8"),
+        ],
+    );
+
+    assert!(
+        !output.status.success(),
+        "evaluate should exit nonzero when sessionscope.toml enforces"
+    );
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("enforce mode blocked"));
+    assert!(stderr.contains("finding_existing"));
+}
+
+#[test]
+fn evaluate_cli_flags_override_project_config_mode() {
+    // When CLI flags request advisory mode, sessionscope.toml's enforce must
+    // not force a nonzero exit. This locks in the precedence rule.
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    fs::write(
+        temp.path().join("sessionscope.toml"),
+        "mode = \"enforce\"\nfail_severity = \"medium\"\n",
+    )
+    .expect("project config should be written");
+    let report_path = temp.path().join("sessionscope.json");
+    fs::write(
+        &report_path,
+        scan_report_json(&[finding_json(
+            "finding_existing",
+            "Existing finding",
+            "description",
+            "evidence_existing",
+            7,
+        )])
+        .to_string(),
+    )
+    .expect("scan report should be written");
+
+    let output = run_sessionscope_in(
+        temp.path(),
+        &[
+            "evaluate",
+            report_path.to_str().expect("report path should be UTF-8"),
+            "--mode",
+            "advisory",
+        ],
+    );
+
+    assert!(output.status.success());
+}
+
+// F-14: a sessionscope.toml that cannot be read because of permissions must
+// surface an error rather than silently using an empty config.
+#[cfg(unix)]
+#[test]
+fn scan_surfaces_permission_error_for_unreadable_project_config() {
+    use std::os::unix::fs::PermissionsExt;
+
+    if running_as_root() {
+        // Root bypasses 0o000 — the test cannot distinguish permission denied
+        // from a successful read under those conditions.
+        return;
+    }
+
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let config_path = temp.path().join("sessionscope.toml");
+    fs::write(&config_path, "mode = \"advisory\"\n").expect("config should be written");
+    let mut permissions = fs::metadata(&config_path)
+        .expect("config metadata should be readable")
+        .permissions();
+    permissions.set_mode(0o000);
+    fs::set_permissions(&config_path, permissions).expect("permissions should be set");
+
+    let output = run_sessionscope_in(temp.path(), &["scan"]);
+
+    // Restore permissions so the tempdir can be cleaned up.
+    let mut restore = fs::metadata(&config_path)
+        .expect("config metadata should be readable for restore")
+        .permissions();
+    restore.set_mode(0o644);
+    let _ = fs::set_permissions(&config_path, restore);
+
+    assert!(
+        !output.status.success(),
+        "scan should fail when project config is unreadable"
+    );
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(
+        stderr.contains("failed to read sessionscope.toml"),
+        "expected permission error, got stderr: {stderr}"
+    );
+}
+
+#[cfg(unix)]
+fn running_as_root() -> bool {
+    // Defer to `id -u` rather than a libc syscall to avoid taking an `unsafe`
+    // dependency in tests — the workspace forbids unsafe Rust.
+    Command::new("id")
+        .arg("-u")
+        .output()
+        .ok()
+        .and_then(|output| {
+            if output.status.success() {
+                String::from_utf8(output.stdout)
+                    .ok()
+                    .map(|value| value.trim().to_string())
+            } else {
+                None
+            }
+        })
+        .is_some_and(|value| value == "0")
 }
 
 fn scan_report_json(findings: &[serde_json::Value]) -> serde_json::Value {

@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -10,11 +9,13 @@ use sessionscope_detectors::DetectorRegistry;
 use sessionscope_reporters::{ReportFormat, render};
 
 use crate::commands::CommandResult;
-use crate::enforcement::{
-    EnforcementOptions, PolicyMode as EnforcementMode, format_failure, parse_category, parse_mode,
-    parse_severity, split_values,
+use crate::commands::policy::{
+    EnforcementOverrides, build_enforcement_options, load_project_config,
 };
-use crate::project_config::ProjectConfig;
+use crate::enforcement::{
+    PolicyMode as EnforcementMode, format_failure, parse_category, parse_mode, parse_severity,
+    split_values,
+};
 
 pub fn run(args: &[String]) -> CommandResult {
     run_with_capability(args, None)
@@ -113,7 +114,14 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
             }
             "--baseline" => {
                 index += 1;
-                baseline = Some(PathBuf::from(required_value(args, index, "--baseline")?));
+                // Accept `--baseline -- VALUE` so callers (notably the
+                // github-action wrapper) can pass user-controlled values
+                // that begin with `-` without them being treated as flags.
+                baseline = Some(PathBuf::from(parse_terminated_value(
+                    args,
+                    &mut index,
+                    "--baseline",
+                )?));
             }
             // Action-internal: keeps Action-supplied policy from being overridden by checked-in
             // TOML during PR CI. Intentionally omitted from --help. Do not remove without
@@ -127,7 +135,7 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
         index += 1;
     }
 
-    let project_config = ProjectConfig::load_default()?;
+    let project_config = load_project_config()?;
     let scan_root = path
         .or_else(|| project_config.first_scan_path().map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from("."));
@@ -165,7 +173,7 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
 
     let enforcement = build_enforcement_options(
         &project_config,
-        EnforcementArgs {
+        EnforcementOverrides {
             mode,
             fail_severity,
             fail_categories,
@@ -282,83 +290,26 @@ fn unknown_option_message(capability: Option<CapabilityArea>) -> &'static str {
     }
 }
 
-struct EnforcementArgs {
-    mode: Option<EnforcementMode>,
-    fail_severity: Option<sessionscope_model::Severity>,
-    fail_categories: Vec<sessionscope_model::FindingCategory>,
-    include_finding_ids: Vec<String>,
-    exclude_finding_ids: Vec<String>,
-    baseline: Option<PathBuf>,
-    use_policy_config: bool,
-}
-
-fn build_enforcement_options(
-    project_config: &ProjectConfig,
-    args: EnforcementArgs,
-) -> Result<EnforcementOptions, String> {
-    let mut enforcement = EnforcementOptions::default();
-
-    if args.use_policy_config {
-        if let Some(config_mode) = project_config.mode {
-            enforcement.mode = match config_mode {
-                crate::project_config::PolicyMode::Advisory => EnforcementMode::Advisory,
-                crate::project_config::PolicyMode::Enforce => EnforcementMode::Enforce,
-            };
-        }
-        if let Some(config_fail_severity) = &project_config.fail_severity {
-            enforcement.fail_severity = parse_severity(config_fail_severity)?;
-        }
-        if let Some(config_fail_categories) = &project_config.fail_categories
-            && !config_fail_categories.is_empty()
-        {
-            enforcement.fail_categories = Some(
-                config_fail_categories
-                    .iter()
-                    .map(|category| parse_category(category))
-                    .collect::<Result<BTreeSet<_>, _>>()?,
-            );
-        }
-        if let Some(config_include_ids) = &project_config.include_finding_ids {
-            enforcement
-                .include_finding_ids
-                .extend(config_include_ids.iter().cloned());
-        }
-        if let Some(config_exclude_ids) = &project_config.exclude_finding_ids {
-            enforcement
-                .exclude_finding_ids
-                .extend(config_exclude_ids.iter().cloned());
-        }
-        if let Some(config_baseline) = &project_config.baseline {
-            enforcement.baseline = Some(PathBuf::from(config_baseline));
-        }
-    }
-
-    if let Some(mode) = args.mode {
-        enforcement.mode = mode;
-    }
-    if let Some(fail_severity) = args.fail_severity {
-        enforcement.fail_severity = fail_severity;
-    }
-    if !args.fail_categories.is_empty() {
-        enforcement.fail_categories = Some(args.fail_categories.into_iter().collect());
-    }
-    if !args.include_finding_ids.is_empty() {
-        enforcement.include_finding_ids = args.include_finding_ids.into_iter().collect();
-    }
-    if !args.exclude_finding_ids.is_empty() {
-        enforcement.exclude_finding_ids = args.exclude_finding_ids.into_iter().collect();
-    }
-    if let Some(baseline) = args.baseline {
-        enforcement.baseline = Some(baseline);
-    }
-
-    Ok(enforcement)
-}
-
 fn required_value<'a>(args: &'a [String], index: usize, flag: &str) -> Result<&'a str, String> {
     args.get(index)
         .map(String::as_str)
         .ok_or_else(|| format!("missing value for {flag}"))
+}
+
+/// Read a value for `flag` from `args[*index]`, optionally consuming a `--`
+/// token that terminates option parsing for that value. Advances `*index` to
+/// the slot of the consumed value so the caller's outer `index += 1` lands on
+/// the next flag.
+fn parse_terminated_value(
+    args: &[String],
+    index: &mut usize,
+    flag: &str,
+) -> Result<String, String> {
+    if args.get(*index).map(String::as_str) == Some("--") {
+        *index += 1;
+    }
+    let value = required_value(args, *index, flag)?.to_string();
+    Ok(value)
 }
 
 fn split_patterns(value: &str) -> Vec<String> {

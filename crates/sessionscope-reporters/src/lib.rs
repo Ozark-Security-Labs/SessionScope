@@ -260,6 +260,7 @@ mod tests {
                 files_skipped: 0,
                 diagnostics: vec![format!("diagnostic saw token {SECRET}")],
                 worker_panic_count: 0,
+                skipped_by_reason: std::collections::BTreeMap::new(),
             },
             files: Vec::new(),
             artifacts: vec![Artifact {

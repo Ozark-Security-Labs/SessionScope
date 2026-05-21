@@ -582,6 +582,7 @@ fn format_skipped_reason(reason: &SkippedReason) -> &'static str {
         SkippedReason::SensitivePath => "sensitive_path",
         SkippedReason::Symlink => "symlink",
         SkippedReason::ReadError(_) => "read_error",
+        SkippedReason::Timeout => "timeout",
     }
 }
 
@@ -678,6 +679,7 @@ mod tests {
                 files_skipped: 0,
                 diagnostics: Vec::new(),
                 worker_panic_count: 0,
+                skipped_by_reason: std::collections::BTreeMap::new(),
             },
             files: vec![FileScanResult::skipped(
                 "ignored.ts".to_string(),

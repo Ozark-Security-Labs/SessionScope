@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use crate::bearer::BearerTokenDetector;
 use crate::cookies::CookieSetDetector;
 use crate::jwt::JwtDetector;
@@ -42,4 +44,36 @@ impl DetectorRegistry {
 
         output
     }
+
+    /// Run detectors with a wall-clock deadline. After each detector, the
+    /// elapsed time since `started_at` is compared against `budget`. When the
+    /// budget is exceeded, the remaining detectors are skipped and the
+    /// outcome is reported via `RunOutcome::TimedOut` so the pipeline can
+    /// surface a `SkippedReason::Timeout`. See F-10.
+    pub fn run_with_deadline(
+        &self,
+        input: &DetectorInput<'_>,
+        started_at: Instant,
+        budget: std::time::Duration,
+    ) -> RunOutcome {
+        let mut output = DetectionOutput::default();
+
+        for detector in &self.detectors {
+            if started_at.elapsed() > budget {
+                return RunOutcome::TimedOut;
+            }
+            let mut detector_output = detector.detect(input);
+            output.artifacts.append(&mut detector_output.artifacts);
+            output.evidence.append(&mut detector_output.evidence);
+            output.diagnostics.append(&mut detector_output.diagnostics);
+        }
+
+        RunOutcome::Completed(output)
+    }
+}
+
+#[derive(Debug)]
+pub enum RunOutcome {
+    Completed(DetectionOutput),
+    TimedOut,
 }

@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
@@ -6,29 +5,40 @@ use sessionscope_core::redaction::sanitized_report;
 use sessionscope_model::ScanReport;
 
 use crate::commands::CommandResult;
+use crate::commands::policy::{
+    EnforcementOverrides, build_enforcement_options, load_project_config,
+};
 use crate::enforcement::{
-    EnforcementOptions, PolicyMode, format_failure, parse_category, parse_mode, parse_severity,
-    split_values,
+    PolicyMode, format_failure, parse_category, parse_mode, parse_severity, split_values,
 };
 
 pub fn run(args: &[String]) -> CommandResult {
     let (report_path, args) = args
         .split_first()
         .ok_or_else(|| "missing report path for evaluate".to_string())?;
-    let mut options = EnforcementOptions::default();
+
+    let mut mode = None;
+    let mut fail_severity = None;
     let mut fail_categories = Vec::new();
+    let mut include_finding_ids = Vec::new();
+    let mut exclude_finding_ids = Vec::new();
+    let mut baseline = None;
+    let mut use_policy_config = true;
     let mut index = 0;
 
     while index < args.len() {
         match args[index].as_str() {
             "--mode" => {
                 index += 1;
-                options.mode = parse_mode(required_value(args, index, "--mode")?)?;
+                mode = Some(parse_mode(required_value(args, index, "--mode")?)?);
             }
             "--fail-severity" => {
                 index += 1;
-                options.fail_severity =
-                    parse_severity(required_value(args, index, "--fail-severity")?)?;
+                fail_severity = Some(parse_severity(required_value(
+                    args,
+                    index,
+                    "--fail-severity",
+                )?)?);
             }
             "--fail-category" => {
                 index += 1;
@@ -38,36 +48,54 @@ pub fn run(args: &[String]) -> CommandResult {
             }
             "--include-finding-id" => {
                 index += 1;
-                options
-                    .include_finding_ids
-                    .extend(split_values(required_value(
-                        args,
-                        index,
-                        "--include-finding-id",
-                    )?));
+                include_finding_ids.extend(split_values(required_value(
+                    args,
+                    index,
+                    "--include-finding-id",
+                )?));
             }
             "--exclude-finding-id" => {
                 index += 1;
-                options
-                    .exclude_finding_ids
-                    .extend(split_values(required_value(
-                        args,
-                        index,
-                        "--exclude-finding-id",
-                    )?));
+                exclude_finding_ids.extend(split_values(required_value(
+                    args,
+                    index,
+                    "--exclude-finding-id",
+                )?));
             }
             "--baseline" => {
                 index += 1;
-                options.baseline = Some(PathBuf::from(required_value(args, index, "--baseline")?));
+                // Mirror scan's `--baseline -- VALUE` support so the GitHub
+                // Action wrapper can pass baseline paths defensively.
+                baseline = Some(PathBuf::from(parse_terminated_value(
+                    args,
+                    &mut index,
+                    "--baseline",
+                )?));
+            }
+            // Action-internal: skip merging sessionscope.toml policy into the
+            // evaluate run. Mirrors the same flag on `scan`. Intentionally
+            // omitted from --help.
+            "--no-policy-config" => {
+                use_policy_config = false;
             }
             _ => return Err("unknown evaluate option; run `sessionscope --help`".into()),
         }
         index += 1;
     }
 
-    if !fail_categories.is_empty() {
-        options.fail_categories = Some(fail_categories.into_iter().collect::<BTreeSet<_>>());
-    }
+    let project_config = load_project_config()?;
+    let options = build_enforcement_options(
+        &project_config,
+        EnforcementOverrides {
+            mode,
+            fail_severity,
+            fail_categories,
+            include_finding_ids,
+            exclude_finding_ids,
+            baseline,
+            use_policy_config,
+        },
+    )?;
 
     let contents = fs::read_to_string(report_path)
         .map_err(|error| format!("failed to read scan report {report_path}: {error}"))?;
@@ -86,4 +114,19 @@ fn required_value<'a>(args: &'a [String], index: usize, flag: &str) -> Result<&'
     args.get(index)
         .map(String::as_str)
         .ok_or_else(|| format!("missing value for {flag}"))
+}
+
+/// Mirror of `scan::parse_terminated_value`. See that function for the
+/// rationale; in short, consume an optional `--` before reading the value for
+/// `flag` so the github-action wrapper can pass `--baseline -- VALUE`.
+fn parse_terminated_value(
+    args: &[String],
+    index: &mut usize,
+    flag: &str,
+) -> Result<String, String> {
+    if args.get(*index).map(String::as_str) == Some("--") {
+        *index += 1;
+    }
+    let value = required_value(args, *index, flag)?.to_string();
+    Ok(value)
 }
