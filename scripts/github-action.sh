@@ -260,6 +260,7 @@ prefix_sarif_uris() {
   local prefix="$2"
   python3 - "$sarif_file" "$prefix" <<'PY'
 import json
+import os
 import sys
 from pathlib import PurePosixPath
 
@@ -297,9 +298,18 @@ for run in sarif.get("runs", []):
             ):
                 artifact["uri"] = f"{prefix}/{uri}"
 
-with open(sarif_path, "w", encoding="utf-8") as handle:
+# F-24: write to a sibling temp file and `os.replace` to swap it in
+# atomically. A direct `open(sarif_path, 'w')` truncates the SARIF file
+# before json.dump finishes, so a Python crash, signal, or out-of-space
+# error mid-write would leave the on-disk SARIF empty or partial — which
+# downstream code-scanning uploads would either fail on or, worse, parse
+# as "no findings". `os.replace` is atomic on POSIX and Windows whenever
+# the temp file lives on the same filesystem as the destination.
+tmp_path = sarif_path + ".tmp"
+with open(tmp_path, "w", encoding="utf-8") as handle:
     json.dump(sarif, handle, indent=2)
     handle.write("\n")
+os.replace(tmp_path, sarif_path)
 PY
 }
 

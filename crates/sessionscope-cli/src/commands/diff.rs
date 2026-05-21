@@ -59,7 +59,7 @@ pub fn run(args: &[String]) -> CommandResult {
             )
         })?;
     } else {
-        print!("{rendered}");
+        println!("{rendered}");
     }
 
     Ok(())

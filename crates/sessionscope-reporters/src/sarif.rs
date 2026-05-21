@@ -1,7 +1,36 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 use serde_json::{Value, json};
 use sessionscope_model::{Evidence, Finding, FindingCategory, ScanReport, Severity};
+
+/// SARIF artifactLocation URIs are required to be RFC 3986 URI references
+/// (SARIF 2.1.0 §3.4.4). Percent-encode every character that is not a path
+/// `pchar` or `/`. This is a slight superset of `path` (we keep `/` since the
+/// `uri` field uses forward-slash path components) and excludes characters
+/// that must be encoded inside a URI reference.
+const URI_RESERVED: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'#')
+    .add(b'%')
+    .add(b'<')
+    .add(b'>')
+    .add(b'?')
+    .add(b'[')
+    .add(b'\\')
+    .add(b']')
+    .add(b'^')
+    .add(b'`')
+    .add(b'{')
+    .add(b'|')
+    .add(b'}');
+
+/// Identifier emitted in `originalUriBaseIds` to anchor relative SARIF URIs
+/// against the source-tree root. GitHub Code Scanning and most SARIF
+/// consumers expect this exact identifier when artifactLocation URIs are
+/// repo-relative.
+const SRCROOT_URI_BASE_ID: &str = "SRCROOT";
 
 pub fn render(report: &ScanReport) -> String {
     let evidence_by_id = report
@@ -26,10 +55,28 @@ pub fn render(report: &ScanReport) -> String {
                     "rules": rules
                 }
             },
+            // F-18: declare the SRCROOT base once per run so every
+            // artifactLocation can use a uriBaseId reference instead of an
+            // ambiguous repo-relative bare string. Downstream consumers that
+            // resolve URIs (GitHub Code Scanning, VS Code SARIF Viewer)
+            // require this anchor when artifactLocation URIs are relative.
+            "originalUriBaseIds": {
+                SRCROOT_URI_BASE_ID: {
+                    "uri": "file:///"
+                }
+            },
             "results": results
         }]
     }))
     .expect("SARIF serialization should not fail")
+}
+
+fn encode_uri_path(path: &str) -> String {
+    // SARIF artifactLocation URIs use forward slashes; normalize Windows-style
+    // separators before percent-encoding so each path component is encoded
+    // independently and `/` is preserved as a path separator.
+    let normalized = path.replace('\\', "/");
+    utf8_percent_encode(&normalized, URI_RESERVED).to_string()
 }
 
 fn rules(report: &ScanReport) -> Vec<Value> {
@@ -141,8 +188,13 @@ fn location(evidence: &Evidence) -> Value {
 
     json!({
         "physicalLocation": {
+            // F-18: pair every artifactLocation with its SRCROOT base id and
+            // emit a percent-encoded RFC 3986 URI reference. Bare path
+            // strings with spaces, `#`, or other reserved characters are not
+            // valid SARIF URIs and break downstream URI resolvers.
             "artifactLocation": {
-                "uri": location.path
+                "uri": encode_uri_path(&location.path),
+                "uriBaseId": SRCROOT_URI_BASE_ID
             },
             "region": region
         }
@@ -386,6 +438,15 @@ mod tests {
             "src/app.ts"
         );
         assert_eq!(
+            parsed["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]
+                ["uriBaseId"],
+            "SRCROOT"
+        );
+        assert_eq!(
+            parsed["runs"][0]["originalUriBaseIds"]["SRCROOT"]["uri"],
+            "file:///"
+        );
+        assert_eq!(
             parsed["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["region"]["snippet"]
                 ["text"],
             "response.cookie(\"session\", [REDACTED])"
@@ -452,5 +513,91 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn artifact_location_uris_are_percent_encoded() {
+        let report = report_with_findings(
+            vec![finding(
+                "finding_encoded",
+                FindingCategory::HighConfidenceMisconfiguration,
+                Severity::High,
+                vec!["evidence_encoded"],
+            )],
+            vec![evidence(
+                "evidence_encoded",
+                "src/has space/weird#name?.ts",
+                Some("response.cookie(\"session\", [REDACTED])"),
+            )],
+        );
+
+        let parsed: serde_json::Value =
+            serde_json::from_str(&render(&report)).expect("SARIF should parse as JSON");
+
+        let uri =
+            parsed["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]
+                ["uri"]
+                .as_str()
+                .expect("uri should be a string");
+        // Spaces, `#`, and `?` are reserved in RFC 3986 URI references and must be
+        // percent-encoded. Forward slashes are preserved as path separators.
+        assert_eq!(uri, "src/has%20space/weird%23name%3F.ts");
+        assert_eq!(
+            parsed["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]
+                ["uriBaseId"],
+            "SRCROOT"
+        );
+    }
+
+    /// Golden-file round-trip: rendered SARIF must deserialize cleanly via the
+    /// published `serde-sarif` schema. This catches any drift from the SARIF
+    /// 2.1.0 spec that bare `serde_json::Value` smoke tests would miss.
+    #[test]
+    fn rendered_sarif_round_trips_through_serde_sarif() {
+        let report = report_with_findings(
+            vec![finding(
+                "finding_roundtrip",
+                FindingCategory::HighConfidenceMisconfiguration,
+                Severity::High,
+                vec!["evidence_roundtrip"],
+            )],
+            vec![evidence(
+                "evidence_roundtrip",
+                "src/app.ts",
+                Some("response.cookie(\"session\", [REDACTED])"),
+            )],
+        );
+
+        let rendered = render(&report);
+        let sarif: serde_sarif::sarif::Sarif = serde_json::from_str(&rendered)
+            .expect("rendered SARIF should match SARIF 2.1.0 schema");
+
+        assert_eq!(sarif.version, "2.1.0");
+        let runs = sarif.runs;
+        assert_eq!(runs.len(), 1);
+        let run = &runs[0];
+        let base_ids = run
+            .original_uri_base_ids
+            .as_ref()
+            .expect("originalUriBaseIds should be present");
+        let srcroot = base_ids
+            .get("SRCROOT")
+            .expect("SRCROOT base id should be declared once per run");
+        assert_eq!(srcroot.uri.as_deref(), Some("file:///"));
+        let results = run.results.as_ref().expect("results should be present");
+        assert_eq!(results.len(), 1);
+        let location = &results[0]
+            .locations
+            .as_ref()
+            .expect("locations should be present")[0];
+        let artifact_location = location
+            .physical_location
+            .as_ref()
+            .expect("physicalLocation should be present")
+            .artifact_location
+            .as_ref()
+            .expect("artifactLocation should be present");
+        assert_eq!(artifact_location.uri.as_deref(), Some("src/app.ts"));
+        assert_eq!(artifact_location.uri_base_id.as_deref(), Some("SRCROOT"));
     }
 }

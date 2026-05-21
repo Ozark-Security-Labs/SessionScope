@@ -217,7 +217,7 @@ fn run_with_capability(args: &[String], capability: Option<CapabilityArea>) -> C
                 )
             })?;
         } else {
-            print!("{rendered}");
+            println!("{rendered}");
         }
     }
 

@@ -53,26 +53,37 @@ impl ReportFormat {
 pub fn render(report: &ScanReport, format: ReportFormat) -> String {
     let mut report = sanitized_report(report);
     canonicalize_report(&mut report);
-    match format {
+    let rendered = match format {
         ReportFormat::Json => json::render(&report),
         ReportFormat::Markdown => markdown::render(&report),
         ReportFormat::Sarif => sarif::render(&report),
         ReportFormat::GithubSummary => github_summary::render(&report),
-    }
+    };
+    // Renderers may or may not emit trailing newlines. Normalize here so the
+    // CLI can use `println!` uniformly (F-19) without producing blank-line
+    // artifacts when piping or writing to a file.
+    strip_trailing_newlines(rendered)
 }
 
 pub fn render_diff_json(report: &sessionscope_model::DiffReport) -> String {
-    diff::render_json(report)
+    strip_trailing_newlines(diff::render_json(report))
 }
 
 pub fn render_diff_markdown(report: &sessionscope_model::DiffReport) -> String {
-    diff::render_markdown(report)
+    strip_trailing_newlines(diff::render_markdown(report))
 }
 
 pub fn render_explain(report: &ScanReport, finding_id: &str) -> Option<String> {
     let mut report = sanitized_report(report);
     canonicalize_report(&mut report);
-    explain::render(&report, finding_id)
+    explain::render(&report, finding_id).map(strip_trailing_newlines)
+}
+
+fn strip_trailing_newlines(mut value: String) -> String {
+    while value.ends_with('\n') || value.ends_with('\r') {
+        value.pop();
+    }
+    value
 }
 
 fn canonicalize_report(report: &mut ScanReport) {
