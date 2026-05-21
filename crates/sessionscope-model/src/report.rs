@@ -66,6 +66,11 @@ pub struct ScanSummary {
     pub files_scanned: usize,
     pub files_skipped: usize,
     pub diagnostics: Vec<String>,
+    /// Number of worker-thread panics caught during scanning. Each panic is
+    /// reported as a `SkippedReason::ReadError("detector panic")` entry in
+    /// `files`; this counter aggregates them for quick triage.
+    #[serde(default)]
+    pub worker_panic_count: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

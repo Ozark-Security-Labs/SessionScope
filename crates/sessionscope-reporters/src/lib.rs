@@ -259,6 +259,7 @@ mod tests {
                 files_scanned: 1,
                 files_skipped: 0,
                 diagnostics: vec![format!("diagnostic saw token {SECRET}")],
+                worker_panic_count: 0,
             },
             files: Vec::new(),
             artifacts: vec![Artifact {
