@@ -19,9 +19,11 @@ pub use baseline::{
 pub use evidence::{Confidence, Evidence, EvidenceId, SanitizedExcerpt, SourceLocation};
 pub use finding::{Finding, FindingCategory, FindingId, Severity};
 pub use lifecycle::{LifecyclePath, LifecyclePathId, LifecyclePathStep, LifecycleStage};
-pub use report::{FileScanResult, Language, ScanReport, ScanSummary, SkippedReason};
+pub use report::{
+    FileScanResult, Language, ScanReport, ScanSummary, SkippedReason, SkippedReasonKind,
+};
 pub use schema::{
-    SCHEMA_VERSION, stable_artifact_id, stable_evidence_id, stable_finding_id,
+    SCHEMA_VERSION, stable_artifact_id, stable_evidence_id, stable_finding_id, stable_hash,
     stable_lifecycle_path_id,
 };
 
@@ -54,7 +56,9 @@ mod tests {
             location: source_location(),
             detector_id: "detector.cookie.set".to_string(),
             confidence: Confidence::High,
-            excerpt: Some(SanitizedExcerpt("[REDACTED] cookie attributes".to_string())),
+            excerpt: Some(SanitizedExcerpt::from_sanitized(
+                "[REDACTED] cookie attributes".to_string(),
+            )),
             dynamic: false,
             framework_default: false,
         }
@@ -418,5 +422,37 @@ mod tests {
 
         assert!(serialized.contains("[REDACTED]"));
         assert!(!serialized.contains(token_secret));
+    }
+
+    // F-10 + F-13: SkippedReason::Timeout and SkippedReasonKind round-trip
+    // through JSON with snake_case wire values, and ScanSummary surfaces
+    // skipped_by_reason as a map.
+    #[test]
+    fn scan_summary_round_trips_skipped_by_reason_and_timeout() {
+        use crate::{ScanSummary, SkippedReason, SkippedReasonKind};
+        use std::collections::BTreeMap;
+
+        let timeout = SkippedReason::Timeout;
+        let serialized = serde_json::to_string(&timeout).expect("Timeout should serialize");
+        assert_eq!(serialized, "\"timeout\"");
+
+        let mut counts: BTreeMap<SkippedReasonKind, u32> = BTreeMap::new();
+        counts.insert(SkippedReasonKind::Timeout, 1);
+        counts.insert(SkippedReasonKind::TooLarge, 3);
+        let summary = ScanSummary {
+            files_discovered: 4,
+            files_scanned: 0,
+            files_skipped: 4,
+            diagnostics: Vec::new(),
+            worker_panic_count: 0,
+            skipped_by_reason: counts,
+        };
+
+        let json = serde_json::to_string(&summary).expect("summary should serialize");
+        assert!(json.contains("\"timeout\":1"));
+        assert!(json.contains("\"too_large\":3"));
+        let parsed: ScanSummary =
+            serde_json::from_str(&json).expect("summary should deserialize from JSON");
+        assert_eq!(parsed, summary);
     }
 }

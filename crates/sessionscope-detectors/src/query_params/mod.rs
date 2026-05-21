@@ -296,7 +296,7 @@ fn push_static_signal(
         column,
         confidence: Confidence::High,
         dynamic: false,
-        excerpt: SanitizedExcerpt(sanitize_excerpt(&node_text(node, source))),
+        excerpt: SanitizedExcerpt::from_sanitized(sanitize_excerpt(&node_text(node, source))),
     });
 }
 
@@ -329,7 +329,7 @@ fn push_dynamic_signal(
         column,
         confidence: Confidence::Medium,
         dynamic: true,
-        excerpt: SanitizedExcerpt(sanitize_excerpt(&node_text(node, source))),
+        excerpt: SanitizedExcerpt::from_sanitized(sanitize_excerpt(&node_text(node, source))),
     });
 }
 
@@ -544,7 +544,7 @@ fn depth_limit_evidence(input: &DetectorInput<'_>) -> Evidence {
         },
         detector_id: "detector.depth_limit_skipped".to_string(),
         confidence: Confidence::Low,
-        excerpt: Some(SanitizedExcerpt(
+        excerpt: Some(SanitizedExcerpt::from_sanitized(
             "tree-sitter traversal depth limit reached".to_string(),
         )),
         dynamic: true,
@@ -1155,7 +1155,7 @@ app.get("/callback?access_token=PLACEHOLDER_ACCESS_TOKEN", (req, res) => {
             .evidence
             .iter()
             .filter_map(|evidence| evidence.excerpt.as_ref())
-            .map(|excerpt| excerpt.0.as_str())
+            .map(|excerpt| excerpt.as_str())
             .chain(
                 output
                     .artifacts

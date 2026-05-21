@@ -335,6 +335,15 @@ fn filter_file(
 }
 
 fn summarize_files(files: &[FileScanResult]) -> ScanSummary {
+    let mut skipped_by_reason: std::collections::BTreeMap<
+        sessionscope_model::SkippedReasonKind,
+        u32,
+    > = std::collections::BTreeMap::new();
+    for file in files {
+        if let Some(reason) = &file.skipped_reason {
+            *skipped_by_reason.entry(reason.kind()).or_insert(0) += 1;
+        }
+    }
     ScanSummary {
         files_discovered: files.len(),
         files_scanned: files
@@ -349,6 +358,8 @@ fn summarize_files(files: &[FileScanResult]) -> ScanSummary {
             .iter()
             .flat_map(|file| file.diagnostics.iter().cloned())
             .collect(),
+        worker_panic_count: 0,
+        skipped_by_reason,
     }
 }
 

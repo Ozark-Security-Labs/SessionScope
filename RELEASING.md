@@ -197,6 +197,37 @@ sessionscope --help
 sessionscope version
 ```
 
+## SLSA reusable workflow trust decision
+
+The release workflow references the SLSA generic reusable workflow at a semantic
+version tag rather than a commit SHA:
+
+```yaml
+# .github/workflows/release.yml (line 325)
+uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+```
+
+This is the form upstream supports: GitHub Actions requires reusable workflows
+to be referenced by a tag, branch, or full SHA, and the SLSA project ships
+generator releases as signed semantic-version tags. Pinning to a commit SHA
+would make the reusable workflow fail to resolve at workflow load time.
+
+The trust controls SessionScope applies in lieu of SHA pinning are:
+
+1. The single exemption is recorded in `.deterministic-deps.yml`
+   (`.github/workflows/release.yml`, line 325). Any other unpinned action
+   reference fails the dependency-determinism workflow.
+2. Dependabot watches `slsa-framework/slsa-github-generator`
+   (`.github/dependabot.yml`, `slsa` label) so version bumps land as reviewed
+   PRs rather than silent tag movement.
+3. The reference must use an immutable signed release tag (for example
+   `v2.1.0`), not a floating major like `@v2`.
+4. Provenance produced by the workflow is verified end-to-end against the
+   release tag by `slsa-verifier` (see `docs/VERIFYING_RELEASES.md`).
+
+Reviewers updating the reference must keep the line position in
+`release.yml` and update `.deterministic-deps.yml` if it ever moves.
+
 ## Rollback
 
 If the tag points at the wrong commit or the release artifacts are bad:

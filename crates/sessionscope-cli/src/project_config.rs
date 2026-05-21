@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::fmt;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::Path;
 
 use serde::Deserialize;
@@ -37,7 +38,7 @@ pub const DEFAULT_CONFIG: &str = concat!(
     "exclude_finding_ids = []\n",
     "# baseline = \"sessionscope-baseline.json\"\n",
     "\n",
-    "max_file_size_bytes = 1000000\n",
+    "max_file_size_bytes = 512000\n",
     "\n",
     "# Hints are parsed for future detectors and have no runtime effect yet.\n",
     "framework_hints = [\"express\", \"nextjs\", \"fastapi\", \"django\"]\n",
@@ -109,10 +110,16 @@ impl ProjectConfig {
 
     pub fn load_default() -> Result<Self, ConfigError> {
         let path = Path::new(CONFIG_FILE_NAME);
-        if path.exists() {
-            Self::load_from(path)
-        } else {
-            Ok(Self::empty())
+        // Distinguish "no config present" from other I/O errors (permission
+        // denied, transient FS faults). Path::exists() silently swallows both
+        // and would surface as empty config — masking misconfigured CI.
+        match fs::metadata(path) {
+            Ok(_) => Self::load_from(path),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(Self::empty()),
+            Err(error) => Err(ConfigError::Read(format!(
+                "failed to read {CONFIG_FILE_NAME}: {}",
+                error.kind()
+            ))),
         }
     }
 
@@ -240,7 +247,7 @@ mod tests {
                 .as_ref()
                 .is_some_and(|values| values.is_empty())
         );
-        assert_eq!(config.max_file_size_bytes, Some(1_000_000));
+        assert_eq!(config.max_file_size_bytes, Some(512_000));
         assert!(
             config
                 .include

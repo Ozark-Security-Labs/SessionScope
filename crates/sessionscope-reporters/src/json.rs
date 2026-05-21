@@ -19,6 +19,8 @@ mod tests {
                 files_scanned: 1,
                 files_skipped: 0,
                 diagnostics: Vec::new(),
+                worker_panic_count: 0,
+                skipped_by_reason: std::collections::BTreeMap::new(),
             },
             files: Vec::new(),
             artifacts: Vec::new(),

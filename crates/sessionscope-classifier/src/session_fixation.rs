@@ -372,7 +372,9 @@ mod tests {
             location: location(line),
             detector_id: detector_id.to_string(),
             confidence: Confidence::High,
-            excerpt: Some(SanitizedExcerpt("redacted session evidence".to_string())),
+            excerpt: Some(SanitizedExcerpt::from_sanitized(
+                "redacted session evidence".to_string(),
+            )),
             dynamic: false,
             framework_default: detector_id == "session.framework_default_regenerate",
         }

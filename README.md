@@ -215,6 +215,7 @@ Phase plan and upcoming work are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
 | -------- | -------- |
 | [docs/USAGE.md](docs/USAGE.md) | End-to-end CLI usage, lifecycle stages, token types, check catalog |
 | [docs/SCHEMA.md](docs/SCHEMA.md) | JSON inventory and finding schema (v0.5.0), baselines, diffs |
+| [docs/SARIF_RULES.md](docs/SARIF_RULES.md) | SARIF rule IDs, descriptions, and `0.x` stability commitment |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | `sessionscope.toml` reference and precedence rules |
 | [docs/DATA_HANDLING.md](docs/DATA_HANDLING.md) | Redaction trust boundary and report sensitivity |
 | [docs/RELEASES.md](docs/RELEASES.md) | Versioning, compatibility, changelog, and release automation policy |

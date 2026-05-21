@@ -36,7 +36,18 @@ pub fn stable_lifecycle_path_id(parts: &[impl AsRef<str>]) -> LifecyclePathId {
     LifecyclePathId(format!("lifecycle_path_{:016x}", stable_hash(parts)))
 }
 
-fn stable_hash(parts: &[impl AsRef<str>]) -> u64 {
+/// Deterministic FNV-1a 64-bit hash over a sequence of normalized string
+/// parts. Inputs are trimmed and Windows-style path separators are folded to
+/// `/` so identifiers stay stable across host platforms.
+///
+/// This is the canonical implementation; `sessionscope-core`'s baseline
+/// fingerprinting calls into it directly so the two crates can never drift
+/// out of sync (F-23). The separator byte XORed between parts (currently
+/// `0xFF`, fixed in F-05 — the previous `0` was a silent no-op that
+/// collapsed `("ab","c")` and `("a","bc")` to the same hash) is the only
+/// stability knob; do not change it without bumping every dependent
+/// schema version.
+pub fn stable_hash(parts: &[impl AsRef<str>]) -> u64 {
     const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
     const FNV_PRIME: u64 = 0x100000001b3;
 
@@ -48,7 +59,12 @@ fn stable_hash(parts: &[impl AsRef<str>]) -> u64 {
             hash ^= u64::from(byte);
             hash = hash.wrapping_mul(FNV_PRIME);
         }
-        hash ^= 0;
+        // Inject a non-zero separator byte between parts so concatenated
+        // inputs like ("ab", "c") and ("a", "bc") produce distinct hashes.
+        // Using `^= 0` is a no-op against the running hash; use a fixed
+        // 0xFF marker that cannot appear as a UTF-8 byte to force a
+        // visible state transition.
+        hash ^= 0xFF;
         hash = hash.wrapping_mul(FNV_PRIME);
     }
 
@@ -57,4 +73,31 @@ fn stable_hash(parts: &[impl AsRef<str>]) -> u64 {
 
 fn normalize_id_part(part: &str) -> String {
     part.trim().replace('\\', "/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{stable_finding_id, stable_hash};
+
+    #[test]
+    fn stable_hash_distinguishes_part_boundaries() {
+        // Regression for F-05: the separator byte between parts must be
+        // non-zero so concatenated inputs cannot collide. Prior to the
+        // fix, `("ab", "c")` and `("a", "bc")` produced identical hashes
+        // because `hash ^= 0` was a no-op.
+        let left = stable_hash(&["ab", "c"]);
+        let right = stable_hash(&["a", "bc"]);
+        assert_ne!(
+            left, right,
+            "FNV separator must distinguish part boundaries"
+        );
+    }
+
+    #[test]
+    fn stable_finding_id_distinguishes_part_boundaries() {
+        // Same regression surfaced through the public ID constructor.
+        let left = stable_finding_id(&["ab", "c"]);
+        let right = stable_finding_id(&["a", "bc"]);
+        assert_ne!(left, right);
+    }
 }

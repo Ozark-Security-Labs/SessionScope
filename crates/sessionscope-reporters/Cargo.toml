@@ -6,9 +6,15 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+percent-encoding = "2.3"
 serde_json = "1.0"
 sessionscope-core = { path = "../sessionscope-core" }
 sessionscope-model = { path = "../sessionscope-model" }
+
+[dev-dependencies]
+# Round-trip generated SARIF through the published serde-sarif schema to
+# guarantee F-18's URI/uriBaseId emission matches the SARIF 2.1.0 spec.
+serde-sarif = "0.8"
 
 [lib]
 path = "src/lib.rs"

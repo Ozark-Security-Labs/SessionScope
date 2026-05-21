@@ -7,7 +7,11 @@ inputs:
     required: false
     default: advisory
   path:
-    description: Repository-relative path to scan.
+    description: |
+      Repository-relative path to scan. Must be relative to
+      $GITHUB_WORKSPACE and must not contain '..' segments. The action
+      resolves the value with `realpath -m` and refuses to run if the
+      resolved path falls outside the workspace.
     required: false
     default: .
   output:

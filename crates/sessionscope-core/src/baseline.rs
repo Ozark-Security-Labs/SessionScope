@@ -4,6 +4,7 @@ use crate::redaction::{redact_sensitive_values, sanitized_report};
 use sessionscope_model::{
     BASELINE_SCHEMA_VERSION, Baseline, BaselineFinding, DIFF_SCHEMA_VERSION, DiffChangeKind,
     DiffFindingChange, DiffReport, DiffSummary, Evidence, Finding, ScanReport, SourceLocation,
+    stable_hash,
 };
 
 pub fn create_baseline(report: &ScanReport, created_by: impl Into<String>) -> Baseline {
@@ -179,9 +180,13 @@ fn baseline_finding(
 }
 
 fn semantic_fingerprint(finding: &Finding) -> String {
+    // Use the stable snake_case wire names instead of `Debug` (F-07).
+    // `Debug` is intentionally not part of the public contract and can
+    // change if a variant is renamed, which would silently invalidate
+    // every persisted baseline fingerprint.
     stable_fingerprint(&[
-        format!("{:?}", finding.category),
-        format!("{:?}", finding.severity),
+        finding.category.stable_name().to_string(),
+        finding.severity.stable_name().to_string(),
         finding.title.clone(),
         finding.description.clone(),
         finding.suggested_fix.clone().unwrap_or_default(),
@@ -196,16 +201,17 @@ fn evidence_fingerprint(
     let mut parts = Vec::new();
     for evidence_id in evidence_ids {
         if let Some(evidence) = evidence_by_id.get(evidence_id.0.as_str()) {
-            parts.push(format!("{:?}", evidence.lifecycle_stage));
+            // F-07: use stable snake_case wire names instead of `Debug`.
+            parts.push(evidence.lifecycle_stage.stable_name().to_string());
             parts.push(evidence.detector_id.clone());
-            parts.push(format!("{:?}", evidence.confidence));
+            parts.push(evidence.confidence.stable_name().to_string());
             parts.push(evidence.dynamic.to_string());
             parts.push(evidence.framework_default.to_string());
             parts.push(
                 evidence
                     .excerpt
                     .as_ref()
-                    .map(|excerpt| excerpt.0.clone())
+                    .map(|excerpt| excerpt.as_str().to_string())
                     .unwrap_or_default(),
             );
         } else {
@@ -216,21 +222,12 @@ fn evidence_fingerprint(
     stable_fingerprint(&parts)
 }
 
+/// F-23: delegate to the canonical FNV-1a implementation in
+/// `sessionscope-model` so the baseline fingerprint and schema-level stable
+/// IDs can never drift apart. The output format (`fingerprint_<16-hex>`) is
+/// the only thing this function adds on top.
 fn stable_fingerprint(parts: &[String]) -> String {
-    const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-    const FNV_PRIME: u64 = 0x100000001b3;
-
-    let mut hash = FNV_OFFSET_BASIS;
-    for part in parts {
-        for byte in part.trim().replace('\\', "/").bytes() {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(FNV_PRIME);
-        }
-        hash ^= 0;
-        hash = hash.wrapping_mul(FNV_PRIME);
-    }
-
-    format!("fingerprint_{hash:016x}")
+    format!("fingerprint_{:016x}", stable_hash(parts))
 }
 
 fn evidence_by_id(report: &ScanReport) -> BTreeMap<&str, &Evidence> {
@@ -299,8 +296,55 @@ mod tests {
         SCHEMA_VERSION, SanitizedExcerpt, ScanReport, ScanSummary, Severity, SourceLocation,
     };
 
-    use super::{create_baseline, diff_baseline};
+    use super::{create_baseline, diff_baseline, stable_fingerprint};
     use sessionscope_model::DiffChangeKind;
+
+    #[test]
+    fn baseline_finding_fingerprint_is_pinned() {
+        // Regression for F-05 + F-07: pin the fingerprint of a known
+        // finding to detect accidental changes to the hash separator
+        // (F-05) or to the wire names used in the fingerprint inputs
+        // (F-07). Any unexplained drift here is a baseline-breaking
+        // change and must bump `BASELINE_SCHEMA_VERSION`.
+        let baseline = create_baseline(
+            &report(vec![Finding {
+                id: FindingId("finding_pinned".to_string()),
+                category: FindingCategory::LifecycleGap,
+                severity: Severity::Medium,
+                artifact_ids: Vec::new(),
+                evidence_ids: vec![EvidenceId("evidence_pinned".to_string())],
+                title: "pinned title".to_string(),
+                description: "pinned description".to_string(),
+                suggested_fix: None,
+                reviewer_question: None,
+            }]),
+            "sessionscope",
+        );
+        let finding = &baseline.findings[0];
+        let actual = format!(
+            "{}|{}",
+            finding.semantic_fingerprint, finding.evidence_fingerprint
+        );
+        // If this assertion fails on purpose (e.g. you intentionally
+        // changed fingerprint inputs), update the expected value below
+        // and bump `BASELINE_SCHEMA_VERSION` in
+        // `crates/sessionscope-model/src/baseline.rs`.
+        assert_eq!(
+            actual, "fingerprint_7ed7872573c47bc7|fingerprint_cfe369bc21d9da49",
+            "baseline fingerprints drifted; update the pin and bump BASELINE_SCHEMA_VERSION"
+        );
+    }
+
+    #[test]
+    fn stable_fingerprint_distinguishes_part_boundaries() {
+        // Regression for F-05: the inter-part separator byte must be
+        // non-zero so concatenated string parts cannot collide. Prior
+        // to the fix, `hash ^= 0` was a no-op and `("ab", "c")` hashed
+        // identically to `("a", "bc")`.
+        let left = stable_fingerprint(&["ab".to_string(), "c".to_string()]);
+        let right = stable_fingerprint(&["a".to_string(), "bc".to_string()]);
+        assert_ne!(left, right);
+    }
 
     #[test]
     fn diff_classifies_unchanged_new_resolved_changed_and_moved_findings() {
@@ -397,7 +441,10 @@ mod tests {
                     },
                     detector_id: "test.detector".to_string(),
                     confidence: Confidence::High,
-                    excerpt: Some(SanitizedExcerpt(format!("evidence for {}", finding.title))),
+                    excerpt: Some(SanitizedExcerpt::from_sanitized(format!(
+                        "evidence for {}",
+                        finding.title
+                    ))),
                     dynamic: false,
                     framework_default: false,
                 })

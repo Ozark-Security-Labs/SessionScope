@@ -27,7 +27,7 @@ include = [
 exclude = ["**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"]
 formats = ["markdown"]
 mode = "advisory"
-max_file_size_bytes = 1000000
+max_file_size_bytes = 512000
 framework_hints = ["express", "nextjs", "fastapi", "django"]
 provider_hints = []
 ```
@@ -41,7 +41,7 @@ provider_hints = []
 | `exclude` | Glob patterns to exclude. Appended to by `--exclude`. |
 | `formats` | Default output formats. The first value is used unless `--format` is passed. |
 | `mode` | Default policy mode. Overridden by `--mode`. |
-| `max_file_size_bytes` | Skip files larger than this; overridden by `--max-file-size`. |
+| `max_file_size_bytes` | Skip files larger than this; overridden by `--max-file-size`. Default `512000` (lowered from `1000000` in v0.1.0 to cap per-worker memory). |
 | `framework_hints` | Hints to bias detectors and classifiers toward specific frameworks. |
 | `provider_hints` | Hints for auth providers (e.g., identity SaaS); reserved for future detectors. |
 
@@ -64,3 +64,12 @@ In addition to user-supplied excludes, SessionScope:
 - Skips known-sensitive paths such as `.env`, `.env.*`, and obvious private-key material before source loading.
 
 These defaults are protective — even with a permissive `include`, secret-bearing files are filtered before any detector touches their contents.
+
+## Per-file budgets
+
+SessionScope enforces two budgets per file to keep the scan bounded:
+
+- **Memory** — `max_file_size_bytes` defaults to `512000` (512 KB). Files larger than this are skipped with reason `too_large`. The pipeline additionally caps simultaneous in-flight file bodies at `min(available_parallelism(), 4)` so a single scan never holds more than four file buffers in memory at once.
+- **CPU** — `per_file_budget` defaults to `2s`. When detectors collectively exceed this on a single file, the file is skipped with reason `timeout` and the rest of the scan continues. Files that look minified (`source.lines() < source.len() / 200`) have their budget halved to keep one large bundle from blocking a worker.
+
+These defaults are intended as safety rails, not knobs to tune for performance. Lower the size cap when scanning constrained CI runners; the CPU budget is currently fixed in code.

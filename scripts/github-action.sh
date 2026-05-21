@@ -29,9 +29,32 @@ case "$fail_on_findings" in
     ;;
 esac
 
+# F-04: harden the path input against traversal. The previous check
+# only rejected absolute paths starting with `/`; relative inputs such
+# as `../etc` or `foo/../../etc/passwd` still resolved outside the
+# scan root when joined with the script's working directory. We now:
+#   (a) reject absolute paths,
+#   (b) reject any value containing a `..` path segment.
+#
+# Together (a)+(b) are sufficient to guarantee containment under the
+# script's working directory: a relative path with no parent-references
+# cannot, by construction, refer to anything outside that directory.
+# We intentionally do NOT canonicalize via `realpath -m` because (i) the
+# `-m` flag is GNU-specific and unavailable on macOS BSD `realpath`, and
+# (ii) the containment property is already established syntactically.
+# Symlink-based escape attempts at scan time are handled by the discovery
+# layer (F-03): individual symlinked entries are refused before any
+# content is read.
 case "$scan_path" in
   /*)
     echo "sessionscope: path must be repository-relative, got '$scan_path'" >&2
+    exit 2
+    ;;
+esac
+
+case "/$scan_path/" in
+  */../* | */..)
+    echo "sessionscope: path must not contain '..' segments, got '$scan_path'" >&2
     exit 2
     ;;
 esac
@@ -237,6 +260,7 @@ prefix_sarif_uris() {
   local prefix="$2"
   python3 - "$sarif_file" "$prefix" <<'PY'
 import json
+import os
 import sys
 from pathlib import PurePosixPath
 
@@ -274,9 +298,18 @@ for run in sarif.get("runs", []):
             ):
                 artifact["uri"] = f"{prefix}/{uri}"
 
-with open(sarif_path, "w", encoding="utf-8") as handle:
+# F-24: write to a sibling temp file and `os.replace` to swap it in
+# atomically. A direct `open(sarif_path, 'w')` truncates the SARIF file
+# before json.dump finishes, so a Python crash, signal, or out-of-space
+# error mid-write would leave the on-disk SARIF empty or partial — which
+# downstream code-scanning uploads would either fail on or, worse, parse
+# as "no findings". `os.replace` is atomic on POSIX and Windows whenever
+# the temp file lives on the same filesystem as the destination.
+tmp_path = sarif_path + ".tmp"
+with open(tmp_path, "w", encoding="utf-8") as handle:
     json.dump(sarif, handle, indent=2)
     handle.write("\n")
+os.replace(tmp_path, sarif_path)
 PY
 }
 
@@ -306,8 +339,24 @@ if [[ -n "$exclude_finding_id" ]]; then
   policy_args_without_severity+=(--exclude-finding-id "$exclude_finding_id")
 fi
 if [[ -n "$baseline" ]]; then
-  policy_args+=(--baseline "$baseline")
-  policy_args_without_severity+=(--baseline "$baseline")
+  # Reject baseline values that look like CLI option injection. An attacker who
+  # controls the with: baseline input would otherwise pass --output etc.
+  # through to the CLI by prefixing the value with `-`. Newlines are also
+  # rejected — getopt-style parsers can be confused by them.
+  case "$baseline" in
+    -*)
+      echo "sessionscope: baseline must not start with '-'; got '$baseline'" >&2
+      exit 2
+      ;;
+  esac
+  if [[ "$baseline" == *$'\n'* ]]; then
+    echo "sessionscope: baseline must not contain newline characters" >&2
+    exit 2
+  fi
+  # Pass `--` between --baseline and the value so the CLI treats the path as a
+  # positional value even if it ever contained another `-` prefix.
+  policy_args+=(--baseline -- "$baseline")
+  policy_args_without_severity+=(--baseline -- "$baseline")
 fi
 
 json_requested=false
@@ -437,8 +486,12 @@ if [[ "$effective_mode" == "enforce" ]]; then
   # through an active EXIT trap, which would otherwise mask a real failure
   # here as exit 0.
   enforcement_status=0
+  # --no-policy-config: action inputs are authoritative during CI; do not let
+  # a checked-in sessionscope.toml relax (or tighten) what the workflow asked
+  # for. Matches the same flag used on `scan` above.
   run_sessionscope evaluate \
     "$json_path" \
+    --no-policy-config \
     --mode enforce \
     --fail-severity "$effective_fail_severity" \
     ${policy_args_without_severity[@]+"${policy_args_without_severity[@]}"} || enforcement_status=$?
