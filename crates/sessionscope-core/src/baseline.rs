@@ -4,6 +4,7 @@ use crate::redaction::{redact_sensitive_values, sanitized_report};
 use sessionscope_model::{
     BASELINE_SCHEMA_VERSION, Baseline, BaselineFinding, DIFF_SCHEMA_VERSION, DiffChangeKind,
     DiffFindingChange, DiffReport, DiffSummary, Evidence, Finding, ScanReport, SourceLocation,
+    stable_hash,
 };
 
 pub fn create_baseline(report: &ScanReport, created_by: impl Into<String>) -> Baseline {
@@ -221,24 +222,12 @@ fn evidence_fingerprint(
     stable_fingerprint(&parts)
 }
 
+/// F-23: delegate to the canonical FNV-1a implementation in
+/// `sessionscope-model` so the baseline fingerprint and schema-level stable
+/// IDs can never drift apart. The output format (`fingerprint_<16-hex>`) is
+/// the only thing this function adds on top.
 fn stable_fingerprint(parts: &[String]) -> String {
-    const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-    const FNV_PRIME: u64 = 0x100000001b3;
-
-    let mut hash = FNV_OFFSET_BASIS;
-    for part in parts {
-        for byte in part.trim().replace('\\', "/").bytes() {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(FNV_PRIME);
-        }
-        // Non-zero separator marker; `^= 0` would be a no-op so distinct
-        // part boundaries must produce distinct hashes. Mirrors
-        // `sessionscope_model::stable_hash`.
-        hash ^= 0xFF;
-        hash = hash.wrapping_mul(FNV_PRIME);
-    }
-
-    format!("fingerprint_{hash:016x}")
+    format!("fingerprint_{:016x}", stable_hash(parts))
 }
 
 fn evidence_by_id(report: &ScanReport) -> BTreeMap<&str, &Evidence> {

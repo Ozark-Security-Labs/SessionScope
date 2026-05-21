@@ -406,10 +406,24 @@ fn sanitize_artifact(artifact: &mut Artifact) {
 
 fn sanitize_evidence(evidence: &mut Evidence) {
     if let Some(excerpt) = &mut evidence.excerpt {
-        let sanitized = truncate_chars(
-            &redact_sensitive_values(excerpt.as_str()),
-            DEFAULT_MAX_EXCERPT_CHARS,
-        );
+        // F-22: skip the costly regex pass when the excerpt is already
+        // canonical — shorter than the truncation budget AND unchanged by
+        // `redact_sensitive_values`. Excerpts emitted by `safe_excerpt`
+        // already meet both invariants, so a second sanitize pass (e.g.
+        // `sanitize_report` after `sanitize_detection_output`) is a no-op
+        // we can short-circuit.
+        let current = excerpt.as_str();
+        if current.chars().count() <= DEFAULT_MAX_EXCERPT_CHARS {
+            let redacted = redact_sensitive_values(current);
+            if redacted == current {
+                return;
+            }
+            let sanitized = truncate_chars(&redacted, DEFAULT_MAX_EXCERPT_CHARS);
+            excerpt.replace_with_sanitized(sanitized);
+            return;
+        }
+        let sanitized =
+            truncate_chars(&redact_sensitive_values(current), DEFAULT_MAX_EXCERPT_CHARS);
         excerpt.replace_with_sanitized(sanitized);
     }
 }

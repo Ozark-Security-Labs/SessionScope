@@ -23,7 +23,7 @@ pub use report::{
     FileScanResult, Language, ScanReport, ScanSummary, SkippedReason, SkippedReasonKind,
 };
 pub use schema::{
-    SCHEMA_VERSION, stable_artifact_id, stable_evidence_id, stable_finding_id,
+    SCHEMA_VERSION, stable_artifact_id, stable_evidence_id, stable_finding_id, stable_hash,
     stable_lifecycle_path_id,
 };
 

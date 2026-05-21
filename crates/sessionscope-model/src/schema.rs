@@ -36,7 +36,18 @@ pub fn stable_lifecycle_path_id(parts: &[impl AsRef<str>]) -> LifecyclePathId {
     LifecyclePathId(format!("lifecycle_path_{:016x}", stable_hash(parts)))
 }
 
-fn stable_hash(parts: &[impl AsRef<str>]) -> u64 {
+/// Deterministic FNV-1a 64-bit hash over a sequence of normalized string
+/// parts. Inputs are trimmed and Windows-style path separators are folded to
+/// `/` so identifiers stay stable across host platforms.
+///
+/// This is the canonical implementation; `sessionscope-core`'s baseline
+/// fingerprinting calls into it directly so the two crates can never drift
+/// out of sync (F-23). The separator byte XORed between parts (currently
+/// `0xFF`, fixed in F-05 — the previous `0` was a silent no-op that
+/// collapsed `("ab","c")` and `("a","bc")` to the same hash) is the only
+/// stability knob; do not change it without bumping every dependent
+/// schema version.
+pub fn stable_hash(parts: &[impl AsRef<str>]) -> u64 {
     const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
     const FNV_PRIME: u64 = 0x100000001b3;
 
