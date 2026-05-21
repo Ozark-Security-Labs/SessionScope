@@ -36,7 +36,17 @@ impl fmt::Display for ScanError {
     }
 }
 
-impl Error for ScanError {}
+impl Error for ScanError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            // Returning the inner I/O error here means callers walking the
+            // error chain (`anyhow::Error::source`, log adapters, etc.) can
+            // surface the OS-level cause without re-parsing the Display
+            // string.
+            Self::Discovery(error) => Some(error),
+        }
+    }
+}
 
 pub fn scan_path(
     config: ScanConfig,

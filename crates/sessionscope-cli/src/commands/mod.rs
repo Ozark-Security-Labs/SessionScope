@@ -10,6 +10,19 @@ use std::error::Error;
 
 use sessionscope_core::CapabilityArea;
 
+/// CLI subcommand result.
+///
+/// Type-erased errors (`Box<dyn Error>`) are used here because the CLI is the
+/// outer boundary: errors only need to be Display-formatted onto stderr and a
+/// nonzero exit code chosen. Different subcommands surface very different
+/// failure modes (I/O, JSON parse, policy enforcement, scan pipeline), and a
+/// trait object lets each one bubble up its native error type with `?`
+/// without forcing every layer through a shared enum.
+///
+/// If any of these subcommand entry points is ever exposed as a library API
+/// (e.g. re-used from another binary or invoked programmatically), define a
+/// typed `CliError` enum with explicit variants so callers can match on the
+/// failure mode instead of relying on string formatting.
 pub type CommandResult = Result<(), Box<dyn Error>>;
 
 pub fn run(args: impl IntoIterator<Item = String>) -> CommandResult {
