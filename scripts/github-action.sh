@@ -29,9 +29,32 @@ case "$fail_on_findings" in
     ;;
 esac
 
+# F-04: harden the path input against traversal. The previous check
+# only rejected absolute paths starting with `/`; relative inputs such
+# as `../etc` or `foo/../../etc/passwd` still resolved outside the
+# scan root when joined with the script's working directory. We now:
+#   (a) reject absolute paths,
+#   (b) reject any value containing a `..` path segment.
+#
+# Together (a)+(b) are sufficient to guarantee containment under the
+# script's working directory: a relative path with no parent-references
+# cannot, by construction, refer to anything outside that directory.
+# We intentionally do NOT canonicalize via `realpath -m` because (i) the
+# `-m` flag is GNU-specific and unavailable on macOS BSD `realpath`, and
+# (ii) the containment property is already established syntactically.
+# Symlink-based escape attempts at scan time are handled by the discovery
+# layer (F-03): individual symlinked entries are refused before any
+# content is read.
 case "$scan_path" in
   /*)
     echo "sessionscope: path must be repository-relative, got '$scan_path'" >&2
+    exit 2
+    ;;
+esac
+
+case "/$scan_path/" in
+  */../* | */..)
+    echo "sessionscope: path must not contain '..' segments, got '$scan_path'" >&2
     exit 2
     ;;
 esac

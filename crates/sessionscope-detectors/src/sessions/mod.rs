@@ -1189,7 +1189,7 @@ fn signal(spec: SignalSpec, node: Node<'_>, source: &str) -> Signal {
         dynamic: spec.dynamic,
         framework_default: spec.framework_default,
         scope_hint: None,
-        excerpt: SanitizedExcerpt(sanitize_excerpt(&node_text(node, source))),
+        excerpt: SanitizedExcerpt::from_sanitized(sanitize_excerpt(&node_text(node, source))),
     }
 }
 
@@ -2429,7 +2429,7 @@ app.post("/logout", () => revokeRefreshToken("PLACEHOLDER_REFRESH_TOKEN"));
             .evidence
             .iter()
             .filter_map(|evidence| evidence.excerpt.as_ref())
-            .map(|excerpt| excerpt.0.as_str())
+            .map(|excerpt| excerpt.as_str())
             .collect::<Vec<_>>()
             .join("\n");
         assert!(!text.contains("PLACEHOLDER_REFRESH_TOKEN"));
@@ -2450,7 +2450,7 @@ app.post("/logout", () => revokeRefreshToken("short-secret"));
             .evidence
             .iter()
             .filter_map(|evidence| evidence.excerpt.as_ref())
-            .map(|excerpt| excerpt.0.as_str())
+            .map(|excerpt| excerpt.as_str())
             .collect::<Vec<_>>()
             .join("\n");
         assert!(!text.contains("short-secret"));
@@ -2806,7 +2806,7 @@ app.post("/refresh", () => generateRefreshToken("PLACEHOLDER_REFRESH_TOKEN"));
             .evidence
             .iter()
             .filter_map(|evidence| evidence.excerpt.as_ref())
-            .map(|excerpt| excerpt.0.as_str())
+            .map(|excerpt| excerpt.as_str())
             .collect::<Vec<_>>()
             .join("\n");
         assert!(!text.contains("PLACEHOLDER_REFRESH_TOKEN"));
@@ -2837,7 +2837,7 @@ provider.refresh("dev-refresh-token")
                 .evidence
                 .iter()
                 .filter_map(|evidence| evidence.excerpt.as_ref())
-                .map(|excerpt| excerpt.0.as_str())
+                .map(|excerpt| excerpt.as_str())
                 .collect::<Vec<_>>()
                 .join("\n");
             assert!(!text.contains("dev-refresh-token"));

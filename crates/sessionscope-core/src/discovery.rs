@@ -1,3 +1,4 @@
+use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -45,6 +46,27 @@ pub fn discover_files(config: &ScanConfig) -> io::Result<DiscoveryResult> {
         let entry = entry.map_err(|error| io::Error::other(error.to_string()))?;
         let path = entry.path();
 
+        // F-03: refuse symlinks. The walker is not configured to follow
+        // links, but an in-tree link still surfaces as an entry; reading
+        // it would let a hostile target point an in-tree filename at an
+        // arbitrary file on the runner. Skip the link itself, never
+        // chase it.
+        let symlink_metadata = fs::symlink_metadata(path).ok();
+        let is_symlink = entry.path_is_symlink()
+            || symlink_metadata
+                .as_ref()
+                .is_some_and(|metadata| metadata.file_type().is_symlink());
+        if is_symlink {
+            let relative_path = relative_path(&config.root, path);
+            let language = classify_language(path);
+            skipped.push(FileScanResult::skipped(
+                normalize_path(&relative_path),
+                language,
+                SkippedReason::Symlink,
+            ));
+            continue;
+        }
+
         if !entry
             .file_type()
             .is_some_and(|file_type| file_type.is_file())
@@ -54,6 +76,18 @@ pub fn discover_files(config: &ScanConfig) -> io::Result<DiscoveryResult> {
 
         let relative_path = relative_path(&config.root, path);
         let language = classify_language(path);
+
+        // F-03 defense-in-depth: verify the file resolves inside the
+        // canonical scan root before treating it as discovered. If
+        // canonicalization fails or escapes the root, refuse the file.
+        if !path_is_inside_canonical_root(path, &config.canonical_root) {
+            skipped.push(FileScanResult::skipped(
+                normalize_path(&relative_path),
+                language,
+                SkippedReason::Symlink,
+            ));
+            continue;
+        }
 
         let skipped_reason = if sensitive_globs.is_match(&relative_path) {
             Some(SkippedReason::SensitivePath)
@@ -137,6 +171,18 @@ fn relative_path(root: &Path, path: &Path) -> PathBuf {
         .map_or_else(|_| path.to_path_buf(), Path::to_path_buf)
 }
 
+/// Returns true when the file's canonicalized path is contained within
+/// the canonical scan root. F-03 defense-in-depth: even if a link slips
+/// past the `path_is_symlink` check, a target outside the root will
+/// fail this containment test.
+fn path_is_inside_canonical_root(path: &Path, canonical_root: &Path) -> bool {
+    let canonical_path = match fs::canonicalize(path) {
+        Ok(canonical_path) => canonical_path,
+        Err(_) => return false,
+    };
+    canonical_path.starts_with(canonical_root)
+}
+
 pub fn normalize_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
@@ -150,6 +196,54 @@ mod tests {
 
     use super::{discover_files, normalize_path};
     use crate::ScanConfig;
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlinks_during_discovery() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().expect("tempdir should be created");
+        // Plant a normal source file plus a symlink to /etc/passwd
+        // inside the tree. F-03: the link must be reported as
+        // Skipped(Symlink) and its target must NOT appear anywhere in
+        // the discovered file list.
+        fs::write(temp.path().join("real.ts"), "const ok = true;")
+            .expect("source file should be written");
+        let link = temp.path().join("escape.ts");
+        symlink("/etc/passwd", &link).expect("symlink should be created");
+
+        let result =
+            discover_files(&ScanConfig::new(temp.path())).expect("discovery should succeed");
+
+        // The legitimate file is still discovered.
+        let files = result
+            .files
+            .iter()
+            .map(|path| normalize_path(path.strip_prefix(temp.path()).unwrap()))
+            .collect::<Vec<_>>();
+        assert!(files.iter().any(|path| path == "real.ts"));
+
+        // No discovered path resolves to /etc/passwd.
+        assert!(!result.files.iter().any(|path| {
+            path.canonicalize()
+                .map(|canonical| canonical == std::path::Path::new("/etc/passwd"))
+                .unwrap_or(false)
+        }));
+
+        // The symlink itself is recorded as Skipped(Symlink) — never read.
+        let skipped_link = result
+            .skipped
+            .iter()
+            .find(|file| file.path == "escape.ts")
+            .expect("symlink entry should be present in skipped list");
+        assert_eq!(skipped_link.skipped_reason, Some(SkippedReason::Symlink));
+
+        // And /etc/passwd's contents do not appear anywhere in the
+        // result (defence-in-depth: discovery never reads file bytes,
+        // but make the expectation explicit).
+        let serialized = format!("{:?}", result);
+        assert!(!serialized.contains("root:"));
+    }
 
     #[test]
     fn discovers_supported_files_and_skips_known_boundaries() {

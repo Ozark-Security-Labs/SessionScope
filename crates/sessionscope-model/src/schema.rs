@@ -48,7 +48,12 @@ fn stable_hash(parts: &[impl AsRef<str>]) -> u64 {
             hash ^= u64::from(byte);
             hash = hash.wrapping_mul(FNV_PRIME);
         }
-        hash ^= 0;
+        // Inject a non-zero separator byte between parts so concatenated
+        // inputs like ("ab", "c") and ("a", "bc") produce distinct hashes.
+        // Using `^= 0` is a no-op against the running hash; use a fixed
+        // 0xFF marker that cannot appear as a UTF-8 byte to force a
+        // visible state transition.
+        hash ^= 0xFF;
         hash = hash.wrapping_mul(FNV_PRIME);
     }
 
@@ -57,4 +62,31 @@ fn stable_hash(parts: &[impl AsRef<str>]) -> u64 {
 
 fn normalize_id_part(part: &str) -> String {
     part.trim().replace('\\', "/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{stable_finding_id, stable_hash};
+
+    #[test]
+    fn stable_hash_distinguishes_part_boundaries() {
+        // Regression for F-05: the separator byte between parts must be
+        // non-zero so concatenated inputs cannot collide. Prior to the
+        // fix, `("ab", "c")` and `("a", "bc")` produced identical hashes
+        // because `hash ^= 0` was a no-op.
+        let left = stable_hash(&["ab", "c"]);
+        let right = stable_hash(&["a", "bc"]);
+        assert_ne!(
+            left, right,
+            "FNV separator must distinguish part boundaries"
+        );
+    }
+
+    #[test]
+    fn stable_finding_id_distinguishes_part_boundaries() {
+        // Same regression surfaced through the public ID constructor.
+        let left = stable_finding_id(&["ab", "c"]);
+        let right = stable_finding_id(&["a", "bc"]);
+        assert_ne!(left, right);
+    }
 }

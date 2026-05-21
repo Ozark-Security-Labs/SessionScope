@@ -54,7 +54,9 @@ mod tests {
             location: source_location(),
             detector_id: "detector.cookie.set".to_string(),
             confidence: Confidence::High,
-            excerpt: Some(SanitizedExcerpt("[REDACTED] cookie attributes".to_string())),
+            excerpt: Some(SanitizedExcerpt::from_sanitized(
+                "[REDACTED] cookie attributes".to_string(),
+            )),
             dynamic: false,
             framework_default: false,
         }

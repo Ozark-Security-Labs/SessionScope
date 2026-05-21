@@ -1992,6 +1992,42 @@ fn github_action_script_rejects_absolute_input_path() {
     assert!(!reports_dir.exists(), "reports dir should not be created");
 }
 
+#[cfg(not(windows))]
+#[test]
+fn github_action_script_rejects_parent_traversal_input_path() {
+    // F-04: a relative path that contains `..` segments could escape the
+    // scan root once resolved against the script's working directory.
+    // The script must reject such inputs syntactically before they reach
+    // the scanner.
+    for traversal in ["../etc", "foo/../../etc", ".."] {
+        let temp = tempfile::tempdir().expect("tempdir should be created");
+        let reports_dir = temp.path().join("reports");
+        let script = repo_root().join("scripts").join("github-action.sh");
+        let output = Command::new("bash")
+            .arg(script)
+            .env_remove("GITHUB_OUTPUT")
+            .env_remove("GITHUB_STEP_SUMMARY")
+            .env("SESSIONSCOPE_BIN", "/bin/false")
+            .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
+            .env("INPUT_MODE", "advisory")
+            .env("INPUT_PATH", traversal)
+            .env("INPUT_OUTPUT", "sarif")
+            .env("INPUT_FAIL_ON_FINDINGS", "false")
+            .output()
+            .expect("action script should run");
+
+        assert!(
+            !output.status.success(),
+            "traversal input '{traversal}' should be rejected"
+        );
+        let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+        assert!(
+            stderr.contains("must not contain '..'"),
+            "stderr for '{traversal}' should mention '..' rejection, got: {stderr}"
+        );
+    }
+}
+
 #[test]
 fn scan_rejects_invalid_max_file_size() {
     let output = run_sessionscope(&["scan", "--max-file-size", "0"]);

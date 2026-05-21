@@ -109,7 +109,7 @@ fn render_evidence(
             record
                 .excerpt
                 .as_ref()
-                .map(|excerpt| table_cell(&excerpt.0))
+                .map(|excerpt| table_cell(excerpt.as_str()))
                 .unwrap_or_else(|| "-".to_string())
         ));
     }
@@ -255,7 +255,7 @@ mod tests {
                 },
                 detector_id: "cookie.set".to_string(),
                 confidence: Confidence::High,
-                excerpt: Some(SanitizedExcerpt(
+                excerpt: Some(SanitizedExcerpt::from_sanitized(
                     "response.cookie(\"session\", [REDACTED])".to_string(),
                 )),
                 dynamic: true,
@@ -322,7 +322,9 @@ mod tests {
                 },
                 detector_id: "test.detector".to_string(),
                 confidence: Confidence::High,
-                excerpt: Some(SanitizedExcerpt("![x](y) | `cell`".to_string())),
+                excerpt: Some(SanitizedExcerpt::from_sanitized(
+                    "![x](y) | `cell`".to_string(),
+                )),
                 dynamic: false,
                 framework_default: false,
             }],

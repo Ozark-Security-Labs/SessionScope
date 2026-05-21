@@ -23,6 +23,11 @@ pub enum SkippedReason {
     Excluded,
     Ignored,
     SensitivePath,
+    /// The discovered file is a symbolic link. Symlinks are refused
+    /// during discovery (F-03) so that a hostile target repository
+    /// cannot point an in-tree link at `/etc/passwd` or any path
+    /// outside the scan root and trick the scanner into reading it.
+    Symlink,
     ReadError(String),
 }
 

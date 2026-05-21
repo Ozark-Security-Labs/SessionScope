@@ -106,7 +106,17 @@ impl Default for ExcerptOptions {
 }
 
 pub fn safe_excerpt(source: &str, max_chars: usize) -> SanitizedExcerpt {
-    SanitizedExcerpt(truncate_chars(&redact_sensitive_values(source), max_chars))
+    SanitizedExcerpt::from_sanitized(truncate_chars(&redact_sensitive_values(source), max_chars))
+}
+
+/// Run the standard redaction + default-truncation pipeline and wrap the
+/// result in [`SanitizedExcerpt`]. Equivalent to
+/// `safe_excerpt(raw, DEFAULT_MAX_EXCERPT_CHARS)` but with a name that
+/// matches the F-06 trust-boundary docs: every detector excerpt should
+/// flow through this helper (or `safe_excerpt`/`safe_excerpt_at_location`)
+/// rather than constructing `SanitizedExcerpt` directly.
+pub fn sanitize_excerpt(raw: &str) -> SanitizedExcerpt {
+    safe_excerpt(raw, DEFAULT_MAX_EXCERPT_CHARS)
 }
 
 pub fn safe_excerpt_at_location(source: &str, location: &SourceLocation) -> SanitizedExcerpt {
@@ -332,10 +342,11 @@ fn sanitize_artifact(artifact: &mut Artifact) {
 
 fn sanitize_evidence(evidence: &mut Evidence) {
     if let Some(excerpt) = &mut evidence.excerpt {
-        excerpt.0 = truncate_chars(
-            &redact_sensitive_values(&excerpt.0),
+        let sanitized = truncate_chars(
+            &redact_sensitive_values(excerpt.as_str()),
             DEFAULT_MAX_EXCERPT_CHARS,
         );
+        excerpt.replace_with_sanitized(sanitized);
     }
 }
 
@@ -629,13 +640,13 @@ mod tests {
             },
         );
 
-        assert!(excerpt.0.contains("const safe"));
-        assert!(excerpt.0.contains("const secure"));
-        assert!(excerpt.0.contains("[REDACTED]"));
-        assert!(excerpt.0.chars().count() <= 80);
+        assert!(excerpt.as_str().contains("const safe"));
+        assert!(excerpt.as_str().contains("const secure"));
+        assert!(excerpt.as_str().contains("[REDACTED]"));
+        assert!(excerpt.as_str().chars().count() <= 80);
         assert!(
             !excerpt
-                .0
+                .as_str()
                 .contains("abcdefghijklmnopqrstuvwxyzABCDEF0123456789")
         );
     }

@@ -220,7 +220,9 @@ mod tests {
             } else {
                 Confidence::High
             },
-            excerpt: Some(SanitizedExcerpt("redacted query read".to_string())),
+            excerpt: Some(SanitizedExcerpt::from_sanitized(
+                "redacted query read".to_string(),
+            )),
             dynamic,
             framework_default: false,
         }

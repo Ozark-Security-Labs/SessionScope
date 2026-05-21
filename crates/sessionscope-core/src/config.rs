@@ -1,8 +1,17 @@
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct ScanConfig {
     pub root: PathBuf,
+    /// Canonicalized form of `root`, when available.
+    ///
+    /// Resolved once at `ScanConfig` construction (F-03) and used as a
+    /// containment anchor for discovered files. When the scan root does
+    /// not exist yet (some tests construct configs against not-yet-
+    /// created tempdirs), this falls back to `root` so callers can still
+    /// run discovery and get a normal NotFound error from the walker.
+    pub canonical_root: PathBuf,
     pub max_file_size_bytes: u64,
     pub include_patterns: Vec<String>,
     pub exclude_patterns: Vec<String>,
@@ -13,8 +22,11 @@ pub struct ScanConfig {
 
 impl ScanConfig {
     pub fn new(root: impl Into<PathBuf>) -> Self {
+        let root = root.into();
+        let canonical_root = canonicalize_or_fallback(&root);
         Self {
-            root: root.into(),
+            root,
+            canonical_root,
             max_file_size_bytes: 1_000_000,
             include_patterns: default_include_patterns(),
             exclude_patterns: default_exclude_patterns(),
@@ -47,6 +59,10 @@ impl ScanConfig {
     pub fn set_max_file_size_bytes(&mut self, max_file_size_bytes: u64) {
         self.max_file_size_bytes = max_file_size_bytes;
     }
+}
+
+fn canonicalize_or_fallback(path: &Path) -> PathBuf {
+    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn default_include_patterns() -> Vec<String> {

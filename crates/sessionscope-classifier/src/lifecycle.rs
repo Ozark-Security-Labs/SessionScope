@@ -501,7 +501,7 @@ fn classify_cookie_clear_attribute_mismatch(
         .into_iter()
         .filter_map(|id| evidence_by_id.get(id.0.as_str()))
         .filter_map(|evidence| evidence.excerpt.as_ref())
-        .map(|excerpt| excerpt.0.clone())
+        .map(|excerpt| excerpt.as_str().to_string())
         .collect::<Vec<_>>();
     let mut mismatches = Vec::new();
     let mut evidence_ids = client_cookie_clear_ids(path, evidence_by_id);
@@ -1268,7 +1268,9 @@ mod tests {
     ) -> Evidence {
         Evidence {
             detector_id: detector_id.to_string(),
-            excerpt: Some(sessionscope_model::SanitizedExcerpt(excerpt.to_string())),
+            excerpt: Some(sessionscope_model::SanitizedExcerpt::from_sanitized(
+                excerpt.to_string(),
+            )),
             ..evidence(id, stage, line, false)
         }
     }

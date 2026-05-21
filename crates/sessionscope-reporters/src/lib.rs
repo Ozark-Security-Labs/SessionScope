@@ -284,7 +284,9 @@ mod tests {
                 },
                 detector_id: "test.detector".to_string(),
                 confidence: Confidence::High,
-                excerpt: Some(SanitizedExcerpt(format!("Authorization: Bearer {SECRET}"))),
+                excerpt: Some(SanitizedExcerpt::from_sanitized(format!(
+                    "Authorization: Bearer {SECRET}"
+                ))),
                 dynamic: false,
                 framework_default: false,
             }],
