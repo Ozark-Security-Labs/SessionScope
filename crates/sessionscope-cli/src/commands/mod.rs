@@ -57,7 +57,7 @@ fn print_help() {
         "SessionScope\n\n",
         "Usage:\n",
         "  sessionscope init [--force]\n",
-        "  sessionscope scan [--path PATH] [--include PATTERN] [--exclude PATTERN] [--max-file-size BYTES] [--format FORMAT] [--output PATH] [--mode advisory|enforce] [--fail-severity high|medium|low|info] [--fail-category CATEGORY] [--include-finding-id ID] [--exclude-finding-id ID] [--baseline PATH]\n",
+        "  sessionscope scan [--path PATH] [--include PATTERN] [--exclude PATTERN] [--max-file-size BYTES] [--format FORMAT] [--output PATH|--output-dir DIR] [--mode advisory|enforce] [--fail-severity high|medium|low|info] [--fail-category CATEGORY] [--include-finding-id ID] [--exclude-finding-id ID] [--baseline PATH]\n",
         "  sessionscope evaluate REPORT.json [--mode advisory|enforce] [--fail-severity high|medium|low|info] [--fail-category CATEGORY] [--include-finding-id ID] [--exclude-finding-id ID] [--baseline PATH]\n",
         "  sessionscope cookies [scan options]\n",
         "  sessionscope claims [scan options]\n",

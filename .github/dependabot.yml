@@ -23,6 +23,7 @@ updates:
     labels:
       - dependencies
       - github-actions
+      - slsa
     # F-25: Watch the SLSA generic reusable workflow used in release.yml so
     # maintainers explicitly review version bumps to the one external workflow
     # we intentionally reference by semver tag (see RELEASING.md "SLSA reusable

@@ -8,6 +8,8 @@ node_modules/
 dist/
 build/
 target/
+.pi-lens/
+**/.pi-lens/
 .venv/
 __pycache__/
 *.pyc

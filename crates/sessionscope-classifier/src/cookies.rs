@@ -97,8 +97,8 @@ fn classify_http_only(
         {
             Some(finding(
                 "cookie_default_false_httponly",
-                FindingCategory::HighConfidenceMisconfiguration,
-                Severity::High,
+                FindingCategory::FrameworkDefaultAssumed,
+                Severity::Low,
                 artifact,
                 http_only.evidence_ids.clone(),
                 format!("Session-like cookie `{cookie_name}` defaults HttpOnly to false"),
@@ -106,7 +106,8 @@ fn classify_http_only(
                     .to_string(),
                 "Set HttpOnly explicitly on session cookies so client-side scripts cannot read them."
                     .to_string(),
-                "Is this cookie intended to be inaccessible to browser JavaScript?".to_string(),
+                "Which framework version and deployment settings determine HttpOnly here?"
+                    .to_string(),
             ))
         }
         CookieAttributeState::Dynamic => Some(finding(
@@ -383,16 +384,16 @@ fn classify_secure(
         {
             Some(finding(
                 "cookie_default_false_secure",
-                FindingCategory::HighConfidenceMisconfiguration,
-                Severity::High,
+                FindingCategory::FrameworkDefaultAssumed,
+                Severity::Low,
                 artifact,
                 secure.evidence_ids.clone(),
                 format!("Cookie `{cookie_name}` defaults Secure to false"),
                 "Framework default evidence indicates Secure is false for this cookie-setting call."
                     .to_string(),
-                "Set Secure for cookies that should only be sent over HTTPS.".to_string(),
-                "Is this cookie ever used in an externally reachable production environment?"
+                "Set Secure explicitly or document the framework version and active default."
                     .to_string(),
+                "Which framework version and deployment settings determine Secure here?".to_string(),
             ))
         }
         CookieAttributeState::Dynamic => Some(finding(
@@ -1004,7 +1005,7 @@ mod tests {
     }
 
     #[test]
-    fn framework_default_false_secure_is_high_confidence() {
+    fn framework_default_false_secure_is_framework_default_assumed() {
         let findings = classify_artifact(artifact(
             "session",
             attributes(
@@ -1017,15 +1018,15 @@ mod tests {
         ));
 
         assert!(findings.iter().any(|finding| {
-            finding.category == FindingCategory::HighConfidenceMisconfiguration
-                && finding.severity == Severity::High
+            finding.category == FindingCategory::FrameworkDefaultAssumed
+                && finding.severity == Severity::Low
                 && finding.title.contains("Secure")
                 && finding.title.contains("defaults")
         }));
     }
 
     #[test]
-    fn framework_default_false_httponly_is_high_confidence() {
+    fn framework_default_false_httponly_is_framework_default_assumed() {
         let findings = classify_artifact(artifact(
             "session",
             attributes(
@@ -1038,8 +1039,8 @@ mod tests {
         ));
 
         assert!(findings.iter().any(|finding| {
-            finding.category == FindingCategory::HighConfidenceMisconfiguration
-                && finding.severity == Severity::High
+            finding.category == FindingCategory::FrameworkDefaultAssumed
+                && finding.severity == Severity::Low
                 && finding.title.contains("HttpOnly")
                 && finding.title.contains("defaults")
         }));

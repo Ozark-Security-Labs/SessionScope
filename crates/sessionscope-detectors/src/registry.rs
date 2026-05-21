@@ -4,6 +4,7 @@ use crate::bearer::BearerTokenDetector;
 use crate::cookies::CookieSetDetector;
 use crate::jwt::JwtDetector;
 use crate::query_params::QueryParameterTokenDetector;
+use crate::reset_tokens::ResetTokenDetector;
 use crate::sessions::{RefreshTokenLifecycleDetector, SessionLifecycleDetector};
 use crate::{DetectionOutput, Detector, DetectorInput};
 
@@ -23,6 +24,7 @@ impl DetectorRegistry {
             .with_detector(Box::new(JwtDetector))
             .with_detector(Box::new(BearerTokenDetector))
             .with_detector(Box::new(QueryParameterTokenDetector))
+            .with_detector(Box::new(ResetTokenDetector))
             .with_detector(Box::new(SessionLifecycleDetector))
             .with_detector(Box::new(RefreshTokenLifecycleDetector))
     }
@@ -63,6 +65,9 @@ impl DetectorRegistry {
                 return RunOutcome::TimedOut;
             }
             let mut detector_output = detector.detect(input);
+            if started_at.elapsed() > budget {
+                return RunOutcome::TimedOut;
+            }
             output.artifacts.append(&mut detector_output.artifacts);
             output.evidence.append(&mut detector_output.evidence);
             output.diagnostics.append(&mut detector_output.diagnostics);

@@ -250,6 +250,26 @@ fn explain_malformed_report_does_not_echo_secret_like_report_contents() {
 }
 
 #[test]
+fn explain_schema_error_does_not_echo_secret_like_report_values() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("scan.json");
+    fs::write(&report_path, wrong_schema_scan_report_json().to_string())
+        .expect("wrong-schema scan report should be written");
+
+    let output = run_sessionscope(&[
+        "explain",
+        "finding_existing",
+        "--report",
+        report_path.to_str().expect("report path should be UTF-8"),
+    ]);
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("failed to parse scan report"));
+    assert!(!stderr.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+}
+
+#[test]
 fn diff_json_classifies_incremental_finding_changes() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     let baseline_report_path = temp.path().join("baseline-scan.json");
@@ -464,6 +484,63 @@ fn baseline_parse_error_does_not_echo_secret_like_report_contents() {
     assert!(!output.status.success());
     let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
     assert!(stderr.contains("failed to parse scan report"));
+    assert!(!stderr.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+}
+
+#[test]
+fn baseline_schema_error_does_not_echo_secret_like_report_values() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("scan.json");
+    fs::write(&report_path, wrong_schema_scan_report_json().to_string())
+        .expect("wrong-schema scan report should be written");
+
+    let output = run_sessionscope(&[
+        "baseline",
+        "create",
+        "--from",
+        report_path.to_str().expect("report path should be UTF-8"),
+    ]);
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("failed to parse scan report"));
+    assert!(!stderr.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+}
+
+#[test]
+fn diff_schema_error_does_not_echo_secret_like_baseline_values() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let baseline_path = temp.path().join("baseline.json");
+    let current_report_path = temp.path().join("current-scan.json");
+    fs::write(
+        &baseline_path,
+        serde_json::json!({
+            "schema_version": "0.1.0",
+            "report_schema_version": "0.5.0",
+            "created_by": "sessionscope",
+            "findings": "PLACEHOLDER_SECRET_DO_NOT_USE"
+        })
+        .to_string(),
+    )
+    .expect("wrong-schema baseline should be written");
+    fs::write(&current_report_path, scan_report_json(&[]).to_string())
+        .expect("current report should be written");
+
+    let output = run_sessionscope(&[
+        "diff",
+        "--baseline",
+        baseline_path
+            .to_str()
+            .expect("baseline path should be UTF-8"),
+        "--current",
+        current_report_path
+            .to_str()
+            .expect("current path should be UTF-8"),
+    ]);
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("failed to parse baseline"));
     assert!(!stderr.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
 }
 
@@ -739,7 +816,8 @@ fn scan_enforce_default_blocks_high_findings_after_output() {
 #[test]
 fn scan_enforce_respects_severity_category_id_and_baseline_policy() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
-    let report_path = temp.path().join("sessionscope.json");
+    let report_temp = tempfile::tempdir().expect("report tempdir should be created");
+    let report_path = report_temp.path().join("sessionscope.json");
     fs::write(
         temp.path().join("app.ts"),
         r#"response.cookie("session", "PLACEHOLDER_RESET_TOKEN", { signed: true });"#,
@@ -1971,6 +2049,166 @@ done
 
 #[cfg(not(windows))]
 #[test]
+fn github_action_script_fails_closed_on_bad_release_checksum() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let release_dir = temp.path().join("release");
+    fs::create_dir_all(&release_dir).expect("release dir should be created");
+    fs::write(
+        release_dir.join("sessionscope-0.1.0-x86_64-unknown-linux-gnu.tar.gz"),
+        b"not a real archive",
+    )
+    .expect("archive should be written");
+    fs::write(
+        release_dir.join("sessionscope-0.1.0-x86_64-unknown-linux-gnu.tar.gz.sha256"),
+        "0000000000000000000000000000000000000000000000000000000000000000  sessionscope-0.1.0-x86_64-unknown-linux-gnu.tar.gz\n",
+    )
+    .expect("checksum sidecar should be written");
+
+    let fake_bin_dir = temp.path().join("bin");
+    fs::create_dir_all(&fake_bin_dir).expect("fake bin dir should be created");
+    let fake_gh = fake_bin_dir.join("gh");
+    fs::write(
+        &fake_gh,
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+destination=""
+patterns=()
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --dir)
+      destination="$2"
+      shift 2
+      ;;
+    -p)
+      patterns+=("$2")
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+mkdir -p "$destination"
+for pattern in "${patterns[@]}"; do
+  cp "$SESSIONSCOPE_RELEASE_FIXTURE_DIR/$pattern" "$destination/"
+done
+"#,
+    )
+    .expect("fake gh should be written");
+    let mut gh_permissions = fs::metadata(&fake_gh)
+        .expect("fake gh metadata")
+        .permissions();
+    gh_permissions.set_mode(0o755);
+    fs::set_permissions(&fake_gh, gh_permissions).expect("fake gh executable");
+
+    let reports_dir = temp.path().join("reports");
+    let script = repo_root().join("scripts").join("github-action.sh");
+    let path = format!(
+        "{}:{}",
+        fake_bin_dir.display(),
+        std::env::var("PATH").expect("PATH should be set")
+    );
+    let output = Command::new("bash")
+        .arg(script)
+        .env_remove("SESSIONSCOPE_BIN")
+        .env_remove("GITHUB_OUTPUT")
+        .env_remove("GITHUB_STEP_SUMMARY")
+        .env("PATH", path)
+        .env("GITHUB_ACTION_PATH", repo_root())
+        .env("GITHUB_ACTION_REF", "v0.1.0")
+        .env(
+            "GITHUB_ACTION_REPOSITORY",
+            "Ozark-Security-Labs/SessionScope",
+        )
+        .env("RUNNER_OS", "Linux")
+        .env("RUNNER_ARCH", "X64")
+        .env("RUNNER_TEMP", temp.path())
+        .env("SESSIONSCOPE_RELEASE_FIXTURE_DIR", &release_dir)
+        .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
+        .env("INPUT_MODE", "advisory")
+        .env("INPUT_PATH", ".")
+        .env("INPUT_OUTPUT", "json")
+        .env("INPUT_FAIL_ON_FINDINGS", "false")
+        .output()
+        .expect("action script should run");
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(stderr.contains("checksum verification failed"));
+    assert!(!reports_dir.join("sessionscope.json").exists());
+}
+
+#[cfg(not(windows))]
+#[test]
+fn github_action_script_fails_closed_when_release_artifact_is_missing() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let release_dir = temp.path().join("release");
+    fs::create_dir_all(&release_dir).expect("release dir should be created");
+
+    let fake_bin_dir = temp.path().join("bin");
+    fs::create_dir_all(&fake_bin_dir).expect("fake bin dir should be created");
+    let fake_gh = fake_bin_dir.join("gh");
+    fs::write(
+        &fake_gh,
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+exit 1
+"#,
+    )
+    .expect("fake gh should be written");
+    let mut gh_permissions = fs::metadata(&fake_gh)
+        .expect("fake gh metadata")
+        .permissions();
+    gh_permissions.set_mode(0o755);
+    fs::set_permissions(&fake_gh, gh_permissions).expect("fake gh executable");
+
+    let reports_dir = temp.path().join("reports");
+    let script = repo_root().join("scripts").join("github-action.sh");
+    let path = format!(
+        "{}:{}",
+        fake_bin_dir.display(),
+        std::env::var("PATH").expect("PATH should be set")
+    );
+    let output = Command::new("bash")
+        .arg(script)
+        .env_remove("SESSIONSCOPE_BIN")
+        .env_remove("GITHUB_OUTPUT")
+        .env_remove("GITHUB_STEP_SUMMARY")
+        .env("PATH", path)
+        .env("GITHUB_ACTION_PATH", repo_root())
+        .env("GITHUB_ACTION_REF", "v0.1.0")
+        .env(
+            "GITHUB_ACTION_REPOSITORY",
+            "Ozark-Security-Labs/SessionScope",
+        )
+        .env("RUNNER_OS", "Linux")
+        .env("RUNNER_ARCH", "X64")
+        .env("RUNNER_TEMP", temp.path())
+        .env("SESSIONSCOPE_RELEASE_FIXTURE_DIR", &release_dir)
+        .env("SESSIONSCOPE_REPORTS_DIR", &reports_dir)
+        .env("INPUT_MODE", "advisory")
+        .env("INPUT_PATH", ".")
+        .env("INPUT_OUTPUT", "json")
+        .env("INPUT_FAIL_ON_FINDINGS", "false")
+        .output()
+        .expect("action script should run");
+
+    assert!(!output.status.success());
+    let stderr = str::from_utf8(&output.stderr).expect("stderr should be UTF-8");
+    assert!(
+        stderr.contains(
+            "release binary sessionscope-0.1.0-x86_64-unknown-linux-gnu.tar.gz unavailable"
+        )
+    );
+    assert!(!reports_dir.join("sessionscope.json").exists());
+}
+
+#[cfg(not(windows))]
+#[test]
 fn github_action_script_rejects_absolute_input_path() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     let reports_dir = temp.path().join("reports");
@@ -2542,6 +2780,23 @@ fn scan_report_json(findings: &[serde_json::Value]) -> serde_json::Value {
         "evidence": evidence,
         "lifecycle_paths": [],
         "findings": clean_findings
+    })
+}
+
+fn wrong_schema_scan_report_json() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": "0.5.0",
+        "summary": {
+            "files_discovered": 1,
+            "files_scanned": 1,
+            "files_skipped": 0,
+            "diagnostics": []
+        },
+        "files": "PLACEHOLDER_SECRET_DO_NOT_USE",
+        "artifacts": [],
+        "evidence": [],
+        "lifecycle_paths": [],
+        "findings": []
     })
 }
 

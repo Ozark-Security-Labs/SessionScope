@@ -131,7 +131,7 @@ fn result(finding: &Finding, evidence_by_id: &BTreeMap<&str, &Evidence>) -> Valu
 
     json!({
         "ruleId": format_category(finding.category),
-        "level": sarif_level(finding.severity),
+        "level": sarif_level(finding),
         "message": {
             "text": message
         },
@@ -212,11 +212,14 @@ fn result_message(finding: &Finding) -> String {
     parts.join("\n\n")
 }
 
-fn sarif_level(severity: Severity) -> &'static str {
-    match severity {
-        Severity::High => "error",
-        Severity::Medium => "warning",
-        Severity::Low | Severity::Info => "note",
+fn sarif_level(finding: &Finding) -> &'static str {
+    match finding.category {
+        FindingCategory::DynamicReviewRequired | FindingCategory::FrameworkDefaultAssumed => "note",
+        _ => match finding.severity {
+            Severity::High => "error",
+            Severity::Medium => "warning",
+            Severity::Low | Severity::Info => "note",
+        },
     }
 }
 
@@ -463,7 +466,7 @@ mod tests {
             vec![finding(
                 "finding_dynamic",
                 FindingCategory::DynamicReviewRequired,
-                Severity::Info,
+                Severity::Medium,
                 vec!["evidence_dynamic_cookie"],
             )],
             vec![evidence("evidence_dynamic_cookie", "src/app.ts", None)],

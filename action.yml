@@ -8,14 +8,13 @@ inputs:
     default: advisory
   path:
     description: |
-      Repository-relative path to scan. Must be relative to
-      $GITHUB_WORKSPACE and must not contain '..' segments. The action
-      resolves the value with `realpath -m` and refuses to run if the
-      resolved path falls outside the workspace.
+      Repository-relative path to scan. Must not be absolute and must not
+      contain '..' segments. The action rejects traversal syntactically before
+      invoking SessionScope; the scanner also refuses symlinked source entries.
     required: false
     default: .
   output:
-    description: Comma-separated report formats to produce: markdown, json, sarif.
+    description: "Comma-separated report formats to produce: markdown, json, sarif."
     required: false
     default: markdown,sarif
   fail-on-findings:
@@ -23,7 +22,7 @@ inputs:
     required: false
     default: "false"
   fail-severity:
-    description: Minimum severity that fails enforce mode: high, medium, low, or info.
+    description: "Minimum severity that fails enforce mode: high, medium, low, or info."
     required: false
     default: high
   fail-category:
