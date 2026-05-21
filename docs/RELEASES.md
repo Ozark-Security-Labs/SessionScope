@@ -22,6 +22,40 @@ Compatibility expectations are:
 - **Patch** releases should contain bug fixes, dependency updates,
   documentation corrections, and release automation fixes.
 
+## Version policy
+
+SessionScope ships three independently versioned surfaces. Each one is its own
+SemVer contract; downstream consumers should pin to whichever they depend on.
+The canonical constants live in
+[`crates/sessionscope-model/src/schema.rs`](../crates/sessionscope-model/src/schema.rs)
+and [`crates/sessionscope-model/src/baseline.rs`](../crates/sessionscope-model/src/baseline.rs).
+A parallel summary lives in [`SCHEMA.md` Version policy](SCHEMA.md#version-policy).
+
+| Surface | Constant | Current | Governs |
+| ------- | -------- | ------- | ------- |
+| CLI release | `sessionscope` crate version (`Cargo.toml`) | `0.1.0` | CLI flags, command grammar, output paths, exit codes, `sessionscope.toml` keys, GitHub Action inputs |
+| Scan report | `SCHEMA_VERSION` (`schema.rs`) | `0.5.0` | `ScanReport` JSON inventory and findings shape |
+| Baseline | `BASELINE_SCHEMA_VERSION` (`baseline.rs`) | `0.1.0` | Baseline JSON wire format |
+| Diff | `DIFF_SCHEMA_VERSION` (`baseline.rs`) | `0.1.0` | Diff JSON wire format |
+
+Each version moves under its own SemVer rules:
+
+- A CLI release tag (`vX.Y.Z`) tracks the workspace package version and does
+  not imply any change to `SCHEMA_VERSION`, the baseline schema, or the diff
+  schema.
+- Bumping `SCHEMA_VERSION` is independent of the CLI version. Breaking changes
+  to the scan-report JSON shape require a `SCHEMA_VERSION` bump and a release
+  note even if no CLI grammar changed.
+- The baseline and diff schemas evolve independently from the report schema.
+  `baseline.report_schema_version` records the report-schema version a
+  baseline was captured against, so producers and consumers can correlate the
+  two without forcing them onto the same SemVer line.
+
+Release notes must call out which contract changed whenever a release touches
+the JSON inventory, baseline wire format, diff wire format, or SARIF rule IDs.
+SARIF rule-ID stability is documented in
+[`SARIF_RULES.md`](SARIF_RULES.md).
+
 ## Compatibility expectations
 
 ### CLI

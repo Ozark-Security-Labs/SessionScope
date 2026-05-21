@@ -27,6 +27,35 @@ Serialized reports include:
 Schema changes should be intentional because JSON output, Markdown rendering,
 SARIF, baselines, diffs, and explain flows depend on stable field meanings.
 
+## Version policy
+
+SessionScope publishes three independent SemVer contracts. Consumers should
+pin whichever they actually depend on; they evolve on different cadences and
+break independently. The canonical constants live in
+[`crates/sessionscope-model/src/schema.rs`](../crates/sessionscope-model/src/schema.rs)
+and [`crates/sessionscope-model/src/baseline.rs`](../crates/sessionscope-model/src/baseline.rs).
+
+| Surface | Constant | Current | Governs |
+| ------- | -------- | ------- | ------- |
+| CLI release | `sessionscope` crate version (`Cargo.toml`) | `0.1.0` | CLI flags, command grammar, output paths, exit codes, `sessionscope.toml` keys, GitHub Action inputs |
+| Scan report | `SCHEMA_VERSION` (`schema.rs`) | `0.5.0` | `ScanReport` JSON inventory and findings shape; SARIF and Markdown render this same model |
+| Baseline | `BASELINE_SCHEMA_VERSION` (`baseline.rs`) | `0.1.0` | Baseline JSON wire format (`sessionscope baseline create` output) |
+| Diff | `DIFF_SCHEMA_VERSION` (`baseline.rs`) | `0.1.0` | Diff JSON wire format (`sessionscope diff` output) |
+
+Each contract evolves under its own SemVer rules:
+
+- A breaking change to the CLI grammar bumps the CLI version regardless of
+  whether the JSON schema changed.
+- A breaking change to the JSON inventory bumps `SCHEMA_VERSION` regardless
+  of whether the CLI grammar changed.
+- Baseline and diff schemas bump independently from the report schema even
+  though they reference fields from it; `baseline.report_schema_version`
+  records the report schema a baseline was captured against.
+
+For the full release-time compatibility policy (changelog discipline,
+release-note requirements, GitHub Action stability), see
+[`RELEASES.md`](RELEASES.md).
+
 ## Stable IDs
 
 Artifacts, evidence, and findings use transparent string IDs:
@@ -369,7 +398,9 @@ escaping or formatting defensively.
 
 SARIF output is a rendered presentation format over the sanitized `ScanReport`.
 It does not define additional model fields or change the persisted inventory
-schema.
+schema. SARIF `ruleId` values map one-to-one onto `FindingCategory`; the
+canonical catalog and the `0.x` stability commitment for each ID live in
+[`SARIF_RULES.md`](SARIF_RULES.md).
 
 Reports must not rely on redaction to fix unsafe identifiers. Stable artifact,
 evidence, and finding IDs should always be derived from non-secret facts rather
