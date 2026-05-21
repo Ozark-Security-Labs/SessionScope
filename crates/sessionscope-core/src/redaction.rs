@@ -90,10 +90,42 @@ static LONG_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b[A-Za-z0-9_+/=-]{32,}\b").expect("long token regex should compile")
 });
 
+/// Domain hint that detectors pass when asking the redaction layer to sanitize
+/// an excerpt. When the context is anything other than `Generic` the redactor
+/// also strips any string literal longer than 16 characters, regardless of the
+/// surrounding variable name. This is the F-09 mitigation: a Cookies or Jwt
+/// detector flagging `let magic_token = "abcDEF12345678901234"` should not
+/// leak the literal just because `magic_token` is not in the sensitive-name
+/// regexes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RedactionContext {
+    Cookies,
+    Jwt,
+    Bearer,
+    ApiKey,
+    Generic,
+}
+
+impl RedactionContext {
+    fn requires_literal_stripping(self) -> bool {
+        !matches!(self, Self::Generic)
+    }
+}
+
+/// Minimum length of a string literal that the literal-stripping pass treats
+/// as suspect. Shorter literals are left intact so excerpts remain readable
+/// (e.g. short attribute keys, framework hint strings).
+const LITERAL_REDACTION_MIN_LEN: usize = 16;
+
+static LONG_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'"#).expect("long literal regex should compile")
+});
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExcerptOptions {
     pub max_chars: usize,
     pub context_lines: usize,
+    pub context: RedactionContext,
 }
 
 impl Default for ExcerptOptions {
@@ -101,12 +133,25 @@ impl Default for ExcerptOptions {
         Self {
             max_chars: DEFAULT_MAX_EXCERPT_CHARS,
             context_lines: DEFAULT_CONTEXT_LINES,
+            context: RedactionContext::Generic,
         }
     }
 }
 
 pub fn safe_excerpt(source: &str, max_chars: usize) -> SanitizedExcerpt {
-    SanitizedExcerpt::from_sanitized(truncate_chars(&redact_sensitive_values(source), max_chars))
+    safe_excerpt_with_context(source, max_chars, RedactionContext::Generic)
+}
+
+pub fn safe_excerpt_with_context(
+    source: &str,
+    max_chars: usize,
+    context: RedactionContext,
+) -> SanitizedExcerpt {
+    let mut redacted = redact_sensitive_values(source);
+    if context.requires_literal_stripping() {
+        redacted = strip_long_string_literals(&redacted);
+    }
+    SanitizedExcerpt::from_sanitized(truncate_chars(&redacted, max_chars))
 }
 
 /// Run the standard redaction + default-truncation pipeline and wrap the
@@ -134,7 +179,26 @@ pub fn safe_excerpt_at_location_with_options(
         source.to_string()
     };
 
-    safe_excerpt(&excerpt, options.max_chars)
+    safe_excerpt_with_context(&excerpt, options.max_chars, options.context)
+}
+
+/// Replace any string literal longer than `LITERAL_REDACTION_MIN_LEN`
+/// characters of payload with `[REDACTED]`. Quoting is preserved so the
+/// resulting excerpt remains visually parseable.
+fn strip_long_string_literals(input: &str) -> String {
+    LONG_LITERAL_RE
+        .replace_all(input, |captures: &regex::Captures<'_>| {
+            let value = captures.get(0).expect("full capture").as_str();
+            // The value still has surrounding quotes; subtract them when
+            // measuring the payload length so we don't redact short labels.
+            if value.len() >= LITERAL_REDACTION_MIN_LEN + 2 {
+                let quote = &value[..1];
+                format!("{quote}{REDACTION}{quote}")
+            } else {
+                value.to_string()
+            }
+        })
+        .to_string()
 }
 
 pub fn redact_sensitive_values(input: &str) -> String {
@@ -477,7 +541,8 @@ mod tests {
     };
 
     use super::{
-        ExcerptOptions, redact_sensitive_values, safe_excerpt_at_location_with_options,
+        ExcerptOptions, RedactionContext, redact_sensitive_values,
+        safe_excerpt_at_location_with_options, safe_excerpt_with_context,
         sanitize_detection_output,
     };
 
@@ -618,6 +683,78 @@ mod tests {
         assert!(!output.contains("PLACEHOLDER_API_KEY_DO_NOT_USE"));
     }
 
+    // F-09: literals longer than the threshold must be redacted whenever a
+    // detector passes a non-Generic domain hint, even if the surrounding
+    // variable name does not match the sensitive-name regexes.
+    #[test]
+    fn context_aware_excerpt_redacts_neutrally_named_literals_in_sensitive_domains() {
+        let source = r#"const magic_token = "abcDEF12345678901234";"#;
+
+        for context in [
+            RedactionContext::Cookies,
+            RedactionContext::Jwt,
+            RedactionContext::Bearer,
+            RedactionContext::ApiKey,
+        ] {
+            let excerpt = safe_excerpt_with_context(source, 200, context);
+            assert!(
+                excerpt.0.contains("[REDACTED]"),
+                "{context:?} excerpt did not redact: {}",
+                excerpt.0
+            );
+            assert!(
+                !excerpt.0.contains("abcDEF12345678901234"),
+                "{context:?} excerpt leaked literal: {}",
+                excerpt.0
+            );
+        }
+    }
+
+    #[test]
+    fn generic_context_preserves_neutrally_named_short_literals() {
+        // The Generic context must not strip literals that the sensitive-name
+        // regexes did not match — this keeps excerpts useful for unrelated
+        // detectors that are not bound to an auth domain.
+        let source = r#"const magic_token = "abcDEF12345678901234";"#;
+        let excerpt = safe_excerpt_with_context(source, 200, RedactionContext::Generic);
+
+        assert!(
+            excerpt.0.contains("abcDEF12345678901234"),
+            "Generic context unexpectedly redacted literal: {}",
+            excerpt.0
+        );
+    }
+
+    #[test]
+    fn context_aware_excerpt_loads_fixture_files() {
+        // Round-trip through the fixtures/redaction_secrets/ files to lock in
+        // the contract: any detector pulling these files in must see the
+        // literal redacted.
+        let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let fixtures = manifest_dir
+            .join("..")
+            .join("..")
+            .join("fixtures")
+            .join("redaction_secrets");
+
+        for (file, context) in [
+            ("cookies.ts", RedactionContext::Cookies),
+            ("jwt.ts", RedactionContext::Jwt),
+            ("bearer.ts", RedactionContext::Bearer),
+            ("apikey.ts", RedactionContext::ApiKey),
+        ] {
+            let source = std::fs::read_to_string(fixtures.join(file))
+                .expect("fixture file should be readable");
+            let excerpt = safe_excerpt_with_context(&source, 4_000, context);
+            assert!(
+                !excerpt.0.contains("abcDEF12345678901234"),
+                "{file} leaked literal under {context:?}: {}",
+                excerpt.0
+            );
+            assert!(excerpt.0.contains("[REDACTED]"));
+        }
+    }
+
     #[test]
     fn safe_excerpt_uses_line_context_and_max_length() {
         let source = concat!(
@@ -637,6 +774,7 @@ mod tests {
             ExcerptOptions {
                 max_chars: 80,
                 context_lines: 1,
+                context: RedactionContext::Generic,
             },
         );
 
