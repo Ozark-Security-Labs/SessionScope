@@ -179,9 +179,13 @@ fn baseline_finding(
 }
 
 fn semantic_fingerprint(finding: &Finding) -> String {
+    // Use the stable snake_case wire names instead of `Debug` (F-07).
+    // `Debug` is intentionally not part of the public contract and can
+    // change if a variant is renamed, which would silently invalidate
+    // every persisted baseline fingerprint.
     stable_fingerprint(&[
-        format!("{:?}", finding.category),
-        format!("{:?}", finding.severity),
+        finding.category.stable_name().to_string(),
+        finding.severity.stable_name().to_string(),
         finding.title.clone(),
         finding.description.clone(),
         finding.suggested_fix.clone().unwrap_or_default(),
@@ -196,16 +200,17 @@ fn evidence_fingerprint(
     let mut parts = Vec::new();
     for evidence_id in evidence_ids {
         if let Some(evidence) = evidence_by_id.get(evidence_id.0.as_str()) {
-            parts.push(format!("{:?}", evidence.lifecycle_stage));
+            // F-07: use stable snake_case wire names instead of `Debug`.
+            parts.push(evidence.lifecycle_stage.stable_name().to_string());
             parts.push(evidence.detector_id.clone());
-            parts.push(format!("{:?}", evidence.confidence));
+            parts.push(evidence.confidence.stable_name().to_string());
             parts.push(evidence.dynamic.to_string());
             parts.push(evidence.framework_default.to_string());
             parts.push(
                 evidence
                     .excerpt
                     .as_ref()
-                    .map(|excerpt| excerpt.0.clone())
+                    .map(|excerpt| excerpt.as_str().to_string())
                     .unwrap_or_default(),
             );
         } else {
@@ -226,7 +231,10 @@ fn stable_fingerprint(parts: &[String]) -> String {
             hash ^= u64::from(byte);
             hash = hash.wrapping_mul(FNV_PRIME);
         }
-        hash ^= 0;
+        // Non-zero separator marker; `^= 0` would be a no-op so distinct
+        // part boundaries must produce distinct hashes. Mirrors
+        // `sessionscope_model::stable_hash`.
+        hash ^= 0xFF;
         hash = hash.wrapping_mul(FNV_PRIME);
     }
 
@@ -299,8 +307,55 @@ mod tests {
         SCHEMA_VERSION, SanitizedExcerpt, ScanReport, ScanSummary, Severity, SourceLocation,
     };
 
-    use super::{create_baseline, diff_baseline};
+    use super::{create_baseline, diff_baseline, stable_fingerprint};
     use sessionscope_model::DiffChangeKind;
+
+    #[test]
+    fn baseline_finding_fingerprint_is_pinned() {
+        // Regression for F-05 + F-07: pin the fingerprint of a known
+        // finding to detect accidental changes to the hash separator
+        // (F-05) or to the wire names used in the fingerprint inputs
+        // (F-07). Any unexplained drift here is a baseline-breaking
+        // change and must bump `BASELINE_SCHEMA_VERSION`.
+        let baseline = create_baseline(
+            &report(vec![Finding {
+                id: FindingId("finding_pinned".to_string()),
+                category: FindingCategory::LifecycleGap,
+                severity: Severity::Medium,
+                artifact_ids: Vec::new(),
+                evidence_ids: vec![EvidenceId("evidence_pinned".to_string())],
+                title: "pinned title".to_string(),
+                description: "pinned description".to_string(),
+                suggested_fix: None,
+                reviewer_question: None,
+            }]),
+            "sessionscope",
+        );
+        let finding = &baseline.findings[0];
+        let actual = format!(
+            "{}|{}",
+            finding.semantic_fingerprint, finding.evidence_fingerprint
+        );
+        // If this assertion fails on purpose (e.g. you intentionally
+        // changed fingerprint inputs), update the expected value below
+        // and bump `BASELINE_SCHEMA_VERSION` in
+        // `crates/sessionscope-model/src/baseline.rs`.
+        assert_eq!(
+            actual, "fingerprint_7ed7872573c47bc7|fingerprint_cfe369bc21d9da49",
+            "baseline fingerprints drifted; update the pin and bump BASELINE_SCHEMA_VERSION"
+        );
+    }
+
+    #[test]
+    fn stable_fingerprint_distinguishes_part_boundaries() {
+        // Regression for F-05: the inter-part separator byte must be
+        // non-zero so concatenated string parts cannot collide. Prior
+        // to the fix, `hash ^= 0` was a no-op and `("ab", "c")` hashed
+        // identically to `("a", "bc")`.
+        let left = stable_fingerprint(&["ab".to_string(), "c".to_string()]);
+        let right = stable_fingerprint(&["a".to_string(), "bc".to_string()]);
+        assert_ne!(left, right);
+    }
 
     #[test]
     fn diff_classifies_unchanged_new_resolved_changed_and_moved_findings() {
@@ -397,7 +452,10 @@ mod tests {
                     },
                     detector_id: "test.detector".to_string(),
                     confidence: Confidence::High,
-                    excerpt: Some(SanitizedExcerpt(format!("evidence for {}", finding.title))),
+                    excerpt: Some(SanitizedExcerpt::from_sanitized(format!(
+                        "evidence for {}",
+                        finding.title
+                    ))),
                     dynamic: false,
                     framework_default: false,
                 })

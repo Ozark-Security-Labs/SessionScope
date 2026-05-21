@@ -29,6 +29,22 @@ impl LifecycleStage {
         Self::Expire,
         Self::Introspect,
     ];
+
+    /// Return the stable snake_case wire name matching the serde
+    /// representation. See `FindingCategory::stable_name` for the
+    /// motivation (F-07).
+    pub fn stable_name(self) -> &'static str {
+        match self {
+            LifecycleStage::Issue => "issue",
+            LifecycleStage::Store => "store",
+            LifecycleStage::Transmit => "transmit",
+            LifecycleStage::Validate => "validate",
+            LifecycleStage::Refresh => "refresh",
+            LifecycleStage::Revoke => "revoke",
+            LifecycleStage::Expire => "expire",
+            LifecycleStage::Introspect => "introspect",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

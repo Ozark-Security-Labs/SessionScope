@@ -163,7 +163,7 @@ fn detect_config(input: &DetectorInput<'_>) -> DetectionOutput {
             confidence: Confidence::High,
             dynamic: false,
             boundary_value: None,
-            excerpt: SanitizedExcerpt(sanitize_excerpt(line)),
+            excerpt: SanitizedExcerpt::from_sanitized(sanitize_excerpt(line)),
         });
         collect_config_boundary_signals(
             line,
@@ -685,7 +685,7 @@ fn signal(
         confidence,
         dynamic,
         boundary_value: None,
-        excerpt: SanitizedExcerpt(sanitize_excerpt(&node_text(node, source))),
+        excerpt: SanitizedExcerpt::from_sanitized(sanitize_excerpt(&node_text(node, source))),
     }
 }
 
@@ -756,7 +756,7 @@ fn collect_config_boundary_signals(
             confidence: Confidence::High,
             dynamic: false,
             boundary_value: value.map(|value| normalize_boundary_value(&value)),
-            excerpt: SanitizedExcerpt(sanitize_excerpt(line)),
+            excerpt: SanitizedExcerpt::from_sanitized(sanitize_excerpt(line)),
         });
     }
 }
@@ -1022,7 +1022,7 @@ fn depth_limit_evidence(input: &DetectorInput<'_>) -> Evidence {
         },
         detector_id: "detector.depth_limit_skipped".to_string(),
         confidence: Confidence::Low,
-        excerpt: Some(SanitizedExcerpt(
+        excerpt: Some(SanitizedExcerpt::from_sanitized(
             "tree-sitter traversal depth limit reached".to_string(),
         )),
         dynamic: true,
@@ -2055,7 +2055,7 @@ staging_service_token_env: STAGING_SERVICE_TOKEN
             .evidence
             .iter()
             .filter_map(|evidence| evidence.excerpt.as_ref())
-            .map(|excerpt| excerpt.0.as_str())
+            .map(|excerpt| excerpt.as_str())
             .chain(
                 output
                     .artifacts

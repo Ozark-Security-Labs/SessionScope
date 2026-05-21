@@ -1975,7 +1975,9 @@ fn field_set_from_object(node: Node<'_>, source: &str) -> FieldSet {
                 confidence: Confidence::High,
                 line: node_line_column(node).0,
                 column: node_line_column(node).1,
-                excerpt: "JWT expiry enforcement is disabled with ignoreExpiration: true".into(),
+                excerpt: jwt_excerpt(
+                    "JWT expiry enforcement is disabled with ignoreExpiration: true",
+                ),
             },
         );
     }
@@ -1990,7 +1992,7 @@ fn field_set_from_object(node: Node<'_>, source: &str) -> FieldSet {
                 confidence: Confidence::High,
                 line: node_line_column(node).0,
                 column: node_line_column(node).1,
-                excerpt: "PyJWT expiry enforcement is disabled with verify_exp: false".into(),
+                excerpt: jwt_excerpt("PyJWT expiry enforcement is disabled with verify_exp: false"),
             },
         );
     } else if python_options_require_exp(node, source) {
@@ -2002,7 +2004,7 @@ fn field_set_from_object(node: Node<'_>, source: &str) -> FieldSet {
                 confidence: Confidence::High,
                 line: node_line_column(node).0,
                 column: node_line_column(node).1,
-                excerpt: "PyJWT options require exp".into(),
+                excerpt: jwt_excerpt("PyJWT options require exp"),
             },
         );
     }
@@ -2017,7 +2019,7 @@ fn field_set_from_object(node: Node<'_>, source: &str) -> FieldSet {
                 confidence: Confidence::High,
                 line: node_line_column(node).0,
                 column: node_line_column(node).1,
-                excerpt: "verify_signature is false".into(),
+                excerpt: jwt_excerpt("verify_signature is false"),
             },
         );
         fields.insert(
@@ -2028,7 +2030,7 @@ fn field_set_from_object(node: Node<'_>, source: &str) -> FieldSet {
                 confidence: Confidence::High,
                 line: node_line_column(node).0,
                 column: node_line_column(node).1,
-                excerpt: "PyJWT decode disables signature verification".into(),
+                excerpt: jwt_excerpt("PyJWT decode disables signature verification"),
             },
         );
     }
@@ -2121,7 +2123,7 @@ fn add_identity_claim_fields_from_text(
                     confidence: Confidence::High,
                     line,
                     column,
-                    excerpt: format!("{} is present", field.display_name()).into(),
+                    excerpt: jwt_excerpt(format!("{} is present", field.display_name())),
                 });
                 break;
             }
@@ -2170,7 +2172,7 @@ fn add_present_identity_node(
             confidence: Confidence::High,
             line,
             column,
-            excerpt: format!("{} is present", field.display_name()).into(),
+            excerpt: jwt_excerpt(format!("{} is present", field.display_name())),
         },
     );
 }
@@ -2200,7 +2202,7 @@ fn add_present_synthetic(
     field: JwtField,
     node: Node<'_>,
     source: &str,
-    excerpt: impl Into<SanitizedExcerpt>,
+    excerpt: impl Into<String>,
 ) {
     let (line, column) = node_line_column(node);
     fields.insert(
@@ -2211,9 +2213,21 @@ fn add_present_synthetic(
             confidence: Confidence::High,
             line,
             column,
-            excerpt: excerpt.into(),
+            excerpt: jwt_excerpt(excerpt),
         },
     );
+}
+
+/// Wrap a trusted descriptive string in `SanitizedExcerpt`.
+///
+/// Detector excerpts that describe the analysis itself (e.g.,
+/// "JWT key reference is present") are author-controlled English strings
+/// that contain no source-derived secrets. They still flow through
+/// `redact_excerpt` so that any inadvertently-templated source values
+/// are masked, and are wrapped via the gated `from_sanitized`
+/// constructor so the F-06 boundary is preserved.
+fn jwt_excerpt(text: impl Into<String>) -> SanitizedExcerpt {
+    SanitizedExcerpt::from_sanitized(redact_excerpt(&text.into()))
 }
 
 fn add_key_reference(
@@ -2273,7 +2287,7 @@ fn add_missing(
             confidence: Confidence::High,
             line,
             column,
-            excerpt: format!("{} is omitted", field.display_name()).into(),
+            excerpt: jwt_excerpt(format!("{} is omitted", field.display_name())),
         },
     );
 }
@@ -2284,7 +2298,7 @@ fn add_present_value(
     value: &str,
     line: usize,
     column: usize,
-    excerpt: impl Into<SanitizedExcerpt>,
+    excerpt: impl Into<String>,
 ) {
     fields.insert(
         field,
@@ -2294,7 +2308,7 @@ fn add_present_value(
             confidence: Confidence::High,
             line,
             column,
-            excerpt: excerpt.into(),
+            excerpt: jwt_excerpt(excerpt),
         },
     );
 }
@@ -2305,7 +2319,7 @@ fn add_missing_value(
     value: &str,
     line: usize,
     column: usize,
-    excerpt: impl Into<SanitizedExcerpt>,
+    excerpt: impl Into<String>,
 ) {
     fields.insert(
         field,
@@ -2315,7 +2329,7 @@ fn add_missing_value(
             confidence: Confidence::High,
             line,
             column,
-            excerpt: excerpt.into(),
+            excerpt: jwt_excerpt(excerpt),
         },
     );
 }
@@ -2326,7 +2340,7 @@ fn add_framework_default(
     value: &str,
     line: usize,
     column: usize,
-    excerpt: impl Into<SanitizedExcerpt>,
+    excerpt: impl Into<String>,
 ) {
     fields.insert(
         field,
@@ -2336,7 +2350,7 @@ fn add_framework_default(
             confidence: Confidence::Low,
             line,
             column,
-            excerpt: excerpt.into(),
+            excerpt: jwt_excerpt(excerpt),
         },
     );
 }
@@ -2348,7 +2362,10 @@ fn dynamic_field(field: JwtField, line: usize, column: usize) -> JwtFieldEvidenc
         confidence: Confidence::Medium,
         line,
         column,
-        excerpt: format!("{} depends on unresolved JWT options", field.display_name()).into(),
+        excerpt: jwt_excerpt(format!(
+            "{} depends on unresolved JWT options",
+            field.display_name()
+        )),
     }
 }
 
@@ -2375,7 +2392,7 @@ fn add_regex_chain_field(
                 confidence: Confidence::High,
                 line,
                 column,
-                excerpt: SanitizedExcerpt(excerpt),
+                excerpt: SanitizedExcerpt::from_sanitized(excerpt),
             },
         );
     }
@@ -2466,7 +2483,7 @@ fn push_lifecycle_id(
 }
 
 fn jwt_call_excerpt(api_name: &str, operation: JwtOperation) -> SanitizedExcerpt {
-    SanitizedExcerpt(format!(
+    SanitizedExcerpt::from_sanitized(format!(
         "{api_name} {} call detected with token and key arguments redacted",
         operation.value()
     ))
@@ -2706,7 +2723,7 @@ fn excerpt_for_node(source: &str, node: Node<'_>) -> SanitizedExcerpt {
     } else {
         collapsed
     };
-    SanitizedExcerpt(redact_excerpt(&excerpt))
+    SanitizedExcerpt::from_sanitized(redact_excerpt(&excerpt))
 }
 
 fn redact_excerpt(text: &str) -> String {
@@ -3403,7 +3420,7 @@ const text = "jwt.sign(payload, secret)";
             .evidence
             .iter()
             .filter_map(|evidence| evidence.excerpt.as_ref())
-            .map(|excerpt| excerpt.0.as_str())
+            .map(|excerpt| excerpt.as_str())
             .collect::<Vec<_>>()
             .join("\n");
         let values = output

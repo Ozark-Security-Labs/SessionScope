@@ -610,7 +610,9 @@ mod tests {
             location: location(path, 3),
             detector_id: detector_id.to_string(),
             confidence: Confidence::High,
-            excerpt: Some(SanitizedExcerpt("redacted boundary evidence".to_string())),
+            excerpt: Some(SanitizedExcerpt::from_sanitized(
+                "redacted boundary evidence".to_string(),
+            )),
             dynamic: detector_id == "bearer.dynamic_provider",
             framework_default: false,
         }

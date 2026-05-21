@@ -132,10 +132,10 @@ fn location(evidence: &Evidence) -> Value {
     if let Some(excerpt) = evidence
         .excerpt
         .as_ref()
-        .filter(|excerpt| !excerpt.0.is_empty())
+        .filter(|excerpt| !excerpt.is_empty())
     {
         region["snippet"] = json!({
-            "text": excerpt.0.as_str()
+            "text": excerpt.as_str()
         });
     }
 
@@ -300,7 +300,7 @@ mod tests {
             },
             detector_id: "cookie.attribute.secure".to_string(),
             confidence: sessionscope_model::Confidence::High,
-            excerpt: excerpt.map(SanitizedExcerpt::from),
+            excerpt: excerpt.map(|value| SanitizedExcerpt::from_sanitized(value.to_string())),
             dynamic: false,
             framework_default: false,
         }

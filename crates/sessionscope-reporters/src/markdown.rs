@@ -287,7 +287,7 @@ fn render_lifecycle_evidence(
             table_cell(
                 evidence
                     .and_then(|record| record.excerpt.as_ref())
-                    .map(|excerpt| excerpt.0.as_str())
+                    .map(|excerpt| excerpt.as_str())
                     .unwrap_or("-")
             )
         ));
@@ -580,6 +580,7 @@ fn format_skipped_reason(reason: &SkippedReason) -> &'static str {
         SkippedReason::Excluded => "excluded",
         SkippedReason::Ignored => "ignored",
         SkippedReason::SensitivePath => "sensitive_path",
+        SkippedReason::Symlink => "symlink",
         SkippedReason::ReadError(_) => "read_error",
     }
 }
@@ -638,7 +639,9 @@ mod tests {
                 location: location("src/auth.ts", 10, 3),
                 detector_id: "jwt.issue".to_string(),
                 confidence: Confidence::High,
-                excerpt: Some(SanitizedExcerpt("jwt.sign([REDACTED])".to_string())),
+                excerpt: Some(SanitizedExcerpt::from_sanitized(
+                    "jwt.sign([REDACTED])".to_string(),
+                )),
                 dynamic: false,
                 framework_default: false,
             }],
@@ -688,7 +691,7 @@ mod tests {
                 location: location("app.ts", 3, 5),
                 detector_id: "cookie.set".to_string(),
                 confidence: Confidence::High,
-                excerpt: Some(SanitizedExcerpt(
+                excerpt: Some(SanitizedExcerpt::from_sanitized(
                     "response.cookie(\"session\", [REDACTED])".to_string(),
                 )),
                 dynamic: false,
@@ -753,7 +756,9 @@ mod tests {
                 location: location("src/auth.ts", 23, 10),
                 detector_id: "jwt.validation".to_string(),
                 confidence: Confidence::Medium,
-                excerpt: Some(SanitizedExcerpt("jwt.verify(token, secret)".to_string())),
+                excerpt: Some(SanitizedExcerpt::from_sanitized(
+                    "jwt.verify(token, secret)".to_string(),
+                )),
                 dynamic: false,
                 framework_default: false,
             }],
@@ -822,7 +827,9 @@ mod tests {
                 location: location("app.ts", 3, 5),
                 detector_id: "cookie.set".to_string(),
                 confidence: Confidence::High,
-                excerpt: Some(SanitizedExcerpt("first|second\nthird".to_string())),
+                excerpt: Some(SanitizedExcerpt::from_sanitized(
+                    "first|second\nthird".to_string(),
+                )),
                 dynamic: false,
                 framework_default: false,
             }],
@@ -870,7 +877,7 @@ mod tests {
                 location: location("src/<script>|app.ts", 4, 2),
                 detector_id: "cookie|detector<script>".to_string(),
                 confidence: Confidence::High,
-                excerpt: Some(SanitizedExcerpt(
+                excerpt: Some(SanitizedExcerpt::from_sanitized(
                     "response.cookie(\"x|y\", \"[REDACTED]\") <script>".to_string(),
                 )),
                 dynamic: false,

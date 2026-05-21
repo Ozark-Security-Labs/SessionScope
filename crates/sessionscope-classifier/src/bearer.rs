@@ -592,7 +592,9 @@ mod tests {
             location: location(3),
             detector_id: detector_id.to_string(),
             confidence: Confidence::High,
-            excerpt: Some(SanitizedExcerpt("redacted context".to_string())),
+            excerpt: Some(SanitizedExcerpt::from_sanitized(
+                "redacted context".to_string(),
+            )),
             dynamic: detector_id == "bearer.dynamic_provider",
             framework_default: false,
         }

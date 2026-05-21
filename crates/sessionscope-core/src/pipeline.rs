@@ -230,7 +230,7 @@ mod tests {
                     location,
                     detector_id: self.id().to_string(),
                     confidence: Confidence::High,
-                    excerpt: Some(SanitizedExcerpt(input.source.to_string())),
+                    excerpt: Some(SanitizedExcerpt::from_sanitized(input.source.to_string())),
                     dynamic: false,
                     framework_default: false,
                 }],

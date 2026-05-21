@@ -431,11 +431,10 @@ fn default_attribute_for_call(
             state: CookieAttributeState::Dynamic,
             value: None,
             confidence: Confidence::Medium,
-            excerpt: format!(
+            excerpt: cookie_excerpt(format!(
                 "{} depends on unresolved cookie options",
                 kind.display_name()
-            )
-            .into(),
+            )),
             line,
             column,
             framework_default: false,
@@ -478,13 +477,12 @@ fn default_attribute_for_call(
             state: CookieAttributeState::FrameworkDefault,
             value: Some(value.to_string()),
             confidence: Confidence::Low,
-            excerpt: format!(
+            excerpt: cookie_excerpt(format!(
                 "{} defaults to {} for {}",
                 kind.display_name(),
                 value,
                 call.framework_hint
-            )
-            .into(),
+            )),
             line,
             column,
             framework_default: true,
@@ -495,7 +493,7 @@ fn default_attribute_for_call(
         state: CookieAttributeState::Missing,
         value: None,
         confidence: Confidence::High,
-        excerpt: format!("{} is omitted", kind.display_name()).into(),
+        excerpt: cookie_excerpt(format!("{} is omitted", kind.display_name())),
         line,
         column,
         framework_default: false,
@@ -542,6 +540,14 @@ fn node_line_column(node: Node<'_>) -> (usize, usize) {
     (position.row + 1, position.column + 1)
 }
 
+/// Wrap a trusted descriptive string in `SanitizedExcerpt` after running
+/// the cookie-specific detector redaction pass. See F-06: the inner
+/// constructor on `SanitizedExcerpt` is gated and detectors must flow
+/// excerpts through a redaction helper before wrapping.
+fn cookie_excerpt(text: impl Into<String>) -> SanitizedExcerpt {
+    SanitizedExcerpt::from_sanitized(redact_detector_excerpt(&text.into()))
+}
+
 fn excerpt_around_node_with_redactions(
     source: &str,
     node: Node<'_>,
@@ -550,7 +556,7 @@ fn excerpt_around_node_with_redactions(
     let target_line = node.start_position().row;
     let lines = source.lines().collect::<Vec<_>>();
     if lines.is_empty() {
-        return SanitizedExcerpt(String::new());
+        return SanitizedExcerpt::from_sanitized(String::new());
     }
 
     let start = target_line.saturating_sub(1);
@@ -562,7 +568,7 @@ fn excerpt_around_node_with_redactions(
             excerpt = excerpt.replace(&sensitive_text, REDACTION);
         }
     }
-    SanitizedExcerpt(redact_detector_excerpt(&excerpt))
+    SanitizedExcerpt::from_sanitized(redact_detector_excerpt(&excerpt))
 }
 
 fn redact_detector_excerpt(input: &str) -> String {
@@ -884,7 +890,7 @@ fn set_cookie_header_calls_from_value_node(
             framework_hint,
             line,
             column,
-            excerpt: SanitizedExcerpt(redact_set_cookie_header_values(&node_text(
+            excerpt: SanitizedExcerpt::from_sanitized(redact_set_cookie_header_values(&node_text(
                 value_node, source,
             ))),
             cookie_name: None,
@@ -902,7 +908,7 @@ fn set_cookie_header_calls_from_value_node(
                 api_name,
                 framework_hint,
                 node_line_column(node),
-                SanitizedExcerpt(redact_set_cookie_header_values(&value)),
+                SanitizedExcerpt::from_sanitized(redact_set_cookie_header_values(&value)),
             )
         })
         .collect()
@@ -942,10 +948,9 @@ fn set_cookie_call_from_header(
                         attribute_value,
                     ))),
                     confidence: Confidence::High,
-                    excerpt: SanitizedExcerpt(redact_set_cookie_header_values(&format!(
-                        "{}={attribute_value}",
-                        kind.display_name()
-                    ))),
+                    excerpt: SanitizedExcerpt::from_sanitized(redact_set_cookie_header_values(
+                        &format!("{}={attribute_value}", kind.display_name()),
+                    )),
                     line: location.0,
                     column: location.1,
                     framework_default: false,
@@ -1378,7 +1383,7 @@ fn collect_django_settings_calls(root: Node<'_>, source: &str, calls: &mut Vec<C
             framework_hint: "django",
             line,
             column,
-            excerpt: "Django SESSION_COOKIE_* settings".into(),
+            excerpt: cookie_excerpt("Django SESSION_COOKIE_* settings"),
             cookie_name: Some("sessionid".to_string()),
             signed: false,
             attributes,
@@ -1400,12 +1405,9 @@ fn collect_django_settings_assignments(
             if let Some(kind) = django_setting_attribute_kind(&name) {
                 first_location.get_or_insert(node_line_column(*name_node));
                 let mut attribute = attribute_from_value(kind, *value_node, source);
-                attribute.excerpt = redact_detector_excerpt(&format!(
-                    "{} = {}",
-                    name,
-                    node_text(*value_node, source)
-                ))
-                .into();
+                attribute.excerpt = SanitizedExcerpt::from_sanitized(redact_detector_excerpt(
+                    &format!("{} = {}", name, node_text(*value_node, source)),
+                ));
                 attributes.insert(kind, attribute);
             }
         }
@@ -1514,7 +1516,11 @@ fn attribute_from_value(
             kind, &value,
         ))),
         confidence,
-        excerpt: redact_detector_excerpt(&format!("{}: {}", kind.display_name(), value)).into(),
+        excerpt: SanitizedExcerpt::from_sanitized(redact_detector_excerpt(&format!(
+            "{}: {}",
+            kind.display_name(),
+            value
+        ))),
         line,
         column,
         framework_default: false,
@@ -2686,7 +2692,7 @@ SESSION_COOKIE_SAMESITE = "Lax"
             .evidence
             .iter()
             .filter_map(|evidence| evidence.excerpt.as_ref())
-            .map(|excerpt| excerpt.0.as_str())
+            .map(|excerpt| excerpt.as_str())
             .collect::<Vec<_>>()
             .join("\n");
         let attribute_values = output
