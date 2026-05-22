@@ -8,6 +8,10 @@ and SessionScope uses semantic versioning as described in
 
 ## Unreleased
 
+### Added
+
+- Added `docs/COVERAGE_MATRIX.md` as the per-check source of truth for supported, review-required, and intentionally not-covered SessionScope evidence patterns across languages, frameworks, libraries, lifecycle stages, finding categories, and SARIF rule IDs.
+
 ### Pre-release remediation (v0.1.0 readiness)
 
 #### Critical fixes

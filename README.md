@@ -129,7 +129,7 @@ sessionscope diff --baseline sessionscope-baseline.json --current sessions.json 
 sessionscope explain finding_0001 --report sessions.json
 ```
 
-**Multi-framework, multi-language coverage.** SessionScope covers session, cookie, JWT, refresh-token, OAuth/OIDC, and identity-provider patterns across Express, Next.js, FastAPI, Django, generic JS/TS/Python JWT libraries, and selected provider SDKs. Coverage is evidence-bound and pattern-based; see [docs/FRAMEWORK_COVERAGE.md](docs/FRAMEWORK_COVERAGE.md) and [docs/PROVIDER_LIBRARY_COVERAGE.md](docs/PROVIDER_LIBRARY_COVERAGE.md).
+**Multi-framework, multi-language coverage.** SessionScope covers session, cookie, JWT, refresh-token, OAuth/OIDC, and identity-provider patterns across Express, Next.js, FastAPI, Django, generic JS/TS/Python JWT libraries, and selected provider SDKs. Coverage is evidence-bound and pattern-based; see [docs/COVERAGE_MATRIX.md](docs/COVERAGE_MATRIX.md), [docs/FRAMEWORK_COVERAGE.md](docs/FRAMEWORK_COVERAGE.md), and [docs/PROVIDER_LIBRARY_COVERAGE.md](docs/PROVIDER_LIBRARY_COVERAGE.md).
 
 **Defensive by design.** SessionScope is offline-only and never prints token values, private keys, bearer strings, or cookie values. Source text passes through `sessionscope-core::redaction` before it reaches any report. The full trust boundary is documented in [docs/DATA_HANDLING.md](docs/DATA_HANDLING.md).
 
@@ -144,7 +144,7 @@ sessionscope explain finding_0001 --report sessions.json
 | Generic JWT handling | TypeScript, JavaScript, Python |
 | OAuth/OIDC and provider SDK patterns | TypeScript, JavaScript, Python |
 
-Detectors are heuristics that look for known middleware, decorators, library calls, provider configuration, token operations, and cookie-setting APIs. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detector and classifier contracts.
+Detectors are heuristics that look for known middleware, decorators, library calls, provider configuration, token operations, and cookie-setting APIs. Use [docs/COVERAGE_MATRIX.md](docs/COVERAGE_MATRIX.md) to see which checks fire on which stacks. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detector and classifier contracts.
 
 ## CLI overview
 

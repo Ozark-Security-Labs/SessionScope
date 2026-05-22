@@ -2,6 +2,8 @@
 
 SessionScope framework coverage for `#18` is evidence-bound and pattern-based. Detectors emit source-bound artifacts and evidence for the shared cookie posture, claims and validation, logout and revocation, and refresh lifecycle capability areas; classifiers decide whether the evidence is a finding. Unsupported or provider-managed behavior should be documented as a limitation rather than reported as a high-confidence issue.
 
+For per-check truth across languages, frameworks, libraries, lifecycle stages, categories, and SARIF rule IDs, see [COVERAGE_MATRIX.md](COVERAGE_MATRIX.md).
+
 ## Common rules
 
 - Source analysis is offline only and does not call running applications or providers.
