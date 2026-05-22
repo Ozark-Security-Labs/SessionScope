@@ -67,6 +67,7 @@ struct CookieCall {
     column: usize,
     excerpt: SanitizedExcerpt,
     cookie_name: Option<String>,
+    scope_id: usize,
     signed: bool,
     attributes: BTreeMap<CookieAttributeKind, AttributeEvidence>,
     partitioned: Option<AttributeEvidence>,
@@ -244,6 +245,7 @@ fn calls_to_output(
     calls: Vec<CookieCall>,
 ) -> DetectionOutput {
     let mut output = DetectionOutput::default();
+    let mut conflict_records = Vec::new();
 
     for call in calls {
         let location = SourceLocation {
@@ -304,6 +306,8 @@ fn calls_to_output(
             }
         }
 
+        let artifact_index = output.artifacts.len();
+        let cookie_name = call.cookie_name.clone();
         output.artifacts.push(Artifact {
             id: artifact_id,
             artifact_type,
@@ -316,6 +320,14 @@ fn calls_to_output(
             jwt_attributes: None,
             token_boundary_attributes: None,
         });
+
+        if let Some(cookie_name) = cookie_name {
+            conflict_records.push(ConflictRecord {
+                artifact_index,
+                scope_id: call.scope_id,
+                cookie_name,
+            });
+        }
 
         output.evidence.push(Evidence {
             id: evidence_id,
@@ -334,7 +346,65 @@ fn calls_to_output(
         }
     }
 
+    emit_conflicting_write_evidence(input, detector_id, &conflict_records, &mut output);
+
     output
+}
+
+#[derive(Debug, Clone)]
+struct ConflictRecord {
+    artifact_index: usize,
+    scope_id: usize,
+    cookie_name: String,
+}
+
+fn emit_conflicting_write_evidence(
+    input: &DetectorInput<'_>,
+    detector_id: &str,
+    records: &[ConflictRecord],
+    output: &mut DetectionOutput,
+) {
+    let mut grouped: BTreeMap<(usize, String), Vec<usize>> = BTreeMap::new();
+    for record in records {
+        grouped
+            .entry((record.scope_id, record.cookie_name.clone()))
+            .or_default()
+            .push(record.artifact_index);
+    }
+
+    for ((scope_id, cookie_name), indexes) in grouped {
+        if indexes.len() < 2 {
+            continue;
+        }
+        let scope_part = scope_id.to_string();
+        let id_parts = [
+            detector_id,
+            "cookie_conflicting_writes",
+            input.path,
+            &scope_part,
+            &cookie_name,
+        ];
+        let evidence_id = stable_evidence_id(&id_parts);
+        let location = output.artifacts[indexes[0]].locations[0].clone();
+        for index in indexes {
+            output.artifacts[index]
+                .lifecycle_evidence
+                .store
+                .push(evidence_id.clone());
+        }
+        output.evidence.push(Evidence {
+            id: evidence_id,
+            lifecycle_stage: LifecycleStage::Store,
+            location,
+            detector_id: "cookie.conflicting_writes".to_string(),
+            confidence: Confidence::Medium,
+            excerpt: Some(cookie_excerpt(format!(
+                "Conflicting cookie writes for `{cookie_name}` in one handler"
+            ))),
+            dynamic: true,
+            framework_default: false,
+        });
+    }
 }
 
 fn cookie_attributes_to_evidence(
@@ -819,6 +889,7 @@ fn js_cookie_call<'tree>(
         cookie_name: object_form_name
             .and_then(|node| string_literal_value(node, source))
             .or_else(|| string_literal_value(name_argument, source)),
+        scope_id: scope_id(node),
         signed: options.signed,
         attributes: options.attributes,
         partitioned: options.partitioned,
@@ -858,6 +929,7 @@ fn python_cookie_call<'tree>(
             &python_cookie_value_nodes(&argument_nodes, source),
         ),
         cookie_name: string_literal_value(name_argument, source),
+        scope_id: scope_id(node),
         signed: false,
         attributes: options.attributes,
         partitioned: options.partitioned,
@@ -901,6 +973,7 @@ fn js_session_middleware_cookie_call(
         column: node_line_column(node).1,
         excerpt: excerpt_around_node_with_redactions(source, node, &[options_node]),
         cookie_name,
+        scope_id: scope_id(node),
         signed: options.signed,
         attributes: options.attributes,
         partitioned: options.partitioned,
@@ -1009,6 +1082,7 @@ fn set_cookie_header_calls_from_value_node(
                 value_node, source,
             ))),
             cookie_name: None,
+            scope_id: 0,
             signed: false,
             attributes: BTreeMap::new(),
             partitioned: None,
@@ -1095,6 +1169,7 @@ fn set_cookie_call_from_header(
         column: location.1,
         excerpt,
         cookie_name: Some(cookie_name),
+        scope_id: location.0,
         signed: false,
         attributes,
         partitioned,
@@ -1528,6 +1603,7 @@ fn collect_django_settings_calls(root: Node<'_>, source: &str, calls: &mut Vec<C
             column,
             excerpt: cookie_excerpt("Django SESSION_COOKIE_* settings"),
             cookie_name: Some("sessionid".to_string()),
+            scope_id: 0,
             signed: false,
             attributes,
             partitioned: None,
@@ -1860,6 +1936,7 @@ fn js_wrapper_call(
             &wrapper_value_nodes(&argument_nodes, wrapper.cookie_value_parameter_index),
         ),
         cookie_name: Some(cookie_name),
+        scope_id: scope_id(node),
         signed: wrapper.signed,
         attributes: wrapper.attributes.clone(),
         partitioned: wrapper.partitioned.clone(),
@@ -2008,6 +2085,7 @@ fn python_wrapper_call(
             &wrapper_value_nodes(&argument_nodes, wrapper.cookie_value_parameter_index),
         ),
         cookie_name: Some(cookie_name),
+        scope_id: scope_id(node),
         signed: wrapper.signed,
         attributes: wrapper.attributes.clone(),
         partitioned: wrapper.partitioned.clone(),
@@ -2922,6 +3000,39 @@ response.cookie("session", token, { secure: true });
                     .is_some_and(|excerpt| excerpt.as_str().contains("host"))
         }));
         assert!(!detected_text(&output).contains("PLACEHOLDER_RESET_TOKEN"));
+    }
+
+    #[test]
+    fn detects_conflicting_cookie_writes_within_one_handler() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+function login(response, token) {
+  response.cookie("session", token, { secure: true });
+  response.cookie("session", token, { secure: false });
+  response.cookie("csrf", token, { secure: true });
+}
+function refresh(response, token) {
+  response.cookie("session", token, { secure: true });
+}
+"#,
+        );
+
+        let conflicts = output
+            .evidence
+            .iter()
+            .filter(|evidence| evidence.detector_id == "cookie.conflicting_writes")
+            .collect::<Vec<_>>();
+        assert_eq!(conflicts.len(), 1);
+        let conflict_id = &conflicts[0].id;
+        assert_eq!(
+            output
+                .artifacts
+                .iter()
+                .filter(|artifact| artifact.lifecycle_evidence.store.contains(conflict_id))
+                .count(),
+            2
+        );
     }
 
     #[test]

@@ -9,6 +9,7 @@ const EXCESSIVE_COOKIE_LIFETIME_SECONDS: i64 = 30 * 24 * 60 * 60;
 
 pub fn classify(report: &ScanReport) -> Vec<Finding> {
     let mut findings = Vec::new();
+    findings.extend(classify_conflicting_writes(report));
 
     for artifact in &report.artifacts {
         let Some(attributes) = &artifact.cookie_attributes else {
@@ -92,6 +93,48 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
         }
     }
 
+    findings
+}
+
+fn classify_conflicting_writes(report: &ScanReport) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    for evidence in report
+        .evidence
+        .iter()
+        .filter(|evidence| evidence.detector_id == "cookie.conflicting_writes")
+    {
+        let artifacts = report
+            .artifacts
+            .iter()
+            .filter(|artifact| artifact.lifecycle_evidence.store.contains(&evidence.id))
+            .collect::<Vec<_>>();
+        if artifacts.len() < 2 {
+            continue;
+        }
+        let artifact = artifacts[0];
+        let cookie_name = artifact.display_name.as_deref().unwrap_or("cookie");
+        let mut artifact_ids = artifacts
+            .iter()
+            .map(|artifact| artifact.id.clone())
+            .collect::<Vec<_>>();
+        artifact_ids.sort();
+        artifact_ids.dedup();
+        let mut finding = finding(
+            "cookie_conflicting_writes_review",
+            FindingCategory::DynamicReviewRequired,
+            Severity::Medium,
+            artifact,
+            vec![evidence.id.clone()],
+            format!("Cookie `{cookie_name}` is written multiple times in one handler"),
+            "Multiple source-visible writes target the same cookie name in one handler scope. Static analysis cannot prove last-write-wins middleware behavior."
+                .to_string(),
+            "Consolidate cookie writes or document why repeated writes are intentional and ordered."
+                .to_string(),
+            "Which write controls the effective production cookie attributes?".to_string(),
+        );
+        finding.artifact_ids = artifact_ids;
+        findings.push(finding);
+    }
     findings
 }
 
@@ -1186,6 +1229,22 @@ mod tests {
         )
     }
 
+    fn with_conflict_evidence(mut artifacts: Vec<Artifact>) -> (Vec<Artifact>, Evidence) {
+        let evidence_id = EvidenceId("evidence_conflict".to_string());
+        for artifact in &mut artifacts {
+            artifact.lifecycle_evidence.store.push(evidence_id.clone());
+        }
+        (
+            artifacts,
+            evidence(
+                evidence_id,
+                "cookie.conflicting_writes",
+                LifecycleStage::Store,
+                "Conflicting cookie writes for `session` in one handler".to_string(),
+            ),
+        )
+    }
+
     fn evidence(
         evidence_id: EvidenceId,
         detector_id: &str,
@@ -1587,6 +1646,43 @@ mod tests {
                 || finding.title.contains("uncertain __Host-")
                 || finding.title.contains("uncertain __Secure-")
         }));
+    }
+
+    #[test]
+    fn conflicting_cookie_writes_require_review() {
+        let first = artifact(
+            "session",
+            attributes(
+                present("http_only", "true"),
+                present("secure", "true"),
+                present("same_site", "lax"),
+                present("max_age", "900"),
+                missing("expires"),
+            ),
+        );
+        let mut second = artifact(
+            "session",
+            attributes(
+                present("http_only", "true"),
+                missing("secure"),
+                present("same_site", "lax"),
+                present("max_age", "900"),
+                missing("expires"),
+            ),
+        );
+        second.id = ArtifactId("artifact_session_second".to_string());
+        let (artifacts, conflict_evidence) = with_conflict_evidence(vec![first, second]);
+        let evidence_id = conflict_evidence.id.clone();
+        let findings = classify_report(artifacts, vec![conflict_evidence]);
+
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("written multiple times"))
+            .expect("conflict finding should exist");
+        assert_eq!(finding.category, FindingCategory::DynamicReviewRequired);
+        assert_eq!(finding.severity, Severity::Medium);
+        assert_eq!(finding.evidence_ids, vec![evidence_id]);
+        assert_eq!(finding.artifact_ids.len(), 2);
     }
 
     #[test]
