@@ -118,6 +118,16 @@ enum JwtField {
     EmailVerified,
     AuthMethod,
     AuthClass,
+    OptionAlgorithms,
+    OptionAudience,
+    OptionIssuer,
+    OptionSubject,
+    OptionNonce,
+    OptionClockTolerance,
+    OptionClockTimestamp,
+    OptionComplete,
+    OptionIgnoreNotBefore,
+    OptionIgnoreExpiration,
 }
 
 impl JwtField {
@@ -181,6 +191,16 @@ impl JwtField {
             Self::EmailVerified => "email_verified",
             Self::AuthMethod => "auth_method",
             Self::AuthClass => "auth_class",
+            Self::OptionAlgorithms => "algorithms",
+            Self::OptionAudience => "audience",
+            Self::OptionIssuer => "issuer",
+            Self::OptionSubject => "subject",
+            Self::OptionNonce => "nonce",
+            Self::OptionClockTolerance => "clock_tolerance",
+            Self::OptionClockTimestamp => "clock_timestamp",
+            Self::OptionComplete => "complete",
+            Self::OptionIgnoreNotBefore => "ignore_not_before",
+            Self::OptionIgnoreExpiration => "ignore_expiration",
         }
     }
 
@@ -206,12 +226,48 @@ impl JwtField {
             Self::EmailVerified => "email verified claim",
             Self::AuthMethod => "auth method claim",
             Self::AuthClass => "auth class claim",
+            Self::OptionAlgorithms => "JWT algorithms option",
+            Self::OptionAudience => "JWT audience option",
+            Self::OptionIssuer => "JWT issuer option",
+            Self::OptionSubject => "JWT subject option",
+            Self::OptionNonce => "JWT nonce option",
+            Self::OptionClockTolerance => "JWT clock tolerance option",
+            Self::OptionClockTimestamp => "JWT clock timestamp option",
+            Self::OptionComplete => "JWT complete option",
+            Self::OptionIgnoreNotBefore => "JWT ignore-not-before option",
+            Self::OptionIgnoreExpiration => "JWT ignore-expiration option",
         }
+    }
+
+    fn is_option(self) -> bool {
+        matches!(
+            self,
+            Self::OptionAlgorithms
+                | Self::OptionAudience
+                | Self::OptionIssuer
+                | Self::OptionSubject
+                | Self::OptionNonce
+                | Self::OptionClockTolerance
+                | Self::OptionClockTimestamp
+                | Self::OptionComplete
+                | Self::OptionIgnoreNotBefore
+                | Self::OptionIgnoreExpiration
+        )
     }
 
     fn lifecycle_stage(self, operation: JwtOperation) -> LifecycleStage {
         match self {
             Self::Expiration => LifecycleStage::Expire,
+            Self::OptionAlgorithms
+            | Self::OptionAudience
+            | Self::OptionIssuer
+            | Self::OptionSubject
+            | Self::OptionNonce
+            | Self::OptionClockTolerance
+            | Self::OptionClockTimestamp
+            | Self::OptionComplete
+            | Self::OptionIgnoreNotBefore
+            | Self::OptionIgnoreExpiration => LifecycleStage::Validate,
             Self::ExpiryEnforcement | Self::SignatureVerification => LifecycleStage::Validate,
             _ => operation.lifecycle_stage(),
         }
@@ -414,9 +470,14 @@ fn calls_to_output(
                 let line_part = observation.line.to_string();
                 let column_part = observation.column.to_string();
                 let state_part = jwt_state_part(observation.state);
+                let evidence_kind = if field.is_option() {
+                    "jwt_option"
+                } else {
+                    "jwt_attribute"
+                };
                 let evidence_id = stable_evidence_id(&[
                     detector_id,
-                    "jwt_attribute",
+                    evidence_kind,
                     field.wire_name(),
                     state_part,
                     input.path,
@@ -438,7 +499,11 @@ fn calls_to_output(
                         line: Some(observation.line),
                         column: Some(observation.column),
                     },
-                    detector_id: format!("jwt.attribute.{}", field.wire_name()),
+                    detector_id: if field.is_option() {
+                        format!("jwt.option.{}", field.wire_name())
+                    } else {
+                        format!("jwt.attribute.{}", field.wire_name())
+                    },
                     confidence: observation.confidence,
                     excerpt: Some(observation.excerpt.clone()),
                     dynamic: observation.state == JwtAttributeState::Dynamic,
@@ -1102,6 +1167,15 @@ fn add_js_verify_fields(
             line,
             column,
         );
+        add_js_options_fields(
+            fields,
+            source,
+            options,
+            option_aliases,
+            js_verify_option_fields(jose),
+            line,
+            column,
+        );
         add_js_expiry_enforcement(fields, source, options, option_aliases, line, column, jose);
     } else {
         add_framework_default(
@@ -1126,6 +1200,36 @@ fn add_js_verify_fields(
         add_missing(fields, JwtField::Audience, line, column);
     } else {
         add_missing_for_verify_fields(fields, line, column);
+    }
+}
+
+fn js_verify_option_fields(jose: bool) -> &'static [(JwtField, &'static [&'static str])] {
+    if jose {
+        &[
+            (JwtField::OptionAlgorithms, &["algorithms", "algorithm"]),
+            (JwtField::OptionIssuer, &["issuer"]),
+            (JwtField::OptionAudience, &["audience"]),
+            (JwtField::OptionSubject, &["subject"]),
+            (JwtField::OptionNonce, &["nonce"]),
+            (JwtField::OptionClockTolerance, &["clockTolerance"]),
+            (
+                JwtField::OptionClockTimestamp,
+                &["currentDate", "clockTimestamp"],
+            ),
+        ]
+    } else {
+        &[
+            (JwtField::OptionAlgorithms, &["algorithms", "algorithm"]),
+            (JwtField::OptionIssuer, &["issuer"]),
+            (JwtField::OptionAudience, &["audience"]),
+            (JwtField::OptionSubject, &["subject"]),
+            (JwtField::OptionNonce, &["nonce"]),
+            (JwtField::OptionClockTolerance, &["clockTolerance"]),
+            (JwtField::OptionClockTimestamp, &["clockTimestamp"]),
+            (JwtField::OptionComplete, &["complete"]),
+            (JwtField::OptionIgnoreNotBefore, &["ignoreNotBefore"]),
+            (JwtField::OptionIgnoreExpiration, &["ignoreExpiration"]),
+        ]
     }
 }
 
@@ -1509,12 +1613,24 @@ fn add_python_decode_fields(
     }
     if let Some(value) = python_keyword_value(argument_nodes, source, "algorithms") {
         add_present_node(fields, JwtField::Algorithm, value, source);
+        add_present_node(fields, JwtField::OptionAlgorithms, value, source);
     }
     if let Some(value) = python_keyword_value(argument_nodes, source, "issuer") {
         add_present_node(fields, JwtField::Issuer, value, source);
+        add_present_node(fields, JwtField::OptionIssuer, value, source);
     }
     if let Some(value) = python_keyword_value(argument_nodes, source, "audience") {
         add_present_node(fields, JwtField::Audience, value, source);
+        add_present_node(fields, JwtField::OptionAudience, value, source);
+    }
+    if let Some(value) = python_keyword_value(argument_nodes, source, "subject") {
+        add_present_node(fields, JwtField::OptionSubject, value, source);
+    }
+    if let Some(value) = python_keyword_value(argument_nodes, source, "nonce") {
+        add_present_node(fields, JwtField::OptionNonce, value, source);
+    }
+    if let Some(value) = python_keyword_value(argument_nodes, source, "leeway") {
+        add_present_node(fields, JwtField::OptionClockTolerance, value, source);
     }
     if let Some(options) = python_keyword_value(argument_nodes, source, "options") {
         add_python_options_fields(fields, source, options, option_aliases, line, column);
@@ -1574,9 +1690,44 @@ fn add_python_options_fields(
     line: usize,
     column: usize,
 ) {
+    let option_fields = [
+        JwtField::Issuer,
+        JwtField::Audience,
+        JwtField::Algorithm,
+        JwtField::OptionIssuer,
+        JwtField::OptionAudience,
+        JwtField::OptionAlgorithms,
+        JwtField::OptionSubject,
+        JwtField::OptionNonce,
+        JwtField::OptionClockTolerance,
+        JwtField::OptionClockTimestamp,
+        JwtField::OptionComplete,
+        JwtField::OptionIgnoreNotBefore,
+        JwtField::OptionIgnoreExpiration,
+    ];
     if is_dictionary(node) {
+        for (field, names) in [
+            (
+                JwtField::OptionAlgorithms,
+                &["algorithms", "algorithm"] as &[_],
+            ),
+            (JwtField::OptionIssuer, &["issuer", "iss"]),
+            (JwtField::OptionAudience, &["audience", "aud"]),
+            (JwtField::OptionSubject, &["subject", "sub"]),
+            (JwtField::OptionNonce, &["nonce"]),
+            (
+                JwtField::OptionClockTolerance,
+                &["leeway", "clockTolerance"],
+            ),
+            (JwtField::OptionClockTimestamp, &["clockTimestamp"]),
+            (JwtField::OptionComplete, &["complete"]),
+            (JwtField::OptionIgnoreNotBefore, &["verify_nbf"]),
+            (JwtField::OptionIgnoreExpiration, &["verify_exp"]),
+        ] {
+            add_object_field(fields, field, node, source, names, line, column);
+        }
         if object_has_dynamic_spread(node, source) {
-            for field in [JwtField::Issuer, JwtField::Audience, JwtField::Algorithm] {
+            for field in option_fields {
                 fields
                     .entry(field)
                     .or_insert_with(|| dynamic_field(field, line, column));
@@ -1585,7 +1736,7 @@ fn add_python_options_fields(
     } else if node.kind() == "identifier" {
         let alias_name = node_text(node, source);
         if let Some(alias) = lookup_alias(aliases, &alias_name, node) {
-            for field in [JwtField::Issuer, JwtField::Audience, JwtField::Algorithm] {
+            for field in option_fields {
                 if let Some(value) = alias.fields.get(&field) {
                     fields.entry(field).or_insert_with(|| value.clone());
                 } else if alias.dynamic {
@@ -1595,7 +1746,7 @@ fn add_python_options_fields(
                 }
             }
         } else {
-            for field in [JwtField::Issuer, JwtField::Audience, JwtField::Algorithm] {
+            for field in option_fields {
                 fields
                     .entry(field)
                     .or_insert_with(|| dynamic_field(field, line, column));
@@ -1961,6 +2112,31 @@ fn field_set_from_object(node: Node<'_>, source: &str) -> FieldSet {
         (JwtField::Audience, &["audience", "aud"][..]),
         (JwtField::Expiration, &["expiresIn", "expires", "exp"][..]),
         (JwtField::ExpiryEnforcement, &["maxAge", "maxTokenAge"][..]),
+        (
+            JwtField::OptionAlgorithms,
+            &["algorithm", "algorithms", "alg"][..],
+        ),
+        (JwtField::OptionIssuer, &["issuer", "iss"][..]),
+        (JwtField::OptionAudience, &["audience", "aud"][..]),
+        (JwtField::OptionSubject, &["subject", "sub"][..]),
+        (JwtField::OptionNonce, &["nonce"][..]),
+        (
+            JwtField::OptionClockTolerance,
+            &["clockTolerance", "leeway"][..],
+        ),
+        (
+            JwtField::OptionClockTimestamp,
+            &["clockTimestamp", "currentDate"][..],
+        ),
+        (JwtField::OptionComplete, &["complete"][..]),
+        (
+            JwtField::OptionIgnoreNotBefore,
+            &["ignoreNotBefore", "verify_nbf"][..],
+        ),
+        (
+            JwtField::OptionIgnoreExpiration,
+            &["ignoreExpiration", "verify_exp"][..],
+        ),
     ] {
         add_object_field(&mut fields, field, node, source, names, 1, 1);
     }
@@ -2926,6 +3102,138 @@ export function verifyLegacyJwt(token: string) {
                 .state,
             JwtAttributeState::Missing
         );
+    }
+
+    #[test]
+    fn emits_jsonwebtoken_verify_option_evidence() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+import jwt from "jsonwebtoken";
+export function verifyAccessJwt(token: string) {
+  return jwt.verify(token, publicKey, {
+    algorithms: ["RS256"],
+    issuer: ISSUER,
+    audience: AUDIENCE,
+    subject: SUBJECT,
+    nonce: expectedNonce,
+    clockTolerance: 120,
+    clockTimestamp: now,
+    complete: true,
+    ignoreNotBefore: true,
+    ignoreExpiration: false,
+  });
+}
+"#,
+        );
+
+        for detector_id in [
+            "jwt.option.algorithms",
+            "jwt.option.issuer",
+            "jwt.option.audience",
+            "jwt.option.subject",
+            "jwt.option.nonce",
+            "jwt.option.clock_tolerance",
+            "jwt.option.clock_timestamp",
+            "jwt.option.complete",
+            "jwt.option.ignore_not_before",
+            "jwt.option.ignore_expiration",
+        ] {
+            assert!(
+                output
+                    .evidence
+                    .iter()
+                    .any(|evidence| evidence.detector_id == detector_id),
+                "missing {detector_id} in {:?}",
+                output
+                    .evidence
+                    .iter()
+                    .map(|evidence| evidence.detector_id.as_str())
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn emits_jose_verify_option_evidence() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+import { jwtVerify } from "jose";
+export async function verifyAccessJwt(token: string) {
+  return jwtVerify(token, publicKey, {
+    algorithms: ["RS256"],
+    issuer,
+    audience,
+    subject,
+    nonce,
+    clockTolerance: "30s",
+    currentDate: now,
+  });
+}
+"#,
+        );
+
+        for detector_id in [
+            "jwt.option.algorithms",
+            "jwt.option.issuer",
+            "jwt.option.audience",
+            "jwt.option.subject",
+            "jwt.option.nonce",
+            "jwt.option.clock_tolerance",
+            "jwt.option.clock_timestamp",
+        ] {
+            assert!(
+                output
+                    .evidence
+                    .iter()
+                    .any(|evidence| evidence.detector_id == detector_id),
+                "missing {detector_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn emits_pyjwt_verify_option_evidence() {
+        let output = detect(
+            Language::Python,
+            r#"
+import jwt
+
+def verify_access_jwt(token):
+    return jwt.decode(
+        token,
+        key=PUBLIC_KEY,
+        algorithms=["RS256"],
+        issuer=ISSUER,
+        audience=AUDIENCE,
+        subject=SUBJECT,
+        nonce=NONCE,
+        leeway=120,
+        options={"verify_nbf": False, "verify_exp": True, "complete": True},
+    )
+"#,
+        );
+
+        for detector_id in [
+            "jwt.option.algorithms",
+            "jwt.option.issuer",
+            "jwt.option.audience",
+            "jwt.option.subject",
+            "jwt.option.nonce",
+            "jwt.option.clock_tolerance",
+            "jwt.option.complete",
+            "jwt.option.ignore_not_before",
+            "jwt.option.ignore_expiration",
+        ] {
+            assert!(
+                output
+                    .evidence
+                    .iter()
+                    .any(|evidence| evidence.detector_id == detector_id),
+                "missing {detector_id}"
+            );
+        }
     }
 
     #[test]
