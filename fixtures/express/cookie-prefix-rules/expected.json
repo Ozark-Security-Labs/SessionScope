@@ -1,0 +1,9 @@
+{
+  "fixture_id": "express.cookie-prefix-rules",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["session_cookie:__Host-session", "session_cookie:__Secure-refresh"],
+  "expected_lifecycle_stages": ["store", "transmit"],
+  "expected_findings": ["cookie_host_prefix_path_violation", "cookie_host_prefix_domain_violation", "cookie_host_prefix_secure_violation", "cookie_secure_prefix_secure_violation", "cookie_partitioned_review", "cookie_domain_leak_review"],
+  "notes": "P1 cookie hardening fixture for cookie-prefix-rules. Uses placeholder values only; Django runtime coverage is narrower than settings-derived cookie coverage where applicable."
+}
