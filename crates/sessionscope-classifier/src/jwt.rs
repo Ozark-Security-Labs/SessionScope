@@ -17,6 +17,7 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
             findings.extend(classify_alg_none(report, artifact, name, attributes));
             findings.extend(classify_alg_confusion(report, artifact, name, attributes));
             findings.extend(classify_header_trust(report, artifact, name));
+            findings.extend(classify_nbf_clock_kid(report, artifact, name));
         }
 
         if operation_contains(&attributes.operation, "decode_without_verify")
@@ -376,6 +377,140 @@ fn classify_header_trust(report: &ScanReport, artifact: &Artifact, name: &str) -
         ))
     })
     .collect()
+}
+
+fn classify_nbf_clock_kid(report: &ScanReport, artifact: &Artifact, name: &str) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    if report.evidence.is_empty() {
+        return findings;
+    }
+
+    let nbf_evidence = artifact_bound_evidence(report, artifact, "jwt.option.ignore_not_before");
+    if nbf_evidence.is_empty() || nbf_evidence.iter().any(nbf_is_ignored) {
+        let evidence_ids = if nbf_evidence.is_empty() {
+            artifact.lifecycle_evidence.validate.clone()
+        } else {
+            nbf_evidence
+                .iter()
+                .map(|evidence| evidence.id.clone())
+                .collect()
+        };
+        findings.push(finding(
+            artifact,
+            FindingRequest {
+                rule_id: "jwt_nbf_missing".to_string(),
+                category: FindingCategory::MissingValidationEvidence,
+                severity: Severity::Low,
+                evidence_ids,
+                title: format!("JWT `{name}` verification has no not-before validation evidence"),
+                description:
+                    "JWT verification evidence does not show `nbf` / not-before claim enforcement."
+                        .to_string(),
+                suggested_fix:
+                    "Require or enforce `nbf` validation where issuer policy uses not-before claims."
+                        .to_string(),
+                reviewer_question:
+                    "Do issued tokens for this path use `nbf`, and is it enforced in production?"
+                        .to_string(),
+            },
+        ));
+    }
+
+    let clock_evidence = artifact_bound_evidence(report, artifact, "jwt.option.clock_tolerance");
+    if clock_evidence.iter().any(|evidence| {
+        evidence.dynamic || clock_tolerance_seconds(evidence).is_some_and(|v| v > 60)
+    }) {
+        findings.push(finding(
+            artifact,
+            FindingRequest {
+                rule_id: "jwt_clock_skew_review".to_string(),
+                category: FindingCategory::DynamicReviewRequired,
+                severity: Severity::Medium,
+                evidence_ids: clock_evidence
+                    .iter()
+                    .map(|evidence| evidence.id.clone())
+                    .collect(),
+                title: format!("JWT `{name}` validation uses broad or dynamic clock skew"),
+                description:
+                    "JWT verification evidence sets clock tolerance above 60 seconds or from unresolved runtime input."
+                        .to_string(),
+                suggested_fix:
+                    "Keep JWT clock tolerance minimal and explicit unless issuer skew requirements justify it."
+                        .to_string(),
+                reviewer_question:
+                    "What production clock-skew tolerance is required for this issuer?".to_string(),
+            },
+        ));
+    }
+
+    let kid_evidence = artifact_bound_evidence(report, artifact, "jwt.header.kid");
+    if !kid_evidence.is_empty() && !has_visible_kid_validation(report, artifact) {
+        findings.push(finding(
+            artifact,
+            FindingRequest {
+                rule_id: "jwt_kid_unvalidated_review".to_string(),
+                category: FindingCategory::MissingValidationEvidence,
+                severity: Severity::Medium,
+                evidence_ids: kid_evidence
+                    .iter()
+                    .map(|evidence| evidence.id.clone())
+                    .collect(),
+                title: format!("JWT `{name}` reads `kid` without visible validation"),
+                description:
+                    "JWT header `kid` is read, but no source-visible allow-list or pinned key lookup evidence was found."
+                        .to_string(),
+                suggested_fix:
+                    "Validate `kid` against a pinned allow-list or trusted key map before using it for key selection."
+                        .to_string(),
+                reviewer_question:
+                    "Where is the accepted `kid` set constrained for this validation path?"
+                        .to_string(),
+            },
+        ));
+    }
+
+    findings
+}
+
+fn nbf_is_ignored(evidence: &&Evidence) -> bool {
+    let Some(excerpt) = &evidence.excerpt else {
+        return false;
+    };
+    let text = excerpt.as_str().to_ascii_lowercase();
+    (text.contains("ignorenotbefore") && text_mentions_literal(&text, "true"))
+        || (text.contains("verify_nbf") && text_mentions_literal(&text, "false"))
+}
+
+fn clock_tolerance_seconds(evidence: &Evidence) -> Option<u64> {
+    let text = evidence.excerpt.as_ref()?.as_str();
+    text.split(|character: char| !character.is_ascii_digit())
+        .find(|part| !part.is_empty())
+        .and_then(|part| part.parse::<u64>().ok())
+}
+
+fn has_visible_kid_validation(report: &ScanReport, artifact: &Artifact) -> bool {
+    artifact.jwt_attributes.as_ref().is_some_and(|attributes| {
+        attributes
+            .key_reference
+            .value
+            .as_deref()
+            .is_some_and(kid_key_reference_is_validated)
+    }) || report.evidence.iter().any(|evidence| {
+        artifact.lifecycle_evidence.validate.contains(&evidence.id)
+            && evidence.excerpt.as_ref().is_some_and(|excerpt| {
+                let text = excerpt.as_str().to_ascii_lowercase();
+                text.contains("allowlist") || text.contains("allow-list") || text.contains("jwks")
+            })
+    })
+}
+
+fn kid_key_reference_is_validated(value: &str) -> bool {
+    let normalized = value.to_ascii_lowercase();
+    normalized.contains("allow")
+        || normalized.contains("keymap")
+        || normalized.contains("key_map")
+        || normalized.contains("jwks")
+        || normalized.contains("pinned")
 }
 
 fn accepted_algorithms(
@@ -1181,6 +1316,250 @@ mod tests {
             findings
                 .iter()
                 .all(|finding| !finding.title.contains("jku URL"))
+        );
+    }
+
+    #[test]
+    fn missing_nbf_evidence_is_missing_validation() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![EvidenceId("evidence_verify".to_string())],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![option_evidence(
+                "evidence_verify",
+                "jwt.validate",
+                "jsonwebtoken.verify validate call detected",
+                false,
+            )],
+        );
+
+        assert!(findings.iter().any(|finding| {
+            finding.title.contains("not-before")
+                && finding.category == FindingCategory::MissingValidationEvidence
+                && finding.severity == Severity::Low
+        }));
+    }
+
+    #[test]
+    fn explicit_nbf_enforcement_does_not_fire_nbf_missing() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_nbf".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![option_evidence(
+                "evidence_nbf",
+                "jwt.option.ignore_not_before",
+                "ignoreNotBefore: false",
+                false,
+            )],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("not-before"))
+        );
+    }
+
+    #[test]
+    fn broad_or_dynamic_clock_skew_requires_review() {
+        let static_artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_clock".to_string()),
+                    EvidenceId("evidence_nbf".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![static_artifact],
+            vec![
+                option_evidence(
+                    "evidence_clock",
+                    "jwt.option.clock_tolerance",
+                    "clockTolerance: 3600",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_nbf",
+                    "jwt.option.ignore_not_before",
+                    "ignoreNotBefore: false",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(findings.iter().any(|finding| {
+            finding.title.contains("clock skew")
+                && finding.category == FindingCategory::DynamicReviewRequired
+                && finding.severity == Severity::Medium
+        }));
+    }
+
+    #[test]
+    fn small_clock_skew_does_not_require_review() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_clock".to_string()),
+                    EvidenceId("evidence_nbf".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_clock",
+                    "jwt.option.clock_tolerance",
+                    "clockTolerance: 60",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_nbf",
+                    "jwt.option.ignore_not_before",
+                    "ignoreNotBefore: false",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("clock skew"))
+        );
+    }
+
+    #[test]
+    fn kid_read_without_validation_is_missing_validation() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_kid".to_string()),
+                    EvidenceId("evidence_nbf".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_kid",
+                    "jwt.header.kid",
+                    "JWT header `kid` is read near verification logic",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_nbf",
+                    "jwt.option.ignore_not_before",
+                    "ignoreNotBefore: false",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(findings.iter().any(|finding| {
+            finding.title.contains("`kid`")
+                && finding.category == FindingCategory::MissingValidationEvidence
+                && finding.severity == Severity::Medium
+        }));
+    }
+
+    #[test]
+    fn kid_allowlist_key_reference_suppresses_kid_review() {
+        let mut attributes = attributes(
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            "validate",
+        );
+        attributes.key_reference = observation(
+            "key",
+            JwtAttributeState::Present,
+            Some("trustedKeyMap"),
+            EvidenceId("evidence_key".to_string()),
+        );
+        let artifact = artifact(
+            attributes,
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_kid".to_string()),
+                    EvidenceId("evidence_nbf".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_kid",
+                    "jwt.header.kid",
+                    "JWT header `kid` is read near verification logic",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_nbf",
+                    "jwt.option.ignore_not_before",
+                    "ignoreNotBefore: false",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("`kid`"))
         );
     }
 
