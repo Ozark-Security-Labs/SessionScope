@@ -69,6 +69,7 @@ struct CookieCall {
     cookie_name: Option<String>,
     signed: bool,
     attributes: BTreeMap<CookieAttributeKind, AttributeEvidence>,
+    partitioned: Option<AttributeEvidence>,
     dynamic_options: bool,
 }
 
@@ -81,12 +82,14 @@ struct Wrapper {
     framework_hint: &'static str,
     signed: bool,
     attributes: BTreeMap<CookieAttributeKind, AttributeEvidence>,
+    partitioned: Option<AttributeEvidence>,
     dynamic_options: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OptionAlias {
     attributes: BTreeMap<CookieAttributeKind, AttributeEvidence>,
+    partitioned: Option<AttributeEvidence>,
     signed: bool,
     dynamic: bool,
 }
@@ -282,10 +285,12 @@ fn calls_to_output(
             cookie_attributes_to_evidence(input, detector_id, &call, &location);
         let name_prefix_evidence =
             cookie_name_prefix_to_evidence(input, detector_id, &call, &location);
+        let partitioned_evidence = cookie_partitioned_to_evidence(input, detector_id, &call);
 
         for evidence in attribute_evidence
             .iter()
             .chain(std::iter::once(&name_prefix_evidence))
+            .chain(partitioned_evidence.iter())
         {
             match evidence.lifecycle_stage {
                 LifecycleStage::Store => lifecycle_evidence.store.push(evidence.id.clone()),
@@ -324,6 +329,9 @@ fn calls_to_output(
         });
         output.evidence.append(&mut attribute_evidence);
         output.evidence.push(name_prefix_evidence);
+        if let Some(partitioned_evidence) = partitioned_evidence {
+            output.evidence.push(partitioned_evidence);
+        }
     }
 
     output
@@ -472,6 +480,44 @@ fn cookie_name_prefix(cookie_name: Option<&str>) -> Option<&'static str> {
     } else {
         None
     }
+}
+
+fn cookie_partitioned_to_evidence(
+    input: &DetectorInput<'_>,
+    detector_id: &str,
+    call: &CookieCall,
+) -> Option<Evidence> {
+    let attribute = call.partitioned.as_ref()?;
+    let line_part = attribute.line.to_string();
+    let column_part = attribute.column.to_string();
+    let name_part = call.cookie_name.as_deref().unwrap_or("dynamic");
+    let state_part = attribute_state_part(attribute.state);
+    let id_parts = [
+        detector_id,
+        "cookie_attribute",
+        "partitioned",
+        state_part,
+        input.path,
+        &line_part,
+        &column_part,
+        call.api_name,
+        name_part,
+    ];
+
+    Some(Evidence {
+        id: stable_evidence_id(&id_parts),
+        lifecycle_stage: LifecycleStage::Transmit,
+        location: SourceLocation {
+            path: input.path.to_string(),
+            line: Some(attribute.line),
+            column: Some(attribute.column),
+        },
+        detector_id: "cookie.attribute.partitioned".to_string(),
+        confidence: attribute.confidence,
+        excerpt: Some(attribute.excerpt.clone()),
+        dynamic: attribute.state == CookieAttributeState::Dynamic,
+        framework_default: attribute.framework_default,
+    })
 }
 
 fn attribute_state_part(state: CookieAttributeState) -> &'static str {
@@ -754,6 +800,7 @@ fn js_cookie_call<'tree>(
             .map(|options| js_options_from_node(*options, source, option_aliases))
             .unwrap_or_else(|| OptionAlias {
                 attributes: BTreeMap::new(),
+                partitioned: None,
                 signed: false,
                 dynamic: false,
             })
@@ -774,6 +821,7 @@ fn js_cookie_call<'tree>(
             .or_else(|| string_literal_value(name_argument, source)),
         signed: options.signed,
         attributes: options.attributes,
+        partitioned: options.partitioned,
         dynamic_options: options.dynamic,
     })
 }
@@ -812,6 +860,7 @@ fn python_cookie_call<'tree>(
         cookie_name: string_literal_value(name_argument, source),
         signed: false,
         attributes: options.attributes,
+        partitioned: options.partitioned,
         dynamic_options: options.dynamic,
     })
 }
@@ -831,6 +880,7 @@ fn js_session_middleware_cookie_call(
             .map(|cookie| js_options_from_node(cookie, source, option_aliases))
             .unwrap_or_else(|| OptionAlias {
                 attributes: BTreeMap::new(),
+                partitioned: None,
                 signed: false,
                 dynamic: false,
             })
@@ -853,6 +903,7 @@ fn js_session_middleware_cookie_call(
         cookie_name,
         signed: options.signed,
         attributes: options.attributes,
+        partitioned: options.partitioned,
         dynamic_options: options.dynamic,
     })
 }
@@ -960,6 +1011,7 @@ fn set_cookie_header_calls_from_value_node(
             cookie_name: None,
             signed: false,
             attributes: BTreeMap::new(),
+            partitioned: None,
             dynamic_options: true,
         }];
     }
@@ -994,6 +1046,7 @@ fn set_cookie_call_from_header(
     }
 
     let mut attributes = BTreeMap::new();
+    let mut partitioned = None;
     for segment in segments {
         let trimmed = segment.trim();
         if trimmed.is_empty() {
@@ -1002,7 +1055,19 @@ fn set_cookie_call_from_header(
         let mut parts = trimmed.splitn(2, '=');
         let key = parts.next().unwrap_or_default().trim();
         let value = parts.next().map(str::trim);
-        if let Some((kind, attribute_value)) = header_attribute_kind_and_value(key, value) {
+        if key.eq_ignore_ascii_case("partitioned") {
+            partitioned = Some(AttributeEvidence {
+                state: CookieAttributeState::Present,
+                value: Some("true".to_string()),
+                confidence: Confidence::High,
+                excerpt: SanitizedExcerpt::from_sanitized(redact_set_cookie_header_values(
+                    "Partitioned=true",
+                )),
+                line: location.0,
+                column: location.1,
+                framework_default: false,
+            });
+        } else if let Some((kind, attribute_value)) = header_attribute_kind_and_value(key, value) {
             attributes.insert(
                 kind,
                 AttributeEvidence {
@@ -1032,6 +1097,7 @@ fn set_cookie_call_from_header(
         cookie_name: Some(cookie_name),
         signed: false,
         attributes,
+        partitioned,
         dynamic_options: false,
     })
 }
@@ -1342,6 +1408,7 @@ fn js_options_from_object(node: Node<'_>, source: &str) -> Option<OptionAlias> {
 
     let mut alias = OptionAlias {
         attributes: BTreeMap::new(),
+        partitioned: None,
         signed: object_has_signed_true(node, source),
         dynamic: false,
     };
@@ -1349,7 +1416,9 @@ fn js_options_from_object(node: Node<'_>, source: &str) -> Option<OptionAlias> {
     for child in node.named_children(&mut cursor) {
         if let Some((key, value)) = object_pair(child) {
             let key_name = strip_quotes(&node_text(key, source));
-            if let Some(kind) = js_attribute_kind(&key_name) {
+            if key_name == "partitioned" {
+                alias.partitioned = Some(attribute_from_named_value("Partitioned", value, source));
+            } else if let Some(kind) = js_attribute_kind(&key_name) {
                 alias
                     .attributes
                     .insert(kind, attribute_from_value(kind, value, source));
@@ -1369,6 +1438,7 @@ fn python_options_from_arguments(
 ) -> OptionAlias {
     let mut options = OptionAlias {
         attributes: BTreeMap::new(),
+        partitioned: None,
         signed: false,
         dynamic: false,
     };
@@ -1378,15 +1448,21 @@ fn python_options_from_arguments(
             if let (Some(name), Some(value)) = (
                 argument.child_by_field_name("name"),
                 argument.child_by_field_name("value"),
-            ) && let Some(kind) = python_attribute_kind(&node_text(name, source))
-            {
-                options
-                    .attributes
-                    .insert(kind, attribute_from_value(kind, value, source));
+            ) {
+                let key_name = node_text(name, source);
+                if key_name == "partitioned" {
+                    options.partitioned =
+                        Some(attribute_from_named_value("Partitioned", value, source));
+                } else if let Some(kind) = python_attribute_kind(&key_name) {
+                    options
+                        .attributes
+                        .insert(kind, attribute_from_value(kind, value, source));
+                }
             }
         } else if is_dictionary_splat(*argument, source) {
             if let Some(alias) = python_splat_alias(*argument, source, aliases) {
                 options.attributes.extend(alias.attributes);
+                options.partitioned = alias.partitioned.or(options.partitioned);
                 options.dynamic |= alias.dynamic;
             } else {
                 options.dynamic = true;
@@ -1417,6 +1493,7 @@ fn python_options_from_dictionary(node: Node<'_>, source: &str) -> Option<Option
 
     let mut alias = OptionAlias {
         attributes: BTreeMap::new(),
+        partitioned: None,
         signed: false,
         dynamic: false,
     };
@@ -1424,7 +1501,9 @@ fn python_options_from_dictionary(node: Node<'_>, source: &str) -> Option<Option
     for child in node.named_children(&mut cursor) {
         if let Some((key, value)) = object_pair(child) {
             let key_name = strip_quotes(&node_text(key, source));
-            if let Some(kind) = python_attribute_kind(&key_name) {
+            if key_name == "partitioned" {
+                alias.partitioned = Some(attribute_from_named_value("Partitioned", value, source));
+            } else if let Some(kind) = python_attribute_kind(&key_name) {
                 alias
                     .attributes
                     .insert(kind, attribute_from_value(kind, value, source));
@@ -1451,6 +1530,7 @@ fn collect_django_settings_calls(root: Node<'_>, source: &str, calls: &mut Vec<C
             cookie_name: Some("sessionid".to_string()),
             signed: false,
             attributes,
+            partitioned: None,
             dynamic_options: false,
         });
     }
@@ -1498,6 +1578,7 @@ fn django_setting_attribute_kind(name: &str) -> Option<CookieAttributeKind> {
 fn dynamic_option_alias() -> OptionAlias {
     OptionAlias {
         attributes: BTreeMap::new(),
+        partitioned: None,
         signed: false,
         dynamic: true,
     }
@@ -1555,6 +1636,36 @@ fn python_attribute_kind(key: &str) -> Option<CookieAttributeKind> {
         "path" => Some(CookieAttributeKind::Path),
         "domain" => Some(CookieAttributeKind::Domain),
         _ => None,
+    }
+}
+
+fn attribute_from_named_value(
+    display_name: &str,
+    value_node: Node<'_>,
+    source: &str,
+) -> AttributeEvidence {
+    let value = node_text(value_node, source);
+    let normalized = value.to_ascii_lowercase();
+    let (state, confidence) = if is_missing_literal(&normalized) {
+        (CookieAttributeState::Missing, Confidence::High)
+    } else if is_present_literal(value_node, &normalized) {
+        (CookieAttributeState::Present, Confidence::High)
+    } else {
+        (CookieAttributeState::Dynamic, Confidence::Medium)
+    };
+    let (line, column) = node_line_column(value_node);
+
+    AttributeEvidence {
+        state,
+        value: Some(redact_detector_excerpt(&strip_quotes(value.trim()))),
+        confidence,
+        excerpt: SanitizedExcerpt::from_sanitized(redact_detector_excerpt(&format!(
+            "{}: {}",
+            display_name, value
+        ))),
+        line,
+        column,
+        framework_default: false,
     }
 }
 
@@ -1664,6 +1775,7 @@ fn js_wrapper(
         framework_hint: template.framework_hint,
         signed: template.signed,
         attributes: template.attributes,
+        partitioned: template.partitioned,
         dynamic_options: template.dynamic_options,
     })
 }
@@ -1750,6 +1862,7 @@ fn js_wrapper_call(
         cookie_name: Some(cookie_name),
         signed: wrapper.signed,
         attributes: wrapper.attributes.clone(),
+        partitioned: wrapper.partitioned.clone(),
         dynamic_options: wrapper.dynamic_options,
     })
 }
@@ -1805,6 +1918,7 @@ fn python_wrapper(
         framework_hint: template.framework_hint,
         signed: template.signed,
         attributes: template.attributes,
+        partitioned: template.partitioned,
         dynamic_options: template.dynamic_options,
     })
 }
@@ -1896,6 +2010,7 @@ fn python_wrapper_call(
         cookie_name: Some(cookie_name),
         signed: wrapper.signed,
         attributes: wrapper.attributes.clone(),
+        partitioned: wrapper.partitioned.clone(),
         dynamic_options: wrapper.dynamic_options,
     })
 }
@@ -2805,6 +2920,32 @@ response.cookie("session", token, { secure: true });
                     .excerpt
                     .as_ref()
                     .is_some_and(|excerpt| excerpt.as_str().contains("host"))
+        }));
+        assert!(!detected_text(&output).contains("PLACEHOLDER_RESET_TOKEN"));
+    }
+
+    #[test]
+    fn detects_partitioned_cookie_evidence_from_options_and_headers() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+response.cookie("chips", token, { secure: true, sameSite: "none", partitioned: true });
+response.setHeader("Set-Cookie", "header_chips=PLACEHOLDER_RESET_TOKEN; Secure; SameSite=None; Partitioned");
+"#,
+        );
+
+        let partitioned = output
+            .evidence
+            .iter()
+            .filter(|evidence| evidence.detector_id == "cookie.attribute.partitioned")
+            .collect::<Vec<_>>();
+        assert_eq!(partitioned.len(), 2);
+        assert!(partitioned.iter().all(|evidence| !evidence.dynamic));
+        assert!(partitioned.iter().all(|evidence| {
+            evidence
+                .excerpt
+                .as_ref()
+                .is_some_and(|excerpt| excerpt.as_str().contains("Partitioned"))
         }));
         assert!(!detected_text(&output).contains("PLACEHOLDER_RESET_TOKEN"));
     }

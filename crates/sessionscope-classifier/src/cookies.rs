@@ -27,7 +27,10 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
             ));
         }
 
-        let prefix_evidence = prefix_evidence_for(report, artifact);
+        let prefix_evidence =
+            cookie_artifact_evidence(report, artifact, "cookie.attribute.name_prefix");
+        let partitioned_evidence =
+            cookie_artifact_evidence(report, artifact, "cookie.attribute.partitioned");
         findings.extend(classify_prefix_rules(
             artifact,
             cookie_name,
@@ -60,10 +63,21 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
             &attributes.max_age,
             &attributes.expires,
         ));
+        findings.extend(classify_partitioned_review(
+            artifact,
+            cookie_name,
+            partitioned_evidence,
+        ));
         findings.extend(classify_scope_posture(
             artifact,
             cookie_name,
             &attributes.path,
+            &attributes.domain,
+            session_like,
+        ));
+        findings.extend(classify_domain_leak_review(
+            artifact,
+            cookie_name,
             &attributes.domain,
             session_like,
         ));
@@ -242,10 +256,15 @@ fn cookie_prefix(cookie_name: &str) -> Option<CookieNamePrefix> {
     }
 }
 
-fn prefix_evidence_for<'a>(report: &'a ScanReport, artifact: &Artifact) -> Option<&'a Evidence> {
+fn cookie_artifact_evidence<'a>(
+    report: &'a ScanReport,
+    artifact: &Artifact,
+    detector_id: &str,
+) -> Option<&'a Evidence> {
     report.evidence.iter().find(|evidence| {
-        evidence.detector_id == "cookie.attribute.name_prefix"
-            && artifact.lifecycle_evidence.store.contains(&evidence.id)
+        evidence.detector_id == detector_id
+            && (artifact.lifecycle_evidence.store.contains(&evidence.id)
+                || artifact.lifecycle_evidence.transmit.contains(&evidence.id))
     })
 }
 
@@ -406,6 +425,27 @@ fn classify_same_site_posture(
     findings
 }
 
+fn classify_partitioned_review(
+    artifact: &Artifact,
+    cookie_name: &str,
+    partitioned_evidence: Option<&Evidence>,
+) -> Option<Finding> {
+    let evidence = partitioned_evidence?;
+    Some(finding(
+        "cookie_partitioned_review",
+        FindingCategory::DynamicReviewRequired,
+        Severity::Low,
+        artifact,
+        vec![evidence.id.clone()],
+        format!("Cookie `{cookie_name}` uses the Partitioned attribute"),
+        "Partitioned cookie evidence was detected. Static source cannot determine whether the CHIPS/embed context is intentional."
+            .to_string(),
+        "Confirm the partitioned-cookie requirement and document the embedded context that needs it."
+            .to_string(),
+        "Which embedded or third-party context requires this cookie to be Partitioned?".to_string(),
+    ))
+}
+
 fn classify_lifetime_posture(
     artifact: &Artifact,
     cookie_name: &str,
@@ -550,6 +590,38 @@ fn classify_scope_posture(
     }
 
     findings
+}
+
+fn classify_domain_leak_review(
+    artifact: &Artifact,
+    cookie_name: &str,
+    domain: &CookieAttributeObservation,
+    session_like: bool,
+) -> Vec<Finding> {
+    if session_like || artifact.artifact_type == ArtifactType::SignedCookie {
+        return Vec::new();
+    }
+
+    if domain.state == CookieAttributeState::Present
+        && domain.confidence == Confidence::High
+        && domain.value.as_deref().is_some_and(is_broad_cookie_domain)
+    {
+        vec![finding(
+            "cookie_domain_leak_review",
+            FindingCategory::DynamicReviewRequired,
+            Severity::Medium,
+            artifact,
+            domain.evidence_ids.clone(),
+            format!("Cookie `{cookie_name}` sets a broad Domain attribute"),
+            "Static Domain evidence broadens where the browser can send this cookie, but SessionScope cannot prove the intended host boundary."
+                .to_string(),
+            "Confirm the cookie is intended to be shared across the configured domain; otherwise omit Domain."
+                .to_string(),
+            "Which hosts are intended to receive this cookie?".to_string(),
+        )]
+    } else {
+        Vec::new()
+    }
 }
 
 fn classify_secure(
@@ -1088,23 +1160,52 @@ mod tests {
         artifact.lifecycle_evidence.store.push(evidence_id.clone());
         (
             artifact,
-            Evidence {
-                id: evidence_id,
-                lifecycle_stage: LifecycleStage::Store,
-                location: SourceLocation {
-                    path: "app.ts".to_string(),
-                    line: Some(1),
-                    column: Some(1),
-                },
-                detector_id: "cookie.attribute.name_prefix".to_string(),
-                confidence: Confidence::High,
-                excerpt: Some(SanitizedExcerpt::from_sanitized(format!(
-                    "Cookie name prefix: {prefix}"
-                ))),
-                dynamic: false,
-                framework_default: false,
-            },
+            evidence(
+                evidence_id,
+                "cookie.attribute.name_prefix",
+                LifecycleStage::Store,
+                format!("Cookie name prefix: {prefix}"),
+            ),
         )
+    }
+
+    fn with_partitioned_evidence(mut artifact: Artifact) -> (Artifact, Evidence) {
+        let evidence_id = EvidenceId("evidence_partitioned".to_string());
+        artifact
+            .lifecycle_evidence
+            .transmit
+            .push(evidence_id.clone());
+        (
+            artifact,
+            evidence(
+                evidence_id,
+                "cookie.attribute.partitioned",
+                LifecycleStage::Transmit,
+                "Partitioned: true".to_string(),
+            ),
+        )
+    }
+
+    fn evidence(
+        evidence_id: EvidenceId,
+        detector_id: &str,
+        stage: LifecycleStage,
+        excerpt: String,
+    ) -> Evidence {
+        Evidence {
+            id: evidence_id,
+            lifecycle_stage: stage,
+            location: SourceLocation {
+                path: "app.ts".to_string(),
+                line: Some(1),
+                column: Some(1),
+            },
+            detector_id: detector_id.to_string(),
+            confidence: Confidence::High,
+            excerpt: Some(SanitizedExcerpt::from_sanitized(excerpt)),
+            dynamic: false,
+            framework_default: false,
+        }
     }
 
     fn attributes_with_scope(
@@ -1485,6 +1586,58 @@ mod tests {
             finding.title.contains("requirements")
                 || finding.title.contains("uncertain __Host-")
                 || finding.title.contains("uncertain __Secure-")
+        }));
+    }
+
+    #[test]
+    fn partitioned_cookie_requires_review() {
+        let (artifact, partitioned_evidence) = with_partitioned_evidence(artifact(
+            "chips",
+            attributes(
+                present("http_only", "true"),
+                present("secure", "true"),
+                present("same_site", "none"),
+                present("max_age", "900"),
+                missing("expires"),
+            ),
+        ));
+        let evidence_id = partitioned_evidence.id.clone();
+        let findings = classify_report(vec![artifact], vec![partitioned_evidence]);
+
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("Partitioned"))
+            .expect("Partitioned finding should exist");
+        assert_eq!(finding.category, FindingCategory::DynamicReviewRequired);
+        assert_eq!(finding.severity, Severity::Low);
+        assert_eq!(finding.evidence_ids, vec![evidence_id]);
+    }
+
+    #[test]
+    fn broad_domain_non_session_cookie_is_domain_leak_review() {
+        let mut artifact = artifact(
+            "prefs",
+            attributes_with_scope(
+                present("http_only", "true"),
+                present("secure", "true"),
+                present("same_site", "lax"),
+                present("max_age", "900"),
+                missing("expires"),
+                present("path", "/auth"),
+                present("domain", ".example.com"),
+            ),
+        );
+        artifact.artifact_type = ArtifactType::Unknown;
+        let findings = classify_artifact(artifact);
+
+        assert!(findings.iter().any(|finding| {
+            finding.category == FindingCategory::DynamicReviewRequired
+                && finding.severity == Severity::Medium
+                && finding.title.contains("broad Domain")
+        }));
+        assert!(!findings.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.title.contains("broad Domain scope")
         }));
     }
 
