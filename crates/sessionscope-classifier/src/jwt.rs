@@ -15,6 +15,7 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
 
         if !artifact.lifecycle_evidence.validate.is_empty() {
             findings.extend(classify_alg_none(report, artifact, name, attributes));
+            findings.extend(classify_alg_confusion(report, artifact, name, attributes));
         }
 
         if operation_contains(&attributes.operation, "decode_without_verify")
@@ -253,6 +254,148 @@ fn classify_alg_none(
     }
 
     None
+}
+
+fn classify_alg_confusion(
+    report: &ScanReport,
+    artifact: &Artifact,
+    name: &str,
+    attributes: &sessionscope_model::JwtAttributes,
+) -> Option<Finding> {
+    let algorithm_option = artifact_bound_evidence(report, artifact, "jwt.option.algorithms");
+    let algorithms = accepted_algorithms(&algorithm_option, &attributes.algorithm);
+    if algorithms.is_empty() {
+        return None;
+    }
+
+    let accepts_hmac = algorithms
+        .iter()
+        .any(|algorithm| is_hmac_algorithm(algorithm));
+    let accepts_asymmetric = algorithms
+        .iter()
+        .any(|algorithm| is_asymmetric_algorithm(algorithm));
+    let public_key_reference = public_key_like_reference(&attributes.key_reference);
+
+    if accepts_hmac && accepts_asymmetric {
+        return Some(finding(
+            artifact,
+            FindingRequest {
+                rule_id: "jwt_alg_confusion_signal".to_string(),
+                category: FindingCategory::HighConfidenceMisconfiguration,
+                severity: Severity::High,
+                evidence_ids: algorithm_and_key_evidence_ids(&algorithm_option, attributes),
+                title: format!(
+                    "JWT `{name}` validation accepts both HMAC and asymmetric algorithms"
+                ),
+                description:
+                    "JWT verification evidence allows both symmetric HMAC and asymmetric algorithms on the same validation path."
+                        .to_string(),
+                suggested_fix:
+                    "Pin one expected algorithm family for this key type and separate symmetric and asymmetric validation paths."
+                        .to_string(),
+                reviewer_question:
+                    "Can an attacker influence the token algorithm header on this validation path?"
+                        .to_string(),
+            },
+        ));
+    }
+
+    if accepts_hmac && public_key_reference {
+        return Some(finding(
+            artifact,
+            FindingRequest {
+                rule_id: "jwt_alg_confusion_signal".to_string(),
+                category: FindingCategory::DynamicReviewRequired,
+                severity: Severity::Medium,
+                evidence_ids: algorithm_and_key_evidence_ids(&algorithm_option, attributes),
+                title: format!(
+                    "JWT `{name}` validation pairs HMAC algorithms with public-key-like material"
+                ),
+                description:
+                    "JWT verification evidence accepts an HMAC algorithm while the key reference appears public-key-like."
+                        .to_string(),
+                suggested_fix:
+                    "Confirm the key material type and pin algorithms that match the expected key family."
+                        .to_string(),
+                reviewer_question:
+                    "Is this key reference a symmetric secret or an asymmetric public key?".to_string(),
+            },
+        ));
+    }
+
+    None
+}
+
+fn accepted_algorithms(
+    algorithm_option: &[&Evidence],
+    observation: &JwtAttributeObservation,
+) -> Vec<String> {
+    let mut algorithms = Vec::new();
+    for evidence in algorithm_option {
+        if let Some(excerpt) = &evidence.excerpt {
+            algorithms.extend(algorithm_tokens(excerpt.as_str()));
+        }
+    }
+    if let Some(value) = &observation.value {
+        algorithms.extend(algorithm_tokens(value));
+    }
+    algorithms.sort();
+    algorithms.dedup();
+    algorithms
+}
+
+fn algorithm_tokens(text: &str) -> Vec<String> {
+    text.split(|character: char| !character.is_ascii_alphanumeric())
+        .filter_map(|part| {
+            let upper = part.to_ascii_uppercase();
+            (is_hmac_algorithm(&upper) || is_asymmetric_algorithm(&upper) || upper == "NONE")
+                .then_some(upper)
+        })
+        .collect()
+}
+
+fn is_hmac_algorithm(algorithm: &str) -> bool {
+    matches!(algorithm, "HS256" | "HS384" | "HS512")
+}
+
+fn is_asymmetric_algorithm(algorithm: &str) -> bool {
+    matches!(
+        algorithm,
+        "RS256" | "RS384" | "RS512" | "ES256" | "ES384" | "ES512" | "PS256" | "PS384" | "PS512"
+    )
+}
+
+fn public_key_like_reference(observation: &JwtAttributeObservation) -> bool {
+    let Some(value) = observation.value.as_ref() else {
+        return false;
+    };
+    let normalized = value
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric() || *character == '.')
+        .collect::<String>()
+        .to_ascii_lowercase();
+    if normalized.contains("secret") || normalized.contains("private") {
+        return false;
+    }
+    normalized.contains("publickey")
+        || normalized.contains("pubkey")
+        || normalized.contains("loadpublickey")
+        || normalized.ends_with(".pem")
+}
+
+fn algorithm_and_key_evidence_ids(
+    algorithm_option: &[&Evidence],
+    attributes: &sessionscope_model::JwtAttributes,
+) -> Vec<EvidenceId> {
+    let mut evidence_ids = algorithm_option
+        .iter()
+        .map(|evidence| evidence.id.clone())
+        .collect::<Vec<_>>();
+    evidence_ids.extend(attributes.algorithm.evidence_ids.clone());
+    evidence_ids.extend(attributes.key_reference.evidence_ids.clone());
+    evidence_ids.sort();
+    evidence_ids.dedup();
+    evidence_ids
 }
 
 fn artifact_bound_evidence<'a>(
@@ -691,6 +834,187 @@ mod tests {
             findings
                 .iter()
                 .all(|finding| !finding.title.contains("`none` algorithm"))
+        );
+    }
+
+    #[test]
+    fn mixed_hmac_and_asymmetric_algorithms_signal_confusion() {
+        let mut attributes = attributes(
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            "validate",
+        );
+        attributes.algorithm = observation(
+            "algorithm",
+            JwtAttributeState::Present,
+            Some("HS256, RS256"),
+            EvidenceId("evidence_algorithm".to_string()),
+        );
+        attributes.key_reference = observation(
+            "key",
+            JwtAttributeState::Present,
+            Some("verificationKey"),
+            EvidenceId("evidence_key".to_string()),
+        );
+        let artifact = artifact(
+            attributes,
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_option_algorithms".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+
+        let findings = classify_report(
+            vec![artifact],
+            vec![option_evidence(
+                "evidence_option_algorithms",
+                "jwt.option.algorithms",
+                r#"algorithms: ["HS256", "RS256"]"#,
+                false,
+            )],
+        );
+
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("HMAC and asymmetric"))
+            .expect("algorithm confusion finding");
+        assert_eq!(
+            finding.category,
+            FindingCategory::HighConfidenceMisconfiguration
+        );
+        assert_eq!(finding.severity, Severity::High);
+        assert!(
+            finding
+                .evidence_ids
+                .contains(&EvidenceId("evidence_option_algorithms".to_string()))
+        );
+        assert!(
+            finding
+                .evidence_ids
+                .contains(&EvidenceId("evidence_key".to_string()))
+        );
+    }
+
+    #[test]
+    fn public_key_like_reference_with_hmac_requires_review() {
+        let mut attributes = attributes(
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            "validate",
+        );
+        attributes.algorithm = observation(
+            "algorithm",
+            JwtAttributeState::Present,
+            Some("HS256"),
+            EvidenceId("evidence_algorithm".to_string()),
+        );
+        attributes.key_reference = observation(
+            "key",
+            JwtAttributeState::Present,
+            Some("publicKey"),
+            EvidenceId("evidence_key".to_string()),
+        );
+        let artifact = artifact(
+            attributes,
+            LifecycleEvidence {
+                validate: vec![EvidenceId("evidence_verify".to_string())],
+                ..LifecycleEvidence::default()
+            },
+        );
+
+        let findings = classify_artifact(artifact);
+
+        assert!(findings.iter().any(|finding| {
+            finding.title.contains("public-key-like")
+                && finding.category == FindingCategory::DynamicReviewRequired
+                && finding.severity == Severity::Medium
+        }));
+    }
+
+    #[test]
+    fn matching_key_family_algorithms_do_not_signal_confusion() {
+        let hs_secret = classify_artifact(artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![EvidenceId("evidence_verify".to_string())],
+                ..LifecycleEvidence::default()
+            },
+        ));
+
+        let mut rs_attributes = attributes(
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            "validate",
+        );
+        rs_attributes.algorithm = observation(
+            "algorithm",
+            JwtAttributeState::Present,
+            Some("RS256"),
+            EvidenceId("evidence_algorithm".to_string()),
+        );
+        rs_attributes.key_reference = observation(
+            "key",
+            JwtAttributeState::Present,
+            Some("publicKey"),
+            EvidenceId("evidence_key".to_string()),
+        );
+        let rs_public = classify_artifact(artifact(
+            rs_attributes,
+            LifecycleEvidence {
+                validate: vec![EvidenceId("evidence_verify".to_string())],
+                ..LifecycleEvidence::default()
+            },
+        ));
+
+        assert!(hs_secret.iter().chain(rs_public.iter()).all(|finding| {
+            !finding.title.contains("HMAC and asymmetric")
+                && !finding.title.contains("public-key-like")
+        }));
+    }
+
+    #[test]
+    fn public_secret_name_does_not_signal_public_key_confusion() {
+        let mut attributes = attributes(
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            "validate",
+        );
+        attributes.algorithm = observation(
+            "algorithm",
+            JwtAttributeState::Present,
+            Some("HS256"),
+            EvidenceId("evidence_algorithm".to_string()),
+        );
+        attributes.key_reference = observation(
+            "key",
+            JwtAttributeState::Present,
+            Some("publicSecret"),
+            EvidenceId("evidence_key".to_string()),
+        );
+        let findings = classify_artifact(artifact(
+            attributes,
+            LifecycleEvidence {
+                validate: vec![EvidenceId("evidence_verify".to_string())],
+                ..LifecycleEvidence::default()
+            },
+        ));
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("public-key-like"))
         );
     }
 
