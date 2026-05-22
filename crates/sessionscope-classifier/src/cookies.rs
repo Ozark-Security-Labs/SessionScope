@@ -119,12 +119,29 @@ fn classify_conflicting_writes(report: &ScanReport) -> Vec<Finding> {
             .collect::<Vec<_>>();
         artifact_ids.sort();
         artifact_ids.dedup();
+        let mut evidence_ids = vec![evidence.id.clone()];
+        for artifact in &artifacts {
+            evidence_ids.extend(
+                artifact
+                    .lifecycle_evidence
+                    .store
+                    .iter()
+                    .filter(|evidence_id| {
+                        report.evidence.iter().any(|candidate| {
+                            candidate.id == **evidence_id && candidate.detector_id == "cookie.set"
+                        })
+                    })
+                    .cloned(),
+            );
+        }
+        evidence_ids.sort();
+        evidence_ids.dedup();
         let mut finding = finding(
             "cookie_conflicting_writes_review",
             FindingCategory::DynamicReviewRequired,
             Severity::Medium,
             artifact,
-            vec![evidence.id.clone()],
+            evidence_ids,
             format!("Cookie `{cookie_name}` is written multiple times in one handler"),
             "Multiple source-visible writes target the same cookie name in one handler scope. Static analysis cannot prove last-write-wins middleware behavior."
                 .to_string(),
@@ -600,6 +617,7 @@ fn classify_scope_posture(
 
     if path.state == CookieAttributeState::Present
         && path.confidence == Confidence::High
+        && cookie_prefix(cookie_name) != Some(CookieNamePrefix::Host)
         && path
             .value
             .as_deref()
@@ -1229,20 +1247,26 @@ mod tests {
         )
     }
 
-    fn with_conflict_evidence(mut artifacts: Vec<Artifact>) -> (Vec<Artifact>, Evidence) {
-        let evidence_id = EvidenceId("evidence_conflict".to_string());
-        for artifact in &mut artifacts {
-            artifact.lifecycle_evidence.store.push(evidence_id.clone());
-        }
-        (
-            artifacts,
-            evidence(
-                evidence_id,
-                "cookie.conflicting_writes",
+    fn with_conflict_evidence(mut artifacts: Vec<Artifact>) -> (Vec<Artifact>, Vec<Evidence>) {
+        let conflict_id = EvidenceId("evidence_conflict".to_string());
+        let mut evidence_items = vec![evidence(
+            conflict_id.clone(),
+            "cookie.conflicting_writes",
+            LifecycleStage::Store,
+            "Conflicting cookie writes for `session` in one handler".to_string(),
+        )];
+        for (index, artifact) in artifacts.iter_mut().enumerate() {
+            let set_id = EvidenceId(format!("evidence_cookie_set_{index}"));
+            artifact.lifecycle_evidence.store.push(set_id.clone());
+            artifact.lifecycle_evidence.store.push(conflict_id.clone());
+            evidence_items.push(evidence(
+                set_id,
+                "cookie.set",
                 LifecycleStage::Store,
-                "Conflicting cookie writes for `session` in one handler".to_string(),
-            ),
-        )
+                format!("cookie write {index}"),
+            ));
+        }
+        (artifacts, evidence_items)
     }
 
     fn evidence(
@@ -1645,6 +1669,7 @@ mod tests {
             finding.title.contains("requirements")
                 || finding.title.contains("uncertain __Host-")
                 || finding.title.contains("uncertain __Secure-")
+                || finding.title.contains("broad Path scope")
         }));
     }
 
@@ -1671,9 +1696,12 @@ mod tests {
             ),
         );
         second.id = ArtifactId("artifact_session_second".to_string());
-        let (artifacts, conflict_evidence) = with_conflict_evidence(vec![first, second]);
-        let evidence_id = conflict_evidence.id.clone();
-        let findings = classify_report(artifacts, vec![conflict_evidence]);
+        let (artifacts, evidence_items) = with_conflict_evidence(vec![first, second]);
+        let evidence_ids = evidence_items
+            .iter()
+            .map(|evidence| evidence.id.clone())
+            .collect::<Vec<_>>();
+        let findings = classify_report(artifacts, evidence_items);
 
         let finding = findings
             .iter()
@@ -1681,7 +1709,9 @@ mod tests {
             .expect("conflict finding should exist");
         assert_eq!(finding.category, FindingCategory::DynamicReviewRequired);
         assert_eq!(finding.severity, Severity::Medium);
-        assert_eq!(finding.evidence_ids, vec![evidence_id]);
+        for evidence_id in evidence_ids {
+            assert!(finding.evidence_ids.contains(&evidence_id));
+        }
         assert_eq!(finding.artifact_ids.len(), 2);
     }
 

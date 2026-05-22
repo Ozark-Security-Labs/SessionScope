@@ -558,6 +558,9 @@ fn cookie_partitioned_to_evidence(
     call: &CookieCall,
 ) -> Option<Evidence> {
     let attribute = call.partitioned.as_ref()?;
+    if attribute.state == CookieAttributeState::Missing {
+        return None;
+    }
     let line_part = attribute.line.to_string();
     let column_part = attribute.column.to_string();
     let name_part = call.cookie_name.as_deref().unwrap_or("dynamic");
@@ -1070,6 +1073,7 @@ fn set_cookie_header_calls_from_value_node(
     framework_hint: &'static str,
     fallback_location: (usize, usize),
 ) -> Vec<CookieCall> {
+    let header_scope_id = scope_id(value_node);
     let literal_values = string_literals_from_node(value_node, source);
     if literal_values.is_empty() {
         let (line, column) = fallback_location;
@@ -1082,7 +1086,7 @@ fn set_cookie_header_calls_from_value_node(
                 value_node, source,
             ))),
             cookie_name: None,
-            scope_id: 0,
+            scope_id: header_scope_id,
             signed: false,
             attributes: BTreeMap::new(),
             partitioned: None,
@@ -1098,6 +1102,7 @@ fn set_cookie_header_calls_from_value_node(
                 api_name,
                 framework_hint,
                 node_line_column(node),
+                header_scope_id,
                 SanitizedExcerpt::from_sanitized(redact_set_cookie_header_values(&value)),
             )
         })
@@ -1109,6 +1114,7 @@ fn set_cookie_call_from_header(
     api_name: &'static str,
     framework_hint: &'static str,
     location: (usize, usize),
+    scope_id: usize,
     excerpt: SanitizedExcerpt,
 ) -> Option<CookieCall> {
     let mut segments = header.split(';');
@@ -1169,7 +1175,7 @@ fn set_cookie_call_from_header(
         column: location.1,
         excerpt,
         cookie_name: Some(cookie_name),
-        scope_id: location.0,
+        scope_id,
         signed: false,
         attributes,
         partitioned,
@@ -3036,6 +3042,43 @@ function refresh(response, token) {
     }
 
     #[test]
+    fn detects_conflicting_set_cookie_headers_within_one_handler() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+function login(response, token) {
+  response.setHeader("Set-Cookie", "session=PLACEHOLDER_RESET_TOKEN; Secure; Path=/");
+  response.setHeader("Set-Cookie", "session=PLACEHOLDER_RESET_TOKEN; SameSite=None; Path=/");
+}
+function refresh(response, token) {
+  response.setHeader("Set-Cookie", "session=PLACEHOLDER_RESET_TOKEN; Secure; Path=/");
+}
+"#,
+        );
+
+        assert_single_conflict_links_two_artifacts(&output);
+        assert!(!detected_text(&output).contains("PLACEHOLDER_RESET_TOKEN"));
+    }
+
+    #[test]
+    fn detects_conflicting_python_set_cookie_headers_within_one_handler() {
+        let output = detect(
+            Language::Python,
+            r#"
+def login(response, token):
+    response.headers["Set-Cookie"] = "session=PLACEHOLDER_RESET_TOKEN; Secure; Path=/"
+    response.headers.append("Set-Cookie", "session=PLACEHOLDER_RESET_TOKEN; SameSite=None; Path=/")
+
+def refresh(response, token):
+    response.headers.append("Set-Cookie", "session=PLACEHOLDER_RESET_TOKEN; Secure; Path=/")
+"#,
+        );
+
+        assert_single_conflict_links_two_artifacts(&output);
+        assert!(!detected_text(&output).contains("PLACEHOLDER_RESET_TOKEN"));
+    }
+
+    #[test]
     fn detects_partitioned_cookie_evidence_from_options_and_headers() {
         let output = detect(
             Language::TypeScript,
@@ -3062,6 +3105,21 @@ response.setHeader("Set-Cookie", "header_chips=PLACEHOLDER_RESET_TOKEN; Secure; 
     }
 
     #[test]
+    fn partitioned_false_does_not_emit_partitioned_evidence() {
+        let output = detect(
+            Language::TypeScript,
+            r#"response.cookie("session", token, { secure: true, partitioned: false });"#,
+        );
+
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "cookie.attribute.partitioned")
+        );
+    }
+
+    #[test]
     fn generic_python_response_cookie_keeps_generic_framework_hint() {
         let output = detect(
             Language::Python,
@@ -3069,6 +3127,24 @@ response.setHeader("Set-Cookie", "header_chips=PLACEHOLDER_RESET_TOKEN; Secure; 
         );
 
         assert_eq!(output.artifacts[0].framework_hints, vec!["python"]);
+    }
+
+    fn assert_single_conflict_links_two_artifacts(output: &crate::DetectionOutput) {
+        let conflicts = output
+            .evidence
+            .iter()
+            .filter(|evidence| evidence.detector_id == "cookie.conflicting_writes")
+            .collect::<Vec<_>>();
+        assert_eq!(conflicts.len(), 1);
+        let conflict_id = &conflicts[0].id;
+        assert_eq!(
+            output
+                .artifacts
+                .iter()
+                .filter(|artifact| artifact.lifecycle_evidence.store.contains(conflict_id))
+                .count(),
+            2
+        );
     }
 
     fn detected_text(output: &crate::DetectionOutput) -> String {
