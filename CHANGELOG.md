@@ -12,6 +12,7 @@ and SessionScope uses semantic versioning as described in
 
 - Added `docs/COVERAGE_MATRIX.md` as the per-check source of truth for supported, review-required, and intentionally not-covered SessionScope evidence patterns across languages, frameworks, libraries, lifecycle stages, finding categories, and SARIF rule IDs.
 - Added v0.2 P1 cookie hardening coverage for `__Host-` / `__Secure-` prefix rules, `Partitioned` cookie review, broad non-session Domain review, and same-handler conflicting cookie writes across existing JS/TS/Python cookie detectors.
+- Added v0.2 P2 JWT crypto-trust coverage for `alg:none`, HMAC/asymmetric algorithm-confusion signals, `jku`/`x5u`/embedded-JWK header trust review, missing `nbf` validation, broad clock-skew review, and unvalidated `kid` header review across existing `jsonwebtoken`, `jose`, and PyJWT detector surfaces.
 
 ### Pre-release remediation (v0.1.0 readiness)
 
