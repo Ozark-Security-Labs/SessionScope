@@ -1,0 +1,9 @@
+{
+  "fixture_id": "fastapi.cookie-conflicting-writes",
+  "framework": "fastapi",
+  "source_files": ["app.py"],
+  "expected_artifacts": ["session_cookie:session"],
+  "expected_lifecycle_stages": ["store", "transmit"],
+  "expected_findings": ["cookie_conflicting_writes_review"],
+  "notes": "P1 cookie hardening fixture for cookie-conflicting-writes. Uses placeholder values only; Django runtime coverage is narrower than settings-derived cookie coverage where applicable."
+}

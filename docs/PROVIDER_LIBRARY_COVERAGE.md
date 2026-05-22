@@ -7,6 +7,9 @@ lifecycle capability areas. Classifiers decide whether evidence is a finding.
 Provider-managed behavior is dynamic review context unless local source exposes
 deterministic lifecycle actions.
 
+For per-check truth across languages, frameworks, libraries, lifecycle stages,
+categories, and SARIF rule IDs, see [COVERAGE_MATRIX.md](COVERAGE_MATRIX.md).
+
 ## Common rules
 
 - Source analysis does not call identity providers, SDKs, discovery endpoints, or running applications.

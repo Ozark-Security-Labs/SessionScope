@@ -121,7 +121,7 @@ SessionScope is built around defensive, evidence-bound checks. The current and p
 
 - Cookie missing `HttpOnly`
 - Cookie missing `Secure`
-- Unsafe or review-required cookie posture, including excessive lifetime, broad `Domain`/`Path` scope, and `SameSite=None` handling
+- Unsafe or review-required cookie posture, including excessive lifetime, broad `Domain`/`Path` scope, `SameSite=None` handling, `__Host-` / `__Secure-` prefix-rule violations, `Partitioned` cookie review, broad non-session Domain leak review, and same-handler conflicting cookie writes
 - JWT verification without issuer validation
 - JWT verification without audience validation
 - Tokens issued without explicit expiry
