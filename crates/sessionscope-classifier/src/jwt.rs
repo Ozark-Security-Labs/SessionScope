@@ -1,6 +1,6 @@
 use sessionscope_model::{
-    Artifact, EvidenceId, Finding, FindingCategory, JwtAttributeObservation, JwtAttributeState,
-    ScanReport, Severity, stable_finding_id,
+    Artifact, Evidence, EvidenceId, Finding, FindingCategory, JwtAttributeObservation,
+    JwtAttributeState, ScanReport, Severity, stable_finding_id,
 };
 
 pub fn classify(report: &ScanReport) -> Vec<Finding> {
@@ -12,6 +12,10 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
         };
 
         let name = artifact.display_name.as_deref().unwrap_or("unknown_jwt");
+
+        if !artifact.lifecycle_evidence.validate.is_empty() {
+            findings.extend(classify_alg_none(report, artifact, name, attributes));
+        }
 
         if operation_contains(&attributes.operation, "decode_without_verify")
             || attributes.signature_verification.state == JwtAttributeState::Missing
@@ -181,6 +185,113 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
     findings
 }
 
+fn classify_alg_none(
+    report: &ScanReport,
+    artifact: &Artifact,
+    name: &str,
+    attributes: &sessionscope_model::JwtAttributes,
+) -> Option<Finding> {
+    let algorithm_option = artifact_bound_evidence(report, artifact, "jwt.option.algorithms");
+    let has_dynamic_algorithm_option = algorithm_option.iter().any(|evidence| evidence.dynamic);
+    let has_literal_none_option = algorithm_option.iter().any(evidence_mentions_none);
+    let has_literal_none_attribute = observation_contains_literal(&attributes.algorithm, "none");
+
+    if has_literal_none_option || has_literal_none_attribute {
+        let mut evidence_ids = algorithm_option
+            .iter()
+            .map(|evidence| evidence.id.clone())
+            .collect::<Vec<_>>();
+        evidence_ids.extend(attributes.algorithm.evidence_ids.clone());
+        evidence_ids.sort();
+        evidence_ids.dedup();
+        return Some(finding(
+            artifact,
+            FindingRequest {
+                rule_id: "jwt_alg_none_accepted".to_string(),
+                category: FindingCategory::HighConfidenceMisconfiguration,
+                severity: Severity::High,
+                evidence_ids: fallback_ids(&evidence_ids, &artifact.lifecycle_evidence.validate),
+                title: format!("JWT `{name}` validation accepts the `none` algorithm"),
+                description:
+                    "JWT verification evidence includes an explicit `none` algorithm allow-list entry."
+                        .to_string(),
+                suggested_fix:
+                    "Remove `none` from accepted algorithms and pin the expected signing algorithm."
+                        .to_string(),
+                reviewer_question:
+                    "Is any validation path intentionally accepting unsigned JWTs?".to_string(),
+            },
+        ));
+    }
+
+    if has_dynamic_algorithm_option || attributes.algorithm.state == JwtAttributeState::Dynamic {
+        return None;
+    }
+
+    if attributes.algorithm.state == JwtAttributeState::Unknown
+        && library_has_default_alg_none_risk(artifact)
+    {
+        return Some(finding(
+            artifact,
+            FindingRequest {
+                rule_id: "jwt_alg_none_accepted".to_string(),
+                category: FindingCategory::FrameworkDefaultAssumed,
+                severity: Severity::Medium,
+                evidence_ids: artifact.lifecycle_evidence.validate.clone(),
+                title: format!("JWT `{name}` validation relies on JWT algorithm defaults"),
+                description:
+                    "JWT verification evidence does not pin accepted algorithms for a library path with historically configuration-dependent `none` handling."
+                        .to_string(),
+                suggested_fix:
+                    "Pass an explicit safe algorithms allow-list when verifying JWTs."
+                        .to_string(),
+                reviewer_question:
+                    "Which library version and configuration define the accepted JWT algorithms here?"
+                        .to_string(),
+            },
+        ));
+    }
+
+    None
+}
+
+fn artifact_bound_evidence<'a>(
+    report: &'a ScanReport,
+    artifact: &Artifact,
+    detector_id: &str,
+) -> Vec<&'a Evidence> {
+    report
+        .evidence
+        .iter()
+        .filter(|evidence| evidence.detector_id == detector_id)
+        .filter(|evidence| artifact.lifecycle_evidence.validate.contains(&evidence.id))
+        .collect()
+}
+
+fn evidence_mentions_none(evidence: &&Evidence) -> bool {
+    evidence.excerpt.as_ref().is_some_and(|excerpt| {
+        text_mentions_literal(&excerpt.as_str().to_ascii_lowercase(), "none")
+    })
+}
+
+fn observation_contains_literal(observation: &JwtAttributeObservation, literal: &str) -> bool {
+    observation.value.as_ref().is_some_and(|value| {
+        text_mentions_literal(&value.to_ascii_lowercase(), &literal.to_ascii_lowercase())
+    })
+}
+
+fn text_mentions_literal(text: &str, literal: &str) -> bool {
+    text.split(|character: char| !character.is_ascii_alphanumeric())
+        .any(|part| part == literal)
+}
+
+fn library_has_default_alg_none_risk(artifact: &Artifact) -> bool {
+    artifact
+        .framework_hints
+        .iter()
+        .any(|hint| matches!(hint.as_str(), "jsonwebtoken" | "pyjwt" | "PyJWT" | "jwt"))
+}
+
 fn classify_validation_field(
     artifact: &Artifact,
     name: &str,
@@ -291,19 +402,23 @@ fn operation_contains(operation: &JwtAttributeObservation, needle: &str) -> bool
 #[cfg(test)]
 mod tests {
     use sessionscope_model::{
-        ArtifactId, ArtifactType, Confidence, JwtAttributes, LifecycleEvidence, SCHEMA_VERSION,
-        ScanSummary, SourceLocation,
+        ArtifactId, ArtifactType, Confidence, JwtAttributes, LifecycleEvidence, LifecycleStage,
+        SCHEMA_VERSION, SanitizedExcerpt, ScanSummary, SourceLocation,
     };
 
     use super::*;
 
     fn classify_artifact(artifact: Artifact) -> Vec<Finding> {
+        classify_report(vec![artifact], Vec::new())
+    }
+
+    fn classify_report(artifacts: Vec<Artifact>, evidence: Vec<Evidence>) -> Vec<Finding> {
         classify(&ScanReport {
             schema_version: SCHEMA_VERSION.to_string(),
             summary: ScanSummary::default(),
             files: Vec::new(),
-            artifacts: vec![artifact],
-            evidence: Vec::new(),
+            artifacts,
+            evidence,
             lifecycle_paths: Vec::new(),
             findings: Vec::new(),
         })
@@ -410,6 +525,27 @@ mod tests {
         }
     }
 
+    fn option_evidence(id: &str, detector_id: &str, excerpt: &str, dynamic: bool) -> Evidence {
+        Evidence {
+            id: EvidenceId(id.to_string()),
+            lifecycle_stage: LifecycleStage::Validate,
+            location: SourceLocation {
+                path: "auth.ts".to_string(),
+                line: Some(1),
+                column: Some(1),
+            },
+            detector_id: detector_id.to_string(),
+            confidence: if dynamic {
+                Confidence::Medium
+            } else {
+                Confidence::High
+            },
+            excerpt: Some(SanitizedExcerpt::from_sanitized(excerpt.to_string())),
+            dynamic,
+            framework_default: false,
+        }
+    }
+
     #[test]
     fn missing_issuer_and_audience_on_verify_are_missing_validation_evidence() {
         let findings = classify_artifact(artifact(
@@ -431,6 +567,130 @@ mod tests {
                 .filter(|finding| finding.category == FindingCategory::MissingValidationEvidence)
                 .count(),
             2
+        );
+    }
+
+    #[test]
+    fn literal_none_algorithm_is_high_confidence() {
+        let mut attributes = attributes(
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            "validate",
+        );
+        attributes.algorithm = observation(
+            "algorithm",
+            JwtAttributeState::Present,
+            Some("none"),
+            EvidenceId("evidence_algorithm".to_string()),
+        );
+        let mut artifact = artifact(
+            attributes,
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_option_algorithms".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        artifact.framework_hints = vec!["jsonwebtoken".to_string()];
+        let findings = classify_report(
+            vec![artifact],
+            vec![option_evidence(
+                "evidence_option_algorithms",
+                "jwt.option.algorithms",
+                r#"algorithms: ["none"]"#,
+                false,
+            )],
+        );
+
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("`none` algorithm"))
+            .expect("alg none finding");
+        assert_eq!(
+            finding.category,
+            FindingCategory::HighConfidenceMisconfiguration
+        );
+        assert_eq!(finding.severity, Severity::High);
+        assert!(
+            finding
+                .evidence_ids
+                .contains(&EvidenceId("evidence_option_algorithms".to_string()))
+        );
+    }
+
+    #[test]
+    fn missing_algorithm_allowlist_on_default_sensitive_library_is_framework_default() {
+        let mut attributes = attributes(
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            "validate",
+        );
+        attributes.algorithm = observation(
+            "algorithm",
+            JwtAttributeState::Unknown,
+            None,
+            EvidenceId("evidence_algorithm".to_string()),
+        );
+        let mut artifact = artifact(
+            attributes,
+            LifecycleEvidence {
+                validate: vec![EvidenceId("evidence_verify".to_string())],
+                ..LifecycleEvidence::default()
+            },
+        );
+        artifact.framework_hints = vec!["pyjwt".to_string()];
+
+        let findings = classify_artifact(artifact);
+
+        assert!(findings.iter().any(|finding| {
+            finding.title.contains("algorithm defaults")
+                && finding.category == FindingCategory::FrameworkDefaultAssumed
+                && finding.severity == Severity::Medium
+        }));
+    }
+
+    #[test]
+    fn dynamic_algorithm_options_do_not_emit_alg_none_finding() {
+        let mut attributes = attributes(
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            "validate",
+        );
+        attributes.algorithm = observation(
+            "algorithm",
+            JwtAttributeState::Dynamic,
+            None,
+            EvidenceId("evidence_algorithm".to_string()),
+        );
+        let artifact = artifact(
+            attributes,
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_option_algorithms".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![option_evidence(
+                "evidence_option_algorithms",
+                "jwt.option.algorithms",
+                "JWT algorithms option depends on unresolved JWT options",
+                true,
+            )],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("`none` algorithm"))
         );
     }
 
