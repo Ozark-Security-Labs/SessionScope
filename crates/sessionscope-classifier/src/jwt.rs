@@ -16,6 +16,7 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
         if !artifact.lifecycle_evidence.validate.is_empty() {
             findings.extend(classify_alg_none(report, artifact, name, attributes));
             findings.extend(classify_alg_confusion(report, artifact, name, attributes));
+            findings.extend(classify_header_trust(report, artifact, name));
         }
 
         if operation_contains(&attributes.operation, "decode_without_verify")
@@ -326,6 +327,57 @@ fn classify_alg_confusion(
     None
 }
 
+fn classify_header_trust(report: &ScanReport, artifact: &Artifact, name: &str) -> Vec<Finding> {
+    let complete_evidence = artifact_bound_evidence(report, artifact, "jwt.option.complete");
+    if !complete_evidence.iter().any(evidence_mentions_true) {
+        return Vec::new();
+    }
+
+    [
+        ("jku", "jwt_jku_header_trust", "jku URL"),
+        ("x5u", "jwt_x5u_header_trust", "x5u URL"),
+        ("jwk", "jwt_embedded_jwk_trust", "embedded JWK"),
+    ]
+    .into_iter()
+    .filter_map(|(header_name, rule_id, label)| {
+        let header_evidence = artifact_bound_evidence(
+            report,
+            artifact,
+            &format!("jwt.header.{header_name}"),
+        );
+        if header_evidence.is_empty() {
+            return None;
+        }
+        let mut evidence_ids = complete_evidence
+            .iter()
+            .chain(header_evidence.iter())
+            .map(|evidence| evidence.id.clone())
+            .collect::<Vec<_>>();
+        evidence_ids.sort();
+        evidence_ids.dedup();
+        Some(finding(
+            artifact,
+            FindingRequest {
+                rule_id: rule_id.to_string(),
+                category: FindingCategory::DynamicReviewRequired,
+                severity: Severity::Medium,
+                evidence_ids,
+                title: format!("JWT `{name}` validation trusts the {label} header"),
+                description: format!(
+                    "JWT verification parses complete token headers and reads `{header_name}` for key resolution context."
+                ),
+                suggested_fix:
+                    "Constrain header-driven key resolution to an explicit allow-list or pinned key source."
+                        .to_string(),
+                reviewer_question: format!(
+                    "Is the `{header_name}` header constrained to trusted key material before use?"
+                ),
+            },
+        ))
+    })
+    .collect()
+}
+
 fn accepted_algorithms(
     algorithm_option: &[&Evidence],
     observation: &JwtAttributeObservation,
@@ -414,6 +466,12 @@ fn artifact_bound_evidence<'a>(
 fn evidence_mentions_none(evidence: &&Evidence) -> bool {
     evidence.excerpt.as_ref().is_some_and(|excerpt| {
         text_mentions_literal(&excerpt.as_str().to_ascii_lowercase(), "none")
+    })
+}
+
+fn evidence_mentions_true(evidence: &&Evidence) -> bool {
+    evidence.excerpt.as_ref().is_some_and(|excerpt| {
+        text_mentions_literal(&excerpt.as_str().to_ascii_lowercase(), "true")
     })
 }
 
@@ -1015,6 +1073,114 @@ mod tests {
             findings
                 .iter()
                 .all(|finding| !finding.title.contains("public-key-like"))
+        );
+    }
+
+    #[test]
+    fn complete_token_header_trust_requires_review() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_complete".to_string()),
+                    EvidenceId("evidence_jku".to_string()),
+                    EvidenceId("evidence_x5u".to_string()),
+                    EvidenceId("evidence_jwk".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_complete",
+                    "jwt.option.complete",
+                    "complete: true",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_jku",
+                    "jwt.header.jku",
+                    "JWT header `jku` is read near verification logic",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_x5u",
+                    "jwt.header.x5u",
+                    "JWT header `x5u` is read near verification logic",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_jwk",
+                    "jwt.header.jwk",
+                    "JWT header `jwk` is read near verification logic",
+                    false,
+                ),
+            ],
+        );
+
+        for title_fragment in ["jku URL", "x5u URL", "embedded JWK"] {
+            let finding = findings
+                .iter()
+                .find(|finding| finding.title.contains(title_fragment))
+                .expect("header trust finding");
+            assert_eq!(finding.category, FindingCategory::DynamicReviewRequired);
+            assert_eq!(finding.severity, Severity::Medium);
+            assert!(
+                finding
+                    .evidence_ids
+                    .contains(&EvidenceId("evidence_complete".to_string()))
+            );
+        }
+    }
+
+    #[test]
+    fn header_reads_without_complete_true_do_not_fire_header_trust() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_complete".to_string()),
+                    EvidenceId("evidence_jku".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_complete",
+                    "jwt.option.complete",
+                    "complete: false",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_jku",
+                    "jwt.header.jku",
+                    "JWT header `jku` is read near verification logic",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("jku URL"))
         );
     }
 

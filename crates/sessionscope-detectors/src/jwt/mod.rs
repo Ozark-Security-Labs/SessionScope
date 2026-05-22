@@ -128,6 +128,10 @@ enum JwtField {
     OptionComplete,
     OptionIgnoreNotBefore,
     OptionIgnoreExpiration,
+    HeaderJku,
+    HeaderX5u,
+    HeaderJwk,
+    HeaderKid,
 }
 
 impl JwtField {
@@ -201,6 +205,10 @@ impl JwtField {
             Self::OptionComplete => "complete",
             Self::OptionIgnoreNotBefore => "ignore_not_before",
             Self::OptionIgnoreExpiration => "ignore_expiration",
+            Self::HeaderJku => "jku",
+            Self::HeaderX5u => "x5u",
+            Self::HeaderJwk => "jwk",
+            Self::HeaderKid => "kid",
         }
     }
 
@@ -236,6 +244,10 @@ impl JwtField {
             Self::OptionComplete => "JWT complete option",
             Self::OptionIgnoreNotBefore => "JWT ignore-not-before option",
             Self::OptionIgnoreExpiration => "JWT ignore-expiration option",
+            Self::HeaderJku => "JWT jku header",
+            Self::HeaderX5u => "JWT x5u header",
+            Self::HeaderJwk => "JWT embedded JWK header",
+            Self::HeaderKid => "JWT kid header",
         }
     }
 
@@ -255,6 +267,13 @@ impl JwtField {
         )
     }
 
+    fn is_header(self) -> bool {
+        matches!(
+            self,
+            Self::HeaderJku | Self::HeaderX5u | Self::HeaderJwk | Self::HeaderKid
+        )
+    }
+
     fn lifecycle_stage(self, operation: JwtOperation) -> LifecycleStage {
         match self {
             Self::Expiration => LifecycleStage::Expire,
@@ -267,7 +286,11 @@ impl JwtField {
             | Self::OptionClockTimestamp
             | Self::OptionComplete
             | Self::OptionIgnoreNotBefore
-            | Self::OptionIgnoreExpiration => LifecycleStage::Validate,
+            | Self::OptionIgnoreExpiration
+            | Self::HeaderJku
+            | Self::HeaderX5u
+            | Self::HeaderJwk
+            | Self::HeaderKid => LifecycleStage::Validate,
             Self::ExpiryEnforcement | Self::SignatureVerification => LifecycleStage::Validate,
             _ => operation.lifecycle_stage(),
         }
@@ -472,6 +495,8 @@ fn calls_to_output(
                 let state_part = jwt_state_part(observation.state);
                 let evidence_kind = if field.is_option() {
                     "jwt_option"
+                } else if field.is_header() {
+                    "jwt_header"
                 } else {
                     "jwt_attribute"
                 };
@@ -501,6 +526,8 @@ fn calls_to_output(
                     },
                     detector_id: if field.is_option() {
                         format!("jwt.option.{}", field.wire_name())
+                    } else if field.is_header() {
+                        format!("jwt.header.{}", field.wire_name())
                     } else {
                         format!("jwt.attribute.{}", field.wire_name())
                     },
@@ -1201,6 +1228,39 @@ fn add_js_verify_fields(
     } else {
         add_missing_for_verify_fields(fields, line, column);
     }
+    add_header_trust_fields(fields, source, line, column);
+}
+
+fn add_header_trust_fields(
+    fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
+    source: &str,
+    line: usize,
+    column: usize,
+) {
+    for (field, header_name) in [
+        (JwtField::HeaderJku, "jku"),
+        (JwtField::HeaderX5u, "x5u"),
+        (JwtField::HeaderJwk, "jwk"),
+        (JwtField::HeaderKid, "kid"),
+    ] {
+        if header_name_is_read(source, header_name) {
+            add_present_value(
+                fields,
+                field,
+                header_name,
+                line,
+                column,
+                format!("JWT header `{header_name}` is read near verification logic"),
+            );
+        }
+    }
+}
+
+fn header_name_is_read(source: &str, header_name: &str) -> bool {
+    let dot = format!(".{header_name}");
+    let single = format!("['{header_name}']");
+    let double = format!("[\"{header_name}\"]");
+    source.contains(&dot) || source.contains(&single) || source.contains(&double)
 }
 
 fn js_verify_option_fields(jose: bool) -> &'static [(JwtField, &'static [&'static str])] {
@@ -1637,6 +1697,7 @@ fn add_python_decode_fields(
     }
     add_python_expiry_enforcement(fields, source, argument_nodes, option_aliases, line, column);
     add_missing_for_verify_fields(fields, line, column);
+    add_header_trust_fields(fields, source, line, column);
 }
 
 fn add_python_decode_without_verify_fields(
@@ -3232,6 +3293,48 @@ def verify_access_jwt(token):
                     .iter()
                     .any(|evidence| evidence.detector_id == detector_id),
                 "missing {detector_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn emits_jwt_header_read_evidence_near_verification() {
+        let ts_output = detect(
+            Language::TypeScript,
+            r#"
+import jwt from "jsonwebtoken";
+export function verifyAccessJwt(token: string) {
+  const decoded = jwt.verify(token, getKey, { complete: true, algorithms: ["RS256"] });
+  return resolveKey(decoded.header.jku, decoded.header.x5u, decoded.header.jwk, decoded.header.kid);
+}
+"#,
+        );
+        let py_output = detect(
+            Language::Python,
+            r#"
+import jwt
+
+def verify_access_jwt(token):
+    decoded = jwt.decode(token, key=PUBLIC_KEY, algorithms=["RS256"], options={"complete": True})
+    return resolve_key(decoded["header"]["jku"], decoded["header"]["x5u"], decoded["header"]["jwk"])
+"#,
+        );
+
+        let detector_ids = ts_output
+            .evidence
+            .iter()
+            .chain(py_output.evidence.iter())
+            .map(|evidence| evidence.detector_id.as_str())
+            .collect::<Vec<_>>();
+        for detector_id in [
+            "jwt.header.jku",
+            "jwt.header.x5u",
+            "jwt.header.jwk",
+            "jwt.header.kid",
+        ] {
+            assert!(
+                detector_ids.contains(&detector_id),
+                "missing {detector_id} in {detector_ids:?}"
             );
         }
     }
