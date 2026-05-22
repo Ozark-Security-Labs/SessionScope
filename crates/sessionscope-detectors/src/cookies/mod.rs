@@ -280,8 +280,13 @@ fn calls_to_output(
         };
         let (cookie_attributes, mut attribute_evidence) =
             cookie_attributes_to_evidence(input, detector_id, &call, &location);
+        let name_prefix_evidence =
+            cookie_name_prefix_to_evidence(input, detector_id, &call, &location);
 
-        for evidence in &attribute_evidence {
+        for evidence in attribute_evidence
+            .iter()
+            .chain(std::iter::once(&name_prefix_evidence))
+        {
             match evidence.lifecycle_stage {
                 LifecycleStage::Store => lifecycle_evidence.store.push(evidence.id.clone()),
                 LifecycleStage::Transmit => lifecycle_evidence.transmit.push(evidence.id.clone()),
@@ -318,6 +323,7 @@ fn calls_to_output(
             framework_default: false,
         });
         output.evidence.append(&mut attribute_evidence);
+        output.evidence.push(name_prefix_evidence);
     }
 
     output
@@ -408,6 +414,64 @@ fn cookie_attributes_to_evidence(
         },
         evidence,
     )
+}
+
+fn cookie_name_prefix_to_evidence(
+    input: &DetectorInput<'_>,
+    detector_id: &str,
+    call: &CookieCall,
+    call_location: &SourceLocation,
+) -> Evidence {
+    let (prefix_value, confidence, dynamic) = match cookie_name_prefix(call.cookie_name.as_deref())
+    {
+        Some(prefix) => (prefix.to_string(), Confidence::High, false),
+        None if call.cookie_name.is_some() => ("none".to_string(), Confidence::High, false),
+        None => ("unknown".to_string(), Confidence::Low, true),
+    };
+    let line = call_location.line.unwrap_or(1);
+    let column = call_location.column.unwrap_or(1);
+    let line_part = line.to_string();
+    let column_part = column.to_string();
+    let name_part = call.cookie_name.as_deref().unwrap_or("dynamic");
+    let id_parts = [
+        detector_id,
+        "cookie_attribute",
+        "name_prefix",
+        &prefix_value,
+        input.path,
+        &line_part,
+        &column_part,
+        call.api_name,
+        name_part,
+    ];
+
+    Evidence {
+        id: stable_evidence_id(&id_parts),
+        lifecycle_stage: LifecycleStage::Store,
+        location: SourceLocation {
+            path: input.path.to_string(),
+            line: Some(line),
+            column: Some(column),
+        },
+        detector_id: "cookie.attribute.name_prefix".to_string(),
+        confidence,
+        excerpt: Some(cookie_excerpt(format!(
+            "Cookie name prefix: {prefix_value}"
+        ))),
+        dynamic,
+        framework_default: false,
+    }
+}
+
+fn cookie_name_prefix(cookie_name: Option<&str>) -> Option<&'static str> {
+    let cookie_name = cookie_name?;
+    if cookie_name.starts_with("__Host-") {
+        Some("host")
+    } else if cookie_name.starts_with("__Secure-") {
+        Some("secure")
+    } else {
+        None
+    }
 }
 
 fn attribute_state_part(state: CookieAttributeState) -> &'static str {
@@ -1909,8 +1973,17 @@ fn named_children(node: Node<'_>) -> Vec<Node<'_>> {
 fn string_literal_value(node: Node<'_>, source: &str) -> Option<String> {
     match node.kind() {
         "string" => parse_string_text(&node_text(node, source)),
+        "template_string" => parse_static_template_text(&node_text(node, source)),
         _ => None,
     }
+}
+
+fn parse_static_template_text(text: &str) -> Option<String> {
+    let mut chars = text.chars();
+    if chars.next()? != '`' || text.chars().last()? != '`' || text.contains("${") {
+        return None;
+    }
+    Some(text[1..text.len() - 1].to_string())
 }
 
 fn string_literals_from_node<'tree>(node: Node<'tree>, source: &str) -> Vec<(String, Node<'tree>)> {
@@ -1995,7 +2068,7 @@ mod tests {
         );
 
         assert_eq!(output.artifacts.len(), 1);
-        assert_eq!(output.evidence.len(), 8);
+        assert_eq!(output.evidence.len(), 9);
         assert_eq!(
             output.artifacts[0].artifact_type,
             ArtifactType::SignedCookie
@@ -2675,6 +2748,65 @@ SESSION_COOKIE_SAMESITE = "Lax"
             attributes.path.state,
             CookieAttributeState::FrameworkDefault
         );
+    }
+
+    #[test]
+    fn detects_cookie_name_prefix_evidence_for_literals_and_templates() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+response.cookie("__Host-session", token, { secure: true, path: "/" });
+cookies().set(`__Secure-access`, token, { secure: true });
+response.cookie("session", token, { secure: true });
+"#,
+        );
+
+        let prefix_values = output
+            .evidence
+            .iter()
+            .filter(|evidence| evidence.detector_id == "cookie.attribute.name_prefix")
+            .filter_map(|evidence| evidence.excerpt.as_ref().map(|excerpt| excerpt.as_str()))
+            .collect::<Vec<_>>();
+
+        assert!(prefix_values.iter().any(|value| value.contains("host")));
+        assert!(prefix_values.iter().any(|value| value.contains("secure")));
+        assert!(prefix_values.iter().any(|value| value.contains("none")));
+    }
+
+    #[test]
+    fn dynamic_cookie_name_gets_unknown_prefix_evidence() {
+        let output = detect(Language::TypeScript, "response.cookie(cookieName, token);");
+
+        let prefix = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.detector_id == "cookie.attribute.name_prefix")
+            .expect("prefix evidence should exist");
+        assert_eq!(prefix.confidence, Confidence::Low);
+        assert!(prefix.dynamic);
+        assert!(
+            prefix
+                .excerpt
+                .as_ref()
+                .is_some_and(|excerpt| excerpt.as_str().contains("unknown"))
+        );
+    }
+
+    #[test]
+    fn detects_prefix_evidence_for_set_cookie_headers() {
+        let output = detect(
+            Language::TypeScript,
+            r#"response.setHeader("Set-Cookie", "__Host-session=PLACEHOLDER_RESET_TOKEN; Secure; Path=/");"#,
+        );
+
+        assert!(output.evidence.iter().any(|evidence| {
+            evidence.detector_id == "cookie.attribute.name_prefix"
+                && evidence
+                    .excerpt
+                    .as_ref()
+                    .is_some_and(|excerpt| excerpt.as_str().contains("host"))
+        }));
+        assert!(!detected_text(&output).contains("PLACEHOLDER_RESET_TOKEN"));
     }
 
     #[test]
