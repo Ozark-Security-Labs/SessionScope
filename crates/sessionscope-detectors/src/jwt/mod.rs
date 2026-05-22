@@ -339,6 +339,12 @@ struct FieldSet {
     dynamic: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct JwtSourceContext<'a> {
+    source: &'a str,
+    scope_source: &'a str,
+}
+
 #[derive(Debug, Clone)]
 struct ScopedFieldSet {
     fields: BTreeMap<JwtField, JwtFieldEvidence>,
@@ -994,8 +1000,10 @@ fn js_jwt_call<'tree>(
         ),
         "jsonwebtoken.verify" | "jose.jwtVerify" => add_js_verify_fields(
             &mut fields,
-            source,
-            &scope_text(node, source),
+            JwtSourceContext {
+                source,
+                scope_source: &scope_text(node, source),
+            },
             &argument_nodes,
             option_aliases,
             line,
@@ -1150,14 +1158,14 @@ fn add_js_sign_fields(
 
 fn add_js_verify_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
-    source: &str,
-    scope_source: &str,
+    context: JwtSourceContext<'_>,
     argument_nodes: &[Node<'_>],
     option_aliases: &AliasMap,
     line: usize,
     column: usize,
     jose: bool,
 ) {
+    let source = context.source;
     add_key_reference(fields, source, argument_nodes.get(1).copied(), line, column);
     add_present_value(
         fields,
@@ -1230,7 +1238,7 @@ fn add_js_verify_fields(
     } else {
         add_missing_for_verify_fields(fields, line, column);
     }
-    add_header_trust_fields(fields, scope_source, line, column);
+    add_header_trust_fields(fields, context.scope_source, line, column);
 }
 
 fn add_header_trust_fields(
