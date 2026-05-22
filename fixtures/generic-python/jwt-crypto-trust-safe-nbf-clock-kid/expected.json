@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-python.jwt-crypto-trust-safe-nbf-clock-kid",
+  "framework": "generic-python",
+  "source_files": ["auth.py"],
+  "expected_artifacts": ["access_jwt"],
+  "expected_lifecycle_stages": ["validate"],
+  "expected_findings": ["no_nbf_clock_or_kid_findings"],
+  "notes": "False-positive fixture: nbf enforcement, 60-second leeway, and trusted key-map kid lookup should avoid P2 review findings."
+}

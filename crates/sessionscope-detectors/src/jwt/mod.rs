@@ -995,6 +995,7 @@ fn js_jwt_call<'tree>(
         "jsonwebtoken.verify" | "jose.jwtVerify" => add_js_verify_fields(
             &mut fields,
             source,
+            &scope_text(node, source),
             &argument_nodes,
             option_aliases,
             line,
@@ -1150,6 +1151,7 @@ fn add_js_sign_fields(
 fn add_js_verify_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
+    scope_source: &str,
     argument_nodes: &[Node<'_>],
     option_aliases: &AliasMap,
     line: usize,
@@ -1228,7 +1230,7 @@ fn add_js_verify_fields(
     } else {
         add_missing_for_verify_fields(fields, line, column);
     }
-    add_header_trust_fields(fields, source, line, column);
+    add_header_trust_fields(fields, scope_source, line, column);
 }
 
 fn add_header_trust_fields(
@@ -1277,6 +1279,7 @@ fn js_verify_option_fields(jose: bool) -> &'static [(JwtField, &'static [&'stati
                 &["currentDate", "clockTimestamp"],
             ),
             (JwtField::OptionComplete, &["complete"]),
+            (JwtField::OptionIgnoreNotBefore, &["ignoreNotBefore"]),
         ]
     } else {
         &[
@@ -1538,6 +1541,7 @@ fn python_jwt_call<'tree>(
         add_python_decode_without_verify_fields(
             &mut fields,
             source,
+            &scope_text(node, source),
             &argument_nodes,
             option_aliases,
             line,
@@ -1548,6 +1552,7 @@ fn python_jwt_call<'tree>(
         add_python_decode_fields(
             &mut fields,
             source,
+            &scope_text(node, source),
             &argument_nodes,
             option_aliases,
             line,
@@ -1642,6 +1647,7 @@ fn add_python_encode_fields(
 fn add_python_decode_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
+    scope_source: &str,
     argument_nodes: &[Node<'_>],
     option_aliases: &AliasMap,
     line: usize,
@@ -1698,12 +1704,13 @@ fn add_python_decode_fields(
     }
     add_python_expiry_enforcement(fields, source, argument_nodes, option_aliases, line, column);
     add_missing_for_verify_fields(fields, line, column);
-    add_header_trust_fields(fields, source, line, column);
+    add_header_trust_fields(fields, scope_source, line, column);
 }
 
 fn add_python_decode_without_verify_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
+    scope_source: &str,
     argument_nodes: &[Node<'_>],
     option_aliases: &AliasMap,
     line: usize,
@@ -1725,7 +1732,15 @@ fn add_python_decode_without_verify_fields(
         column,
         "PyJWT decode without signature verification should not be treated as expiration enforcement",
     );
-    add_python_decode_fields(fields, source, argument_nodes, option_aliases, line, column);
+    add_python_decode_fields(
+        fields,
+        source,
+        scope_source,
+        argument_nodes,
+        option_aliases,
+        line,
+        column,
+    );
     add_missing_value(
         fields,
         JwtField::SignatureVerification,
@@ -2422,17 +2437,51 @@ fn add_present_node(
     source: &str,
 ) {
     let (line, column) = node_line_column(node);
+    let (value, excerpt) = if field.is_option() {
+        option_value_and_excerpt(field, node, source)
+    } else {
+        (
+            Some(safe_node_value(node, source)),
+            excerpt_for_node(source, node),
+        )
+    };
     fields.insert(
         field,
         JwtFieldEvidence {
             state: JwtAttributeState::Present,
-            value: Some(safe_node_value(node, source)),
+            value,
             confidence: Confidence::High,
             line,
             column,
-            excerpt: excerpt_for_node(source, node),
+            excerpt,
         },
     );
+}
+
+fn option_value_and_excerpt(
+    field: JwtField,
+    node: Node<'_>,
+    source: &str,
+) -> (Option<String>, SanitizedExcerpt) {
+    let value = match field {
+        JwtField::OptionAlgorithms
+        | JwtField::OptionClockTolerance
+        | JwtField::OptionClockTimestamp
+        | JwtField::OptionComplete
+        | JwtField::OptionIgnoreNotBefore
+        | JwtField::OptionIgnoreExpiration => Some(safe_node_value(node, source)),
+        _ => Some("[option]".to_string()),
+    };
+    let excerpt = match field {
+        JwtField::OptionAlgorithms
+        | JwtField::OptionClockTolerance
+        | JwtField::OptionClockTimestamp
+        | JwtField::OptionComplete
+        | JwtField::OptionIgnoreNotBefore
+        | JwtField::OptionIgnoreExpiration => excerpt_for_node(source, node),
+        _ => jwt_excerpt(format!("{} is present", field.display_name())),
+    };
+    (value, excerpt)
 }
 
 fn add_present_synthetic(
@@ -2447,7 +2496,11 @@ fn add_present_synthetic(
         field,
         JwtFieldEvidence {
             state: JwtAttributeState::Present,
-            value: Some(safe_node_value(node, source)),
+            value: Some(if field == JwtField::KeyReference {
+                safe_key_reference_value(node, source)
+            } else {
+                safe_node_value(node, source)
+            }),
             confidence: Confidence::High,
             line,
             column,
@@ -2867,6 +2920,26 @@ fn safe_node_value(node: Node<'_>, source: &str) -> String {
     safe_text_value(&node_text(node, source))
 }
 
+fn safe_key_reference_value(node: Node<'_>, source: &str) -> String {
+    let text = node_text(node, source);
+    let trimmed = text.trim();
+    if trimmed.contains(['"', '\'', '`']) {
+        return "[key_reference]".to_string();
+    }
+    match node.kind() {
+        "identifier" | "property_identifier" => safe_text_value(trimmed),
+        "member_expression" | "attribute" => safe_text_value(trimmed),
+        _ if trimmed.to_ascii_lowercase().contains("publickey")
+            || trimmed.to_ascii_lowercase().contains("pubkey")
+            || trimmed.to_ascii_lowercase().contains("loadpublickey")
+            || trimmed.ends_with(".pem") =>
+        {
+            safe_text_value(trimmed)
+        }
+        _ => "[key_reference]".to_string(),
+    }
+}
+
 fn safe_identity_value(field: JwtField, text: &str) -> String {
     let trimmed = text.trim();
     if field == JwtField::EmailVerified
@@ -3023,6 +3096,17 @@ fn node_text(node: Node<'_>, source: &str) -> String {
     node.utf8_text(source.as_bytes())
         .expect("tree-sitter node should be valid UTF-8")
         .to_string()
+}
+
+fn scope_text(node: Node<'_>, source: &str) -> String {
+    let mut current = Some(node);
+    while let Some(candidate) = current {
+        if is_scope_node(candidate) && candidate.kind() != "program" {
+            return node_text(candidate, source);
+        }
+        current = candidate.parent();
+    }
+    node_text(node, source)
 }
 
 #[cfg(test)]
@@ -3337,6 +3421,58 @@ def verify_access_jwt(token):
                 detector_ids.contains(&detector_id),
                 "missing {detector_id} in {detector_ids:?}"
             );
+        }
+    }
+
+    #[test]
+    fn does_not_attach_unrelated_header_reads_to_verify_call() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+import jwt from "jsonwebtoken";
+export function verifyAccessJwt(token: string) {
+  return jwt.verify(token, publicKey, { algorithms: ["RS256"], issuer, audience, complete: true });
+}
+export function unrelated(decoded: any) {
+  return decoded.header.jku;
+}
+"#,
+        );
+
+        assert!(
+            output
+                .evidence
+                .iter()
+                .all(|evidence| evidence.detector_id != "jwt.header.jku")
+        );
+    }
+
+    #[test]
+    fn option_and_key_reference_values_do_not_leak_sensitive_literals() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+import jwt from "jsonwebtoken";
+export function verifyAccessJwt(token: string) {
+  return jwt.verify(token, createSecretKey("raw-secret-value"), {
+    algorithms: ["RS256"],
+    issuer: ISSUER,
+    audience: AUDIENCE,
+    subject: "sensitive-subject-value",
+    nonce: "abcDEF12345678901234",
+    ignoreNotBefore: false,
+  });
+}
+"#,
+        );
+
+        let detected = detected_text(&output);
+        for leaked in [
+            "raw-secret-value",
+            "sensitive-subject-value",
+            "abcDEF12345678901234",
+        ] {
+            assert!(!detected.contains(leaked), "{leaked} leaked in {detected}");
         }
     }
 

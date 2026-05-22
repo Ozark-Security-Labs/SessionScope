@@ -349,6 +349,9 @@ fn classify_header_trust(report: &ScanReport, artifact: &Artifact, name: &str) -
         if header_evidence.is_empty() {
             return None;
         }
+        if has_visible_key_trust_validation(report, artifact) {
+            return None;
+        }
         let mut evidence_ids = complete_evidence
             .iter()
             .chain(header_evidence.iter())
@@ -500,6 +503,26 @@ fn has_visible_kid_validation(report: &ScanReport, artifact: &Artifact) -> bool 
             && evidence.excerpt.as_ref().is_some_and(|excerpt| {
                 let text = excerpt.as_str().to_ascii_lowercase();
                 text.contains("allowlist") || text.contains("allow-list") || text.contains("jwks")
+            })
+    })
+}
+
+fn has_visible_key_trust_validation(report: &ScanReport, artifact: &Artifact) -> bool {
+    artifact.jwt_attributes.as_ref().is_some_and(|attributes| {
+        attributes
+            .key_reference
+            .value
+            .as_deref()
+            .is_some_and(kid_key_reference_is_validated)
+    }) || report.evidence.iter().any(|evidence| {
+        artifact.lifecycle_evidence.validate.contains(&evidence.id)
+            && evidence.excerpt.as_ref().is_some_and(|excerpt| {
+                let text = excerpt.as_str().to_ascii_lowercase();
+                text.contains("allowlist")
+                    || text.contains("allow-list")
+                    || text.contains("trusted key")
+                    || text.contains("pinned")
+                    || text.contains("jwks")
             })
     })
 }
@@ -1301,6 +1324,56 @@ mod tests {
                     "evidence_complete",
                     "jwt.option.complete",
                     "complete: false",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_jku",
+                    "jwt.header.jku",
+                    "JWT header `jku` is read near verification logic",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("jku URL"))
+        );
+    }
+
+    #[test]
+    fn header_trust_suppressed_by_visible_trusted_key_lookup() {
+        let mut attributes = attributes(
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            JwtAttributeState::Present,
+            "validate",
+        );
+        attributes.key_reference = observation(
+            "key",
+            JwtAttributeState::Present,
+            Some("trustedJwksKeyMap"),
+            EvidenceId("evidence_key".to_string()),
+        );
+        let artifact = artifact(
+            attributes,
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_complete".to_string()),
+                    EvidenceId("evidence_jku".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_complete",
+                    "jwt.option.complete",
+                    "complete: true",
                     false,
                 ),
                 option_evidence(

@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-js.jwt-crypto-trust-safe-algorithms",
+  "framework": "generic-javascript",
+  "source_files": ["auth.js"],
+  "expected_artifacts": ["access_jwt"],
+  "expected_lifecycle_stages": ["validate"],
+  "expected_findings": ["no_p2_crypto_trust_findings"],
+  "notes": "False-positive fixture: explicit safe HMAC algorithm, matching symmetric key, issuer/audience, and not-before enforcement evidence."
+}

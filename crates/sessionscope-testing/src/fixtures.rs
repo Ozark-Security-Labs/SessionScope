@@ -588,6 +588,58 @@ mod tests {
     }
 
     #[test]
+    fn jwt_crypto_trust_false_positive_fixtures_stay_clean() {
+        let cases = [
+            fixture_root()
+                .join("generic-js")
+                .join("jwt-crypto-trust-safe-algorithms"),
+            fixture_root()
+                .join("generic-ts")
+                .join("jwt-crypto-trust-safe-header-allowlist"),
+            fixture_root()
+                .join("generic-python")
+                .join("jwt-crypto-trust-safe-nbf-clock-kid"),
+        ];
+        let p2_title_fragments = [
+            "`none` algorithm",
+            "HMAC and asymmetric",
+            "public-key-like",
+            "jku URL",
+            "x5u URL",
+            "embedded JWK",
+            "not-before",
+            "clock skew",
+            "`kid`",
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            for fragment in p2_title_fragments {
+                assert!(
+                    report
+                        .findings
+                        .iter()
+                        .all(|finding| !finding.title.contains(fragment)),
+                    "{} should not emit P2 finding containing {fragment:?}. Findings: {:?}",
+                    root.display(),
+                    report
+                        .findings
+                        .iter()
+                        .map(|finding| finding.title.as_str())
+                        .collect::<Vec<_>>()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn logout_fixtures_emit_revoke_evidence() {
         let cases = [
             (
