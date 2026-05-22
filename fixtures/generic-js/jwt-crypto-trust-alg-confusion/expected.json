@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-js.jwt-crypto-trust-alg-confusion",
+  "framework": "generic-javascript",
+  "source_files": ["auth.js"],
+  "expected_artifacts": ["access_jwt"],
+  "expected_lifecycle_stages": ["validate"],
+  "expected_findings": ["jwt_alg_confusion_signal"],
+  "notes": "Covers jsonwebtoken verification that accepts both HMAC and asymmetric algorithms."
+}

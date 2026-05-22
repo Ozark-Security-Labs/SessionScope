@@ -500,6 +500,94 @@ mod tests {
     }
 
     #[test]
+    fn jwt_crypto_trust_fixtures_emit_expected_findings() {
+        let cases = [
+            (
+                fixture_root()
+                    .join("generic-js")
+                    .join("jwt-crypto-trust-alg-none"),
+                "`none` algorithm",
+            ),
+            (
+                fixture_root()
+                    .join("generic-js")
+                    .join("jwt-crypto-trust-alg-confusion"),
+                "HMAC and asymmetric",
+            ),
+            (
+                fixture_root()
+                    .join("generic-ts")
+                    .join("jwt-crypto-trust-jku"),
+                "jku URL",
+            ),
+            (
+                fixture_root()
+                    .join("generic-ts")
+                    .join("jwt-crypto-trust-x5u"),
+                "x5u URL",
+            ),
+            (
+                fixture_root()
+                    .join("generic-ts")
+                    .join("jwt-crypto-trust-embedded-jwk"),
+                "embedded JWK",
+            ),
+            (
+                fixture_root()
+                    .join("generic-python")
+                    .join("jwt-crypto-trust-nbf"),
+                "not-before",
+            ),
+            (
+                fixture_root()
+                    .join("generic-python")
+                    .join("jwt-crypto-trust-clock-skew"),
+                "clock skew",
+            ),
+            (
+                fixture_root()
+                    .join("generic-python")
+                    .join("jwt-crypto-trust-kid"),
+                "`kid`",
+            ),
+        ];
+
+        for (root, title_fragment) in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            assert!(
+                report
+                    .findings
+                    .iter()
+                    .any(|finding| finding.title.contains(title_fragment)),
+                "{} should emit finding containing {title_fragment:?}. Findings: {:?}",
+                root.display(),
+                report
+                    .findings
+                    .iter()
+                    .map(|finding| finding.title.as_str())
+                    .collect::<Vec<_>>()
+            );
+
+            for format in [
+                ReportFormat::Json,
+                ReportFormat::Markdown,
+                ReportFormat::Sarif,
+            ] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("PLACEHOLDER_PUBLIC_KEY_DO_NOT_USE"));
+                assert!(!rendered.contains("placeholder-key-id"));
+            }
+        }
+    }
+
+    #[test]
     fn logout_fixtures_emit_revoke_evidence() {
         let cases = [
             (

@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-python.jwt-crypto-trust-nbf",
+  "framework": "generic-python",
+  "source_files": ["auth.py"],
+  "expected_artifacts": ["access_jwt"],
+  "expected_lifecycle_stages": ["validate"],
+  "expected_findings": ["jwt_nbf_missing"],
+  "notes": "Covers PyJWT-like verification that omits not-before validation evidence."
+}

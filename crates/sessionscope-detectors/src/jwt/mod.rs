@@ -1276,6 +1276,7 @@ fn js_verify_option_fields(jose: bool) -> &'static [(JwtField, &'static [&'stati
                 JwtField::OptionClockTimestamp,
                 &["currentDate", "clockTimestamp"],
             ),
+            (JwtField::OptionComplete, &["complete"]),
         ]
     } else {
         &[
