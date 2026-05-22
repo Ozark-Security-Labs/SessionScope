@@ -1,7 +1,7 @@
 use std::net::IpAddr;
 
 use sessionscope_model::{
-    Artifact, ArtifactType, Confidence, CookieAttributeObservation, CookieAttributeState,
+    Artifact, ArtifactType, Confidence, CookieAttributeObservation, CookieAttributeState, Evidence,
     EvidenceId, Finding, FindingCategory, ScanReport, Severity, stable_finding_id,
 };
 
@@ -26,6 +26,16 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
                 &attributes.http_only,
             ));
         }
+
+        let prefix_evidence = prefix_evidence_for(report, artifact);
+        findings.extend(classify_prefix_rules(
+            artifact,
+            cookie_name,
+            prefix_evidence,
+            &attributes.secure,
+            &attributes.path,
+            &attributes.domain,
+        ));
 
         if has_static_name {
             findings.extend(classify_secure(artifact, cookie_name, &attributes.secure));
@@ -69,6 +79,187 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
     }
 
     findings
+}
+
+fn classify_prefix_rules(
+    artifact: &Artifact,
+    cookie_name: &str,
+    prefix_evidence: Option<&Evidence>,
+    secure: &CookieAttributeObservation,
+    path: &CookieAttributeObservation,
+    domain: &CookieAttributeObservation,
+) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    let Some(prefix) = cookie_prefix(cookie_name) else {
+        return findings;
+    };
+
+    if prefix == CookieNamePrefix::Host {
+        if path.state == CookieAttributeState::Present
+            && path.confidence == Confidence::High
+            && path
+                .value
+                .as_deref()
+                .is_none_or(|value| value.trim() != "/")
+        {
+            findings.push(finding(
+                "cookie_host_prefix_path_violation",
+                FindingCategory::HighConfidenceMisconfiguration,
+                Severity::High,
+                artifact,
+                evidence_with_prefix(prefix_evidence, path),
+                format!("Cookie `{cookie_name}` violates __Host- Path requirements"),
+                "The __Host- prefix requires Path=/, but static Path evidence has a different value."
+                    .to_string(),
+                "Set Path=/ for __Host- cookies.".to_string(),
+                "Should this __Host- cookie be scoped to the entire host with Path=/?".to_string(),
+            ));
+        } else if path.state == CookieAttributeState::Missing {
+            findings.push(finding(
+                "cookie_host_prefix_path_violation",
+                FindingCategory::HighConfidenceMisconfiguration,
+                Severity::High,
+                artifact,
+                evidence_with_prefix(prefix_evidence, path),
+                format!("Cookie `{cookie_name}` violates __Host- Path requirements"),
+                "The __Host- prefix requires explicit Path=/, but no Path evidence was detected."
+                    .to_string(),
+                "Set Path=/ for __Host- cookies.".to_string(),
+                "Should this __Host- cookie be scoped to the entire host with Path=/?".to_string(),
+            ));
+        } else if path.state == CookieAttributeState::Dynamic {
+            findings.push(finding(
+                "cookie_host_prefix_path_violation",
+                FindingCategory::DynamicReviewRequired,
+                Severity::Medium,
+                artifact,
+                evidence_with_prefix(prefix_evidence, path),
+                format!("Cookie `{cookie_name}` has dynamic __Host- Path evidence"),
+                "The __Host- prefix requires Path=/, but the Path value depends on runtime configuration."
+                    .to_string(),
+                "Confirm production Path is / whenever the __Host- cookie is set.".to_string(),
+                "Can production guarantee Path=/ for this __Host- cookie?".to_string(),
+            ));
+        }
+
+        if domain.state == CookieAttributeState::Present {
+            findings.push(finding(
+                "cookie_host_prefix_domain_violation",
+                FindingCategory::HighConfidenceMisconfiguration,
+                Severity::High,
+                artifact,
+                evidence_with_prefix(prefix_evidence, domain),
+                format!("Cookie `{cookie_name}` violates __Host- Domain requirements"),
+                "The __Host- prefix forbids Domain, but static Domain evidence was detected."
+                    .to_string(),
+                "Omit Domain for __Host- cookies so they remain host-only.".to_string(),
+                "Which host should own this __Host- cookie?".to_string(),
+            ));
+        } else if domain.state == CookieAttributeState::Dynamic {
+            findings.push(finding(
+                "cookie_host_prefix_domain_violation",
+                FindingCategory::DynamicReviewRequired,
+                Severity::Medium,
+                artifact,
+                evidence_with_prefix(prefix_evidence, domain),
+                format!("Cookie `{cookie_name}` has dynamic __Host- Domain evidence"),
+                "The __Host- prefix forbids Domain, but Domain depends on runtime configuration."
+                    .to_string(),
+                "Confirm production never sets Domain for this __Host- cookie.".to_string(),
+                "Can production guarantee Domain is omitted for this __Host- cookie?".to_string(),
+            ));
+        }
+    }
+
+    if matches!(prefix, CookieNamePrefix::Host | CookieNamePrefix::Secure) {
+        if secure.state == CookieAttributeState::Missing {
+            let rule_id = if prefix == CookieNamePrefix::Host {
+                "cookie_host_prefix_secure_violation"
+            } else {
+                "cookie_secure_prefix_secure_violation"
+            };
+            let prefix_label = prefix.label();
+            findings.push(finding(
+                rule_id,
+                FindingCategory::HighConfidenceMisconfiguration,
+                Severity::High,
+                artifact,
+                evidence_with_prefix(prefix_evidence, secure),
+                format!("Cookie `{cookie_name}` violates {prefix_label} Secure requirements"),
+                format!("The {prefix_label} prefix requires Secure, but no Secure evidence was detected."),
+                format!("Set Secure for {prefix_label} cookies."),
+                format!("Can this {prefix_label} cookie ever be set without HTTPS-only transport?"),
+            ));
+        } else if matches!(
+            secure.state,
+            CookieAttributeState::Dynamic | CookieAttributeState::FrameworkDefault
+        ) {
+            let rule_id = if prefix == CookieNamePrefix::Host {
+                "cookie_host_prefix_secure_violation"
+            } else {
+                "cookie_secure_prefix_secure_violation"
+            };
+            let prefix_label = prefix.label();
+            findings.push(finding(
+                rule_id,
+                FindingCategory::DynamicReviewRequired,
+                Severity::Medium,
+                artifact,
+                evidence_with_prefix(prefix_evidence, secure),
+                format!("Cookie `{cookie_name}` has uncertain {prefix_label} Secure evidence"),
+                format!("The {prefix_label} prefix requires Secure, but Secure depends on runtime or framework-default behavior."),
+                format!("Set Secure explicitly for {prefix_label} cookies."),
+                format!("Can production guarantee Secure is enabled for this {prefix_label} cookie?"),
+            ));
+        }
+    }
+
+    findings
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CookieNamePrefix {
+    Host,
+    Secure,
+}
+
+impl CookieNamePrefix {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Host => "__Host-",
+            Self::Secure => "__Secure-",
+        }
+    }
+}
+
+fn cookie_prefix(cookie_name: &str) -> Option<CookieNamePrefix> {
+    if cookie_name.starts_with("__Host-") {
+        Some(CookieNamePrefix::Host)
+    } else if cookie_name.starts_with("__Secure-") {
+        Some(CookieNamePrefix::Secure)
+    } else {
+        None
+    }
+}
+
+fn prefix_evidence_for<'a>(report: &'a ScanReport, artifact: &Artifact) -> Option<&'a Evidence> {
+    report.evidence.iter().find(|evidence| {
+        evidence.detector_id == "cookie.attribute.name_prefix"
+            && artifact.lifecycle_evidence.store.contains(&evidence.id)
+    })
+}
+
+fn evidence_with_prefix(
+    prefix_evidence: Option<&Evidence>,
+    observation: &CookieAttributeObservation,
+) -> Vec<EvidenceId> {
+    let mut evidence_ids = observation.evidence_ids.clone();
+    if let Some(prefix_evidence) = prefix_evidence {
+        evidence_ids.push(prefix_evidence.id.clone());
+    }
+    evidence_ids.sort();
+    evidence_ids.dedup();
+    evidence_ids
 }
 
 fn classify_http_only(
@@ -783,19 +974,23 @@ fn combined_evidence_ids(
 #[cfg(test)]
 mod tests {
     use sessionscope_model::{
-        ArtifactId, CookieAttributes, LifecycleEvidence, SCHEMA_VERSION, ScanSummary,
-        SourceLocation,
+        ArtifactId, CookieAttributes, Evidence, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION,
+        SanitizedExcerpt, ScanSummary, SourceLocation,
     };
 
     use super::*;
 
     fn classify_artifact(artifact: Artifact) -> Vec<Finding> {
+        classify_report(vec![artifact], Vec::new())
+    }
+
+    fn classify_report(artifacts: Vec<Artifact>, evidence: Vec<Evidence>) -> Vec<Finding> {
         classify(&ScanReport {
             schema_version: SCHEMA_VERSION.to_string(),
             summary: ScanSummary::default(),
             files: Vec::new(),
-            artifacts: vec![artifact],
-            evidence: Vec::new(),
+            artifacts,
+            evidence,
             lifecycle_paths: Vec::new(),
             findings: Vec::new(),
         })
@@ -886,6 +1081,30 @@ mod tests {
             evidence_ids: vec![EvidenceId(format!("evidence_{attribute}"))],
             confidence,
         }
+    }
+
+    fn with_prefix_evidence(mut artifact: Artifact, prefix: &str) -> (Artifact, Evidence) {
+        let evidence_id = EvidenceId(format!("evidence_prefix_{prefix}"));
+        artifact.lifecycle_evidence.store.push(evidence_id.clone());
+        (
+            artifact,
+            Evidence {
+                id: evidence_id,
+                lifecycle_stage: LifecycleStage::Store,
+                location: SourceLocation {
+                    path: "app.ts".to_string(),
+                    line: Some(1),
+                    column: Some(1),
+                },
+                detector_id: "cookie.attribute.name_prefix".to_string(),
+                confidence: Confidence::High,
+                excerpt: Some(SanitizedExcerpt::from_sanitized(format!(
+                    "Cookie name prefix: {prefix}"
+                ))),
+                dynamic: false,
+                framework_default: false,
+            },
+        )
     }
 
     fn attributes_with_scope(
@@ -1134,6 +1353,138 @@ mod tests {
         assert!(absolute.iter().any(|finding| {
             finding.category == FindingCategory::DynamicReviewRequired
                 && finding.title.contains("absolute")
+        }));
+    }
+
+    #[test]
+    fn host_prefix_literal_violations_are_high_confidence_and_evidence_bound() {
+        let (artifact, prefix_evidence) = with_prefix_evidence(
+            artifact(
+                "__Host-session",
+                attributes_with_scope(
+                    present("http_only", "true"),
+                    missing("secure"),
+                    present("same_site", "lax"),
+                    present("max_age", "900"),
+                    missing("expires"),
+                    present("path", "/auth"),
+                    present("domain", "example.com"),
+                ),
+            ),
+            "host",
+        );
+        let prefix_id = prefix_evidence.id.clone();
+        let findings = classify_report(vec![artifact], vec![prefix_evidence]);
+
+        for title_part in [
+            "Path requirements",
+            "Domain requirements",
+            "Secure requirements",
+        ] {
+            let finding = findings
+                .iter()
+                .find(|finding| finding.title.contains(title_part))
+                .unwrap_or_else(|| panic!("expected finding containing {title_part}"));
+            assert_eq!(
+                finding.category,
+                FindingCategory::HighConfidenceMisconfiguration
+            );
+            assert_eq!(finding.severity, Severity::High);
+            assert!(finding.evidence_ids.contains(&prefix_id));
+        }
+    }
+
+    #[test]
+    fn secure_prefix_missing_secure_is_high_confidence() {
+        let (artifact, prefix_evidence) = with_prefix_evidence(
+            artifact(
+                "__Secure-session",
+                attributes(
+                    present("http_only", "true"),
+                    missing("secure"),
+                    present("same_site", "lax"),
+                    present("max_age", "900"),
+                    missing("expires"),
+                ),
+            ),
+            "secure",
+        );
+        let prefix_id = prefix_evidence.id.clone();
+        let findings = classify_report(vec![artifact], vec![prefix_evidence]);
+
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("__Secure- Secure requirements"))
+            .expect("secure-prefix finding should exist");
+        assert_eq!(
+            finding.category,
+            FindingCategory::HighConfidenceMisconfiguration
+        );
+        assert!(finding.evidence_ids.contains(&prefix_id));
+    }
+
+    #[test]
+    fn dynamic_host_prefix_path_requires_review() {
+        let (artifact, prefix_evidence) = with_prefix_evidence(
+            artifact(
+                "__Host-session",
+                attributes_with_scope(
+                    present("http_only", "true"),
+                    present("secure", "true"),
+                    present("same_site", "lax"),
+                    present("max_age", "900"),
+                    missing("expires"),
+                    dynamic("path"),
+                    missing("domain"),
+                ),
+            ),
+            "host",
+        );
+        let findings = classify_report(vec![artifact], vec![prefix_evidence]);
+
+        assert!(findings.iter().any(|finding| {
+            finding.category == FindingCategory::DynamicReviewRequired
+                && finding.severity == Severity::Medium
+                && finding.title.contains("dynamic __Host- Path")
+        }));
+    }
+
+    #[test]
+    fn compliant_prefixed_cookies_do_not_emit_prefix_findings() {
+        let host = with_prefix_evidence(
+            artifact(
+                "__Host-session",
+                attributes_with_scope(
+                    present("http_only", "true"),
+                    present("secure", "true"),
+                    present("same_site", "lax"),
+                    present("max_age", "900"),
+                    missing("expires"),
+                    present("path", "/"),
+                    missing("domain"),
+                ),
+            ),
+            "host",
+        );
+        let secure = with_prefix_evidence(
+            artifact(
+                "__Secure-session",
+                attributes(
+                    present("http_only", "true"),
+                    present("secure", "true"),
+                    present("same_site", "lax"),
+                    present("max_age", "900"),
+                    missing("expires"),
+                ),
+            ),
+            "secure",
+        );
+        let findings = classify_report(vec![host.0, secure.0], vec![host.1, secure.1]);
+
+        assert!(!findings.iter().any(|finding| {
+            finding.title.contains("requirements")
+                || finding.title.contains("uncertain __Host-")
+                || finding.title.contains("uncertain __Secure-")
         }));
     }
 
