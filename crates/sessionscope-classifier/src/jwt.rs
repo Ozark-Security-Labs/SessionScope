@@ -490,7 +490,17 @@ fn clock_tolerance_seconds(evidence: &Evidence) -> Option<u64> {
 }
 
 fn has_visible_kid_validation(report: &ScanReport, artifact: &Artifact) -> bool {
-    has_visible_key_trust_validation(report, artifact)
+    report.evidence.iter().any(|evidence| {
+        let Some(excerpt) = evidence.excerpt.as_ref() else {
+            return false;
+        };
+        let excerpt_text = excerpt.as_str();
+        artifact.lifecycle_evidence.validate.contains(&evidence.id)
+            && ((evidence.detector_id == "jwt.header.kid"
+                && text_mentions_static_key_map_lookup(excerpt_text))
+                || (!evidence.detector_id.starts_with("jwt.header.")
+                    && text_has_explicit_key_trust_validation(excerpt_text)))
+    })
 }
 
 fn has_visible_key_trust_validation(report: &ScanReport, artifact: &Artifact) -> bool {
@@ -499,9 +509,8 @@ fn has_visible_key_trust_validation(report: &ScanReport, artifact: &Artifact) ->
             return false;
         };
         let excerpt_text = excerpt.as_str();
-        let header_context = evidence.detector_id.starts_with("jwt.header.");
         artifact.lifecycle_evidence.validate.contains(&evidence.id)
-            && (!header_context || text_mentions_static_key_map_lookup(excerpt_text))
+            && !evidence.detector_id.starts_with("jwt.header.")
             && text_has_explicit_key_trust_validation(excerpt_text)
     })
 }
@@ -1537,6 +1546,61 @@ mod tests {
             findings
                 .iter()
                 .any(|finding| finding.title.contains("jku URL"))
+        );
+    }
+
+    #[test]
+    fn static_kid_key_map_does_not_suppress_jku_header_trust() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_complete".to_string()),
+                    EvidenceId("evidence_jku".to_string()),
+                    EvidenceId("evidence_kid".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_complete",
+                    "jwt.option.complete",
+                    "complete: true",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_jku",
+                    "jwt.header.jku",
+                    "JWT header `jku` is passed to key-resolution logic near verification",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_kid",
+                    "jwt.header.kid",
+                    "JWT header `kid` is passed to static key-map lookup near verification",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.title.contains("jku URL"))
+        );
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("`kid`"))
         );
     }
 
