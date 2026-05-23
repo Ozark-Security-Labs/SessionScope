@@ -124,8 +124,10 @@ mod tests {
 
     fn report_with(detector_id: &str) -> ScanReport {
         let evidence_id = EvidenceId("evidence_storage".to_string());
-        let mut lifecycle_evidence = LifecycleEvidence::default();
-        lifecycle_evidence.store.push(evidence_id.clone());
+        let lifecycle_evidence = LifecycleEvidence {
+            store: vec![evidence_id.clone()],
+            ..Default::default()
+        };
         ScanReport {
             schema_version: SCHEMA_VERSION.to_string(),
             summary: ScanSummary::default(),

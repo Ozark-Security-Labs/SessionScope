@@ -345,8 +345,10 @@ mod tests {
                 framework_default: false,
             })
             .collect::<Vec<_>>();
-        let mut lifecycle_evidence = LifecycleEvidence::default();
-        lifecycle_evidence.issue = evidence.iter().map(|item| item.id.clone()).collect();
+        let lifecycle_evidence = LifecycleEvidence {
+            issue: evidence.iter().map(|item| item.id.clone()).collect(),
+            ..Default::default()
+        };
 
         ScanReport {
             schema_version: SCHEMA_VERSION.to_string(),
