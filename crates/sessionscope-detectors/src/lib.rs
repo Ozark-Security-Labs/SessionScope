@@ -1,4 +1,5 @@
 pub mod bearer;
+pub mod client_storage;
 pub mod cookies;
 pub mod frameworks;
 pub mod jwt;
