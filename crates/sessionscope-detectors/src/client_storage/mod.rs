@@ -23,7 +23,7 @@ static DOCUMENT_COOKIE_RE: LazyLock<Regex> = LazyLock::new(|| {
 static COOKIE_KEY_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(["'])([^="';]+)="#).expect("cookie key regex should compile"));
 static URL_PATH_FRAGMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)([#/](?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session)(?:[=/]|\b))"#)
+    Regex::new(r#"(?i)([#/](?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|session)(?:[=/]|\b))"#)
         .expect("url path/fragment regex should compile")
 });
 static CLIENT_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
