@@ -260,6 +260,7 @@ mod tests {
     use super::{ReportFormat, render};
 
     const SECRET: &str = "abcdefghijklmnopqrstuvwxyzABCDEF0123456789";
+    const OAUTH_STATE: &str = "stateabcdefghijklmnopqrstuvwxyzABCDEF0123456789";
 
     fn unsafe_report() -> ScanReport {
         let evidence_id = EvidenceId("evidence_report_secret".to_string());
@@ -369,5 +370,74 @@ mod tests {
         assert!(output.contains("`high` `high_confidence_misconfiguration`"));
         assert!(output.contains("\\[REDACTED\\]"));
         assert!(!output.contains(SECRET));
+    }
+
+    #[test]
+    fn render_sanitizes_oauth_values_in_json_and_markdown() {
+        let evidence_id = EvidenceId("evidence_oauth_state".to_string());
+        let report = ScanReport {
+            schema_version: SCHEMA_VERSION.to_string(),
+            summary: ScanSummary {
+                files_discovered: 1,
+                files_scanned: 1,
+                files_skipped: 0,
+                diagnostics: Vec::new(),
+                worker_panic_count: 0,
+                skipped_by_reason: std::collections::BTreeMap::new(),
+            },
+            files: Vec::new(),
+            artifacts: vec![Artifact {
+                id: ArtifactId("artifact_oauth_flow".to_string()),
+                artifact_type: ArtifactType::OAuthAuthCodeFlow,
+                display_name: Some("oauth_auth_code_flow".to_string()),
+                locations: Vec::new(),
+                lifecycle_evidence: LifecycleEvidence::default(),
+                confidence: Confidence::High,
+                framework_hints: vec!["oauth-generic".to_string()],
+                cookie_attributes: None,
+                jwt_attributes: None,
+                token_boundary_attributes: None,
+            }],
+            evidence: vec![Evidence {
+                id: evidence_id.clone(),
+                lifecycle_stage: LifecycleStage::Issue,
+                location: SourceLocation {
+                    path: "src/oauth.ts".to_string(),
+                    line: Some(12),
+                    column: Some(1),
+                },
+                detector_id: "oauth.state.present".to_string(),
+                confidence: Confidence::High,
+                excerpt: Some(SanitizedExcerpt::from_sanitized(format!(
+                    "authorizationUrl({{ state: '{OAUTH_STATE}', nonce: 'nonceabcdefghijklmnopqrstuvwxyzABCDEF0123456789', code_verifier: 'verifierabcdefghijklmnopqrstuvwxyzABCDEF0123456789' }})"
+                ))),
+                dynamic: false,
+                framework_default: false,
+            }],
+            lifecycle_paths: Vec::new(),
+            findings: vec![Finding {
+                id: FindingId("finding_oauth_state".to_string()),
+                category: FindingCategory::DynamicReviewRequired,
+                severity: Severity::Medium,
+                artifact_ids: vec![ArtifactId("artifact_oauth_flow".to_string())],
+                evidence_ids: vec![evidence_id],
+                title: format!("OAuth state {OAUTH_STATE} is static"),
+                description: format!("OAuth state value {OAUTH_STATE} must not leak"),
+                suggested_fix: None,
+                reviewer_question: None,
+            }],
+        };
+
+        for format in [ReportFormat::Json, ReportFormat::Markdown] {
+            let output = render(&report, format);
+            assert!(output.contains("REDACTED"), "{format:?} did not redact");
+            for secret in [
+                OAUTH_STATE,
+                "nonceabcdefghijklmnopqrstuvwxyzABCDEF0123456789",
+                "verifierabcdefghijklmnopqrstuvwxyzABCDEF0123456789",
+            ] {
+                assert!(!output.contains(secret), "{format:?} leaked {secret}");
+            }
+        }
     }
 }

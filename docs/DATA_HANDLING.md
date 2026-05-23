@@ -4,7 +4,7 @@ SessionScope analyzes source you point it at and produces reviewable reports. Th
 
 ## Redaction trust boundary
 
-SessionScope treats source text and detector output as untrusted until it has passed through `sessionscope-core::redaction`. Evidence excerpts and rendered reports keep source locations, finding IDs, lifecycle stages, claim names, and attribute names — but **token values, cookie values, bearer strings, private keys, and high-entropy secret-like literals are replaced with `[REDACTED]`** before they reach any reporter.
+SessionScope treats source text and detector output as untrusted until it has passed through `sessionscope-core::redaction`. Evidence excerpts and rendered reports keep source locations, finding IDs, lifecycle stages, claim names, and attribute names — but **token values, cookie values, bearer strings, private keys, OAuth `state`, `nonce`, `code_verifier`, `code_challenge` values, and high-entropy secret-like literals are replaced with `[REDACTED]`** before they reach any reporter.
 
 Stable IDs and source locations are preserved for reviewability. They must never be generated from runtime token values, private keys, bearer strings, cookie values, or other secrets.
 
@@ -26,6 +26,7 @@ Reports retain the information a reviewer needs:
 Before rendering:
 
 - Token, cookie, and bearer **values**.
+- OAuth/OIDC correlation and PKCE values named `state`, `nonce`, `code_verifier`, `code_challenge`, `codeVerifier`, or `codeChallenge`, including URL parameter values.
 - Private-key material.
 - High-entropy string literals that match secret-like patterns.
 - Source excerpts have these spans replaced with `[REDACTED]`.
