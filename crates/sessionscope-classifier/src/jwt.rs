@@ -490,22 +490,19 @@ fn clock_tolerance_seconds(evidence: &Evidence) -> Option<u64> {
 }
 
 fn has_visible_kid_validation(report: &ScanReport, artifact: &Artifact) -> bool {
-    report.evidence.iter().any(|evidence| {
-        artifact.lifecycle_evidence.validate.contains(&evidence.id)
-            && evidence
-                .excerpt
-                .as_ref()
-                .is_some_and(|excerpt| text_has_explicit_key_trust_validation(excerpt.as_str()))
-    })
+    has_visible_key_trust_validation(report, artifact)
 }
 
 fn has_visible_key_trust_validation(report: &ScanReport, artifact: &Artifact) -> bool {
     report.evidence.iter().any(|evidence| {
+        let Some(excerpt) = evidence.excerpt.as_ref() else {
+            return false;
+        };
+        let excerpt_text = excerpt.as_str();
+        let header_context = evidence.detector_id.starts_with("jwt.header.");
         artifact.lifecycle_evidence.validate.contains(&evidence.id)
-            && evidence
-                .excerpt
-                .as_ref()
-                .is_some_and(|excerpt| text_has_explicit_key_trust_validation(excerpt.as_str()))
+            && (!header_context || text_mentions_static_key_map_lookup(excerpt_text))
+            && text_has_explicit_key_trust_validation(excerpt_text)
     })
 }
 
@@ -533,10 +530,15 @@ fn text_has_explicit_key_trust_validation(text: &str) -> bool {
         || normalized.contains("trusted key")
         || normalized.contains("trusted jwks")
         || normalized.contains("pinned")
-        || normalized.contains("key-map lookup")
-        || normalized.contains("key map lookup")
+        || normalized.contains("static key-map lookup")
+        || normalized.contains("static key map lookup")
         || normalized.contains("jwks validation")
         || normalized.contains("jwks lookup")
+}
+
+fn text_mentions_static_key_map_lookup(text: &str) -> bool {
+    let normalized = text.to_ascii_lowercase();
+    normalized.contains("static key-map lookup") || normalized.contains("static key map lookup")
 }
 
 fn parse_duration_seconds(text: &str) -> Option<u64> {
@@ -1496,6 +1498,49 @@ mod tests {
     }
 
     #[test]
+    fn header_key_map_lookup_evidence_does_not_self_suppress_header_trust() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_complete".to_string()),
+                    EvidenceId("evidence_jku".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_complete",
+                    "jwt.option.complete",
+                    "complete: true",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_jku",
+                    "jwt.header.jku",
+                    "JWT header `jku` is passed to key-map lookup near verification",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.title.contains("jku URL"))
+        );
+    }
+
+    #[test]
     fn missing_nbf_evidence_is_missing_validation() {
         let artifact = artifact(
             attributes(
@@ -1789,6 +1834,7 @@ mod tests {
                     EvidenceId("evidence_verify".to_string()),
                     EvidenceId("evidence_kid".to_string()),
                     EvidenceId("evidence_nbf".to_string()),
+                    EvidenceId("evidence_validation".to_string()),
                 ],
                 ..LifecycleEvidence::default()
             },
@@ -1806,6 +1852,12 @@ mod tests {
                     "evidence_nbf",
                     "jwt.option.ignore_not_before",
                     "ignoreNotBefore: false",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_validation",
+                    "jwt.validate",
+                    "trusted key allowlist constrains accepted kid values",
                     false,
                 ),
             ],
@@ -1850,6 +1902,49 @@ mod tests {
                     "evidence_kid",
                     "jwt.header.kid",
                     "JWT header `kid` is read near verification logic",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_nbf",
+                    "jwt.option.ignore_not_before",
+                    "ignoreNotBefore: false",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.title.contains("`kid`"))
+        );
+    }
+
+    #[test]
+    fn kid_key_map_lookup_header_evidence_does_not_self_suppress_review() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_kid".to_string()),
+                    EvidenceId("evidence_nbf".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_kid",
+                    "jwt.header.kid",
+                    "JWT header `kid` is passed to key-map lookup near verification",
                     false,
                 ),
                 option_evidence(

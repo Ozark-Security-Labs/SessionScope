@@ -1267,7 +1267,7 @@ fn add_header_trust_fields(
             }
             let excerpt = match context {
                 HeaderUseContext::KeyMapLookup => format!(
-                    "JWT header `{header_name}` is passed to key-map lookup near verification"
+                    "JWT header `{header_name}` is passed to static key-map lookup near verification"
                 ),
                 HeaderUseContext::KeyResolution => format!(
                     "JWT header `{header_name}` is passed to key-resolution logic near verification"
@@ -1299,16 +1299,14 @@ fn collect_header_use_context(
     ) {
         return;
     }
-    if header_read_node_matches(node, source, header_name) {
-        let context =
-            header_read_key_resolution_context(node, source).unwrap_or(HeaderUseContext::Read);
-        if matches!(
+    if header_read_node_matches(node, source, header_name)
+        && let Some(context) = header_read_context(node, source)
+        && (matches!(
             context,
             HeaderUseContext::KeyResolution | HeaderUseContext::KeyMapLookup
-        ) || best.is_none()
-        {
-            *best = Some(context);
-        }
+        ) || best.is_none())
+    {
+        *best = Some(context);
     }
 
     let mut cursor = node.walk();
@@ -1335,7 +1333,7 @@ fn header_read_node_matches(node: Node<'_>, source: &str, header_name: &str) -> 
     text.contains(&single) || text.contains(&double)
 }
 
-fn header_read_key_resolution_context(node: Node<'_>, source: &str) -> Option<HeaderUseContext> {
+fn header_read_context(node: Node<'_>, source: &str) -> Option<HeaderUseContext> {
     let mut current = node.parent();
     while let Some(ancestor) = current {
         if matches!(ancestor.kind(), "call_expression" | "call") {
@@ -1343,33 +1341,33 @@ fn header_read_key_resolution_context(node: Node<'_>, source: &str) -> Option<He
                 .child_by_field_name("function")
                 .map(|function| node_text(function, source))
                 .unwrap_or_else(|| node_text(ancestor, source));
-            if !key_resolution_function_name(&function_text) {
+            if ignored_header_read_function_name(&function_text) {
                 return None;
             }
-            return Some(if key_map_function_name(&function_text) {
-                HeaderUseContext::KeyMapLookup
-            } else {
-                HeaderUseContext::KeyResolution
-            });
+            if !key_resolution_function_name(&function_text) {
+                return Some(HeaderUseContext::Read);
+            }
+            return Some(
+                if key_map_function_name(&function_text)
+                    && key_map_lookup_uses_static_map(ancestor, source)
+                {
+                    HeaderUseContext::KeyMapLookup
+                } else {
+                    HeaderUseContext::KeyResolution
+                },
+            );
         }
         if is_scope_node(ancestor) {
-            return None;
+            return Some(HeaderUseContext::Read);
         }
         current = ancestor.parent();
     }
-    None
+    Some(HeaderUseContext::Read)
 }
 
-fn key_map_function_name(function_text: &str) -> bool {
+fn ignored_header_read_function_name(function_text: &str) -> bool {
     let normalized = function_text.to_ascii_lowercase();
-    normalized.contains("keymap")
-        || normalized.contains("key_map")
-        || normalized.contains("key-map")
-}
-
-fn key_resolution_function_name(function_text: &str) -> bool {
-    let normalized = function_text.to_ascii_lowercase();
-    if [
+    [
         "console",
         "logger",
         "log",
@@ -1381,7 +1379,81 @@ fn key_resolution_function_name(function_text: &str) -> bool {
     ]
     .iter()
     .any(|term| normalized.contains(term))
+}
+
+fn key_map_function_name(function_text: &str) -> bool {
+    let normalized = function_text.to_ascii_lowercase();
+    ["untrusted", "unsafe", "unvalidated", "external", "attacker"]
+        .iter()
+        .all(|term| !normalized.contains(term))
+        && (normalized.contains("keymap")
+            || normalized.contains("key_map")
+            || normalized.contains("key-map"))
+}
+
+fn key_map_lookup_uses_static_map(call_node: Node<'_>, source: &str) -> bool {
+    let Some(function) = call_node.child_by_field_name("function") else {
+        return false;
+    };
+    let function_text = node_text(function, source);
+    let Some(target) = function_text.strip_suffix(".get") else {
+        return false;
+    };
+    let target = target.trim();
+    if target.is_empty()
+        || target.contains(['[', ']', '(', ')', '"', '\'', '`'])
+        || ["untrusted", "unsafe", "unvalidated", "external", "attacker"]
+            .iter()
+            .any(|term| target.to_ascii_lowercase().contains(term))
     {
+        return false;
+    }
+
+    let mut root = call_node;
+    while let Some(parent) = root.parent() {
+        root = parent;
+    }
+    scope_defines_static_map(root, source, target)
+}
+
+fn scope_defines_static_map(node: Node<'_>, source: &str, target: &str) -> bool {
+    if static_map_binding_matches(node, source, target) {
+        return true;
+    }
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor)
+        .any(|child| scope_defines_static_map(child, source, target))
+}
+
+fn static_map_binding_matches(node: Node<'_>, source: &str, target: &str) -> bool {
+    match node.kind() {
+        "variable_declarator" => {
+            let name_matches = node
+                .child_by_field_name("name")
+                .is_some_and(|name| node_text(name, source) == target);
+            let value_is_map = node
+                .child_by_field_name("value")
+                .is_some_and(|value| is_object_literal(value) || is_dictionary(value));
+            name_matches && value_is_map
+        }
+        "assignment" => {
+            let left_matches = node
+                .child_by_field_name("left")
+                .or_else(|| node.child_by_field_name("name"))
+                .is_some_and(|left| node_text(left, source) == target);
+            let right_is_map = node
+                .child_by_field_name("right")
+                .or_else(|| node.child_by_field_name("value"))
+                .is_some_and(|right| is_object_literal(right) || is_dictionary(right));
+            left_matches && right_is_map
+        }
+        _ => false,
+    }
+}
+
+fn key_resolution_function_name(function_text: &str) -> bool {
+    let normalized = function_text.to_ascii_lowercase();
+    if ignored_header_read_function_name(&normalized) {
         return false;
     }
 
@@ -3600,13 +3672,18 @@ export async function verifyAccessJwt(token: string) {
   });
   // Never trust result.protectedHeader.jku from user tokens.
   const note = "result.protectedHeader.x5u is documented here";
-  console.log(result.protectedHeader.jwk, note);
+  console.log(result.protectedHeader.jwk, result.protectedHeader.kid, note);
   return result.protectedHeader.jku;
 }
 "#,
         );
 
-        for detector_id in ["jwt.header.jku", "jwt.header.x5u", "jwt.header.jwk"] {
+        for detector_id in [
+            "jwt.header.jku",
+            "jwt.header.x5u",
+            "jwt.header.jwk",
+            "jwt.header.kid",
+        ] {
             assert!(
                 output
                     .evidence
