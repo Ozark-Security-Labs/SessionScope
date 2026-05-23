@@ -12,7 +12,7 @@ const DETECTOR_ID: &str = "oauth.flow";
 const REDACTION: &str = "[REDACTED]";
 
 static OAUTH_FLOW_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)(passport-oauth2|OAuth2Strategy|authorizationUrl|authorization_url|OAuthProvider|OIDCProvider|NextAuth|OAuth2Client|OAuth2Session|register\(|authorize_redirect|response_type\s*[:=]\s*['\"]code)"#)
+    Regex::new(r#"(?i)(OAuth2Strategy|authorizationUrl|authorization_url|OAuthProvider|OIDCProvider|register\(|authorize_redirect|response_type\s*[:=]\s*['\"]code)"#)
         .expect("oauth flow regex should compile")
 });
 static PKCE_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -48,7 +48,7 @@ static REDIRECT_RE: LazyLock<Regex> = LazyLock::new(|| {
 static QUOTED_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"["']([^"']+)["']"#).expect("quoted regex should compile"));
 static OAUTH_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?ix)(\b(?:state|nonce|code_verifier|codeVerifier|code_challenge|codeChallenge)\b\s*[:=]\s*)(["'])([^"']{8,})(["'])"#)
+    Regex::new(r#"(?ix)(\b(?:state|nonce|code_verifier|codeVerifier|code_challenge|codeChallenge)\b\s*[:=]\s*)(["'`])([^"'`]{8,})(["'`])"#)
         .expect("oauth value regex should compile")
 });
 static OAUTH_URL_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -90,7 +90,7 @@ fn detect(input: &DetectorInput<'_>) -> DetectionOutput {
 
     for (index, line) in input.source.lines().enumerate() {
         let line_number = index + 1;
-        if OAUTH_FLOW_RE.is_match(line) {
+        if OAUTH_FLOW_RE.is_match(line) && !is_import_only_line(line) {
             saw_flow = true;
             signals.push(signal(
                 "oauth.flow.auth_code",
@@ -249,7 +249,8 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
         .map(|signal| signal.line)
         .collect::<Vec<_>>();
 
-    for flow_line in flow_lines {
+    for (index, flow_line) in flow_lines.iter().copied().enumerate() {
+        let next_flow_line = flow_lines.get(index + 1).copied();
         let artifact_id = stable_artifact_id(&[
             DETECTOR_ID,
             "oauth_auth_code_flow",
@@ -261,7 +262,7 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
 
         for signal in signals
             .iter()
-            .filter(|signal| signal_belongs_to_flow(signal, flow_line))
+            .filter(|signal| signal_belongs_to_flow(signal, flow_line, next_flow_line))
         {
             let line = signal.line.to_string();
             let column = signal.column.to_string();
@@ -315,9 +316,17 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
     output
 }
 
-fn signal_belongs_to_flow(signal: &Signal, flow_line: usize) -> bool {
-    signal.detector_id == "oauth.flow.auth_code"
-        || (signal.line + 2 >= flow_line && signal.line <= flow_line + 8)
+fn signal_belongs_to_flow(
+    signal: &Signal,
+    flow_line: usize,
+    next_flow_line: Option<usize>,
+) -> bool {
+    if signal.detector_id == "oauth.flow.auth_code" {
+        return signal.line == flow_line;
+    }
+    signal.line + 2 >= flow_line
+        && signal.line <= flow_line + 8
+        && next_flow_line.is_none_or(|next| signal.line < next)
 }
 
 fn push_lifecycle_id(lifecycle: &mut LifecycleEvidence, stage: LifecycleStage, id: EvidenceId) {
@@ -360,6 +369,11 @@ fn framework_hints(path: &str, source: &str) -> Vec<String> {
         hints.push("oauth-generic".to_string());
     }
     hints
+}
+
+fn is_import_only_line(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed.starts_with("import ") || trimmed.starts_with("from ")
 }
 
 fn redirect_line_is_broad(line: &str) -> bool {
@@ -451,7 +465,7 @@ verifyIdToken(token, { nonce })
     #[test]
     fn redacts_oauth_high_entropy_values_in_excerpts() {
         let output = OAuthFlowDetector.detect(&input(
-            "client.authorizationUrl({ response_type: 'code', state: 'abcdefghijklmnopqrstuvwxyz123456', nonce: 'ZYXWVUTSRQPONMLKJIHGFEDCBA987654' })",
+            "client.authorizationUrl({ response_type: 'code', state: `abcdefghijklmnopqrstuvwxyz123456`, nonce: 'ZYXWVUTSRQPONMLKJIHGFEDCBA987654' })",
         ));
         let rendered = format!("{:?}", output.evidence);
         assert!(!rendered.contains("abcdefghijklmnopqrstuvwxyz123456"));

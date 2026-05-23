@@ -18,7 +18,7 @@ static STORAGE_RE: LazyLock<Regex> = LazyLock::new(|| {
     .expect("storage regex should compile")
 });
 static STORAGE_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?ix)(\b(?:localStorage|sessionStorage)\s*\.\s*setItem\s*\(\s*(?:"(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session)[^"]*"|'(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session)[^']*')\s*,\s*)(["'])([^"']*)(["'])"#)
+    Regex::new(r#"(?ix)(\b(?:localStorage|sessionStorage)\s*\.\s*setItem\s*\(\s*(?:"(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session)[^"]*"|'(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session)[^']*')\s*,\s*)(["'`])([^"'`]*)(["'`])"#)
         .expect("storage value regex should compile")
 });
 static DOCUMENT_COOKIE_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -374,7 +374,7 @@ const clientSecret = 'PLACEHOLDER_SECRET_DO_NOT_USE'
     fn redacts_storage_second_argument_literals() {
         let output = ClientStorageDetector.detect(&input(
             "src/components/Auth.tsx",
-            "localStorage.setItem('access_token', 'raw-token-value')",
+            "localStorage.setItem('access_token', `raw-token-value`)",
         ));
 
         let rendered = format!("{:?}", output.evidence);
