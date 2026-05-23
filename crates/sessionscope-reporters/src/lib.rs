@@ -440,4 +440,18 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn render_sanitizes_browser_storage_token_values() {
+        let mut report = unsafe_report();
+        report.evidence[0].excerpt = Some(SanitizedExcerpt::from_sanitized(
+            "localStorage.setItem('access_token', `raw-token-value`)".to_string(),
+        ));
+
+        for format in [ReportFormat::Json, ReportFormat::Markdown] {
+            let output = render(&report, format);
+            assert!(output.contains("REDACTED"), "{format:?} did not redact");
+            assert!(!output.contains("raw-token-value"));
+        }
+    }
 }

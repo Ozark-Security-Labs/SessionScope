@@ -36,6 +36,10 @@ static COOKIE_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
     )
     .expect("cookie call regex should compile")
 });
+static BROWSER_STORAGE_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?ix)(\b(?:localStorage|sessionStorage)\s*\.\s*setItem\s*\(\s*(?:"(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session)[^"]*"|'(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session)[^']*')\s*,\s*)(["'`])([^"'`]*)(["'`])"#)
+        .expect("browser storage call regex should compile")
+});
 static COOKIE_VALUE_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?ix)(\bvalue\s*[:=]\s*)(["'])([^"']*)(["'])"#)
         .expect("cookie value key regex should compile")
@@ -216,6 +220,9 @@ pub fn redact_sensitive_values(input: &str) -> String {
         .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string();
     output = COOKIE_CALL_RE
+        .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
+    output = BROWSER_STORAGE_CALL_RE
         .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string();
     output = COOKIE_VALUE_KEY_RE
@@ -715,6 +722,17 @@ mod tests {
         assert!(output.contains("state=[REDACTED]"));
         assert!(output.contains("nonce=[REDACTED]"));
         assert!(output.contains("code_challenge=[REDACTED]"));
+    }
+
+    #[test]
+    fn redacts_browser_storage_token_values() {
+        let output = redact_sensitive_values(
+            "localStorage.setItem('access_token', `raw-token-value`); sessionStorage.setItem(\"refresh_token\", 'short-secret')",
+        );
+
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains("raw-token-value"));
+        assert!(!output.contains("short-secret"));
     }
 
     #[test]

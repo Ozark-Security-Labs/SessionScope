@@ -26,7 +26,7 @@ static STATIC_STATE_RE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("static state regex should compile")
 });
 static STATE_VERIFY_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(state[^\n]{0,80}(===|==|!=|!==)|session[^\n]{0,80}state[^\n]{0,80}(===|==|!=|!==)|cookies?[^\n]{0,80}state[^\n]{0,80}(===|==|!=|!==)|csrf[^\n]{0,80}state[^\n]{0,80}(===|==|!=|!==)|compare_digest\([^\n]*state)")
+    Regex::new(r"(?i)(state[^\n]{0,80}(===|==|!=|!==)[^\n]{0,80}(session|cookie|cache|expected|csrf)|(session|cookie|cache|expected|csrf)[^\n]{0,80}state[^\n]{0,80}(===|==|!=|!==)[^\n]{0,80}state|compare_digest\([^\n]*state)")
         .expect("state verification regex should compile")
 });
 static OPENID_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -37,7 +37,7 @@ static NONCE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\bnonce\b").expect("nonce regex should compile"));
 static NONCE_VERIFY_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?i)(verify[^\n]{0,80}nonce|parse_id_token[^\n]{0,80}nonce|nonce[^\n]{0,80}(===|==|!=|!==)|id_token[^\n]{0,80}nonce[^\n]{0,80}(===|==|!=|!==))",
+        r"(?i)((verifyIdToken|verify_id_token|parse_id_token|jwtVerify)[^\n]{0,80}nonce|nonce[^\n]{0,80}(===|==|!=|!==)[^\n]{0,80}(expected|session|cookie|cache)|id_token[^\n]{0,80}nonce[^\n]{0,80}(===|==|!=|!==)[^\n]{0,80}(expected|session|cookie|cache))",
     )
     .expect("nonce verification regex should compile")
 });
@@ -324,7 +324,7 @@ fn signal_belongs_to_flow(
     if signal.detector_id == "oauth.flow.auth_code" {
         return signal.line == flow_line;
     }
-    signal.line + 2 >= flow_line
+    signal.line >= flow_line
         && signal.line <= flow_line + 8
         && next_flow_line.is_none_or(|next| signal.line < next)
 }

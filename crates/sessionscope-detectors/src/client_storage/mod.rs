@@ -32,12 +32,12 @@ static URL_PATH_FRAGMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static CLIENT_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?i)\b(client_secret|clientSecret)\b\s*[:=]\s*(["'][^"']+["']|[A-Za-z0-9._~+/-]{12,})"#,
+        r#"(?i)\b(client_secret|clientSecret)\b\s*[:=]\s*(["'`][^"'`]+["'`]|[A-Za-z0-9._~+/-]{12,})"#,
     )
     .expect("client secret regex should compile")
 });
 static SENSITIVE_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?ix)(\b(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session|client[_-]?secret|clientSecret)\b\s*[:=,]\s*)(["'])([^"']*)(["'])"#)
+    Regex::new(r#"(?ix)(\b(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session|client[_-]?secret|clientSecret)\b\s*[:=,]\s*)(["'`])([^"'`]*)(["'`])"#)
         .expect("sensitive value regex should compile")
 });
 
