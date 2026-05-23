@@ -26,7 +26,7 @@ static STATIC_STATE_RE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("static state regex should compile")
 });
 static STATE_VERIFY_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(state[^\n]{0,80}(===|==|!=|!==)|compare_digest\([^\n]*state|session[^\n]{0,80}state|cookies?[^\n]{0,80}state|csrf[^\n]{0,80}state)")
+    Regex::new(r"(?i)(state[^\n]{0,80}(===|==|!=|!==)|session[^\n]{0,80}state[^\n]{0,80}(===|==|!=|!==)|cookies?[^\n]{0,80}state[^\n]{0,80}(===|==|!=|!==)|csrf[^\n]{0,80}state[^\n]{0,80}(===|==|!=|!==)|compare_digest\([^\n]*state)")
         .expect("state verification regex should compile")
 });
 static OPENID_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -37,7 +37,7 @@ static NONCE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\bnonce\b").expect("nonce regex should compile"));
 static NONCE_VERIFY_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?i)(verify[^\n]{0,80}nonce|nonce[^\n]{0,80}(===|==|!=|!==)|id_token[^\n]{0,80}nonce)",
+        r"(?i)(verify[^\n]{0,80}nonce|parse_id_token[^\n]{0,80}nonce|nonce[^\n]{0,80}(===|==|!=|!==)|id_token[^\n]{0,80}nonce[^\n]{0,80}(===|==|!=|!==))",
     )
     .expect("nonce verification regex should compile")
 });
@@ -243,59 +243,81 @@ fn signal(
 
 fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> DetectionOutput {
     let mut output = DetectionOutput::default();
-    let artifact_id = stable_artifact_id(&[DETECTOR_ID, "oauth_auth_code_flow", input.path]);
-    let mut lifecycle_evidence = LifecycleEvidence::default();
-    let mut evidence = Vec::new();
+    let flow_lines = signals
+        .iter()
+        .filter(|signal| signal.detector_id == "oauth.flow.auth_code")
+        .map(|signal| signal.line)
+        .collect::<Vec<_>>();
 
-    for signal in signals {
-        let line = signal.line.to_string();
-        let column = signal.column.to_string();
-        let evidence_id = stable_evidence_id(&[
+    for flow_line in flow_lines {
+        let artifact_id = stable_artifact_id(&[
             DETECTOR_ID,
-            signal.detector_id,
+            "oauth_auth_code_flow",
             input.path,
-            line.as_str(),
-            column.as_str(),
+            flow_line.to_string().as_str(),
         ]);
-        push_lifecycle_id(&mut lifecycle_evidence, signal.stage, evidence_id.clone());
-        evidence.push(Evidence {
-            id: evidence_id,
-            lifecycle_stage: signal.stage,
-            location: SourceLocation {
+        let mut lifecycle_evidence = LifecycleEvidence::default();
+        let mut evidence = Vec::new();
+
+        for signal in signals
+            .iter()
+            .filter(|signal| signal_belongs_to_flow(signal, flow_line))
+        {
+            let line = signal.line.to_string();
+            let column = signal.column.to_string();
+            let evidence_id = stable_evidence_id(&[
+                DETECTOR_ID,
+                signal.detector_id,
+                input.path,
+                line.as_str(),
+                column.as_str(),
+                flow_line.to_string().as_str(),
+            ]);
+            push_lifecycle_id(&mut lifecycle_evidence, signal.stage, evidence_id.clone());
+            evidence.push(Evidence {
+                id: evidence_id,
+                lifecycle_stage: signal.stage,
+                location: SourceLocation {
+                    path: input.path.to_string(),
+                    line: Some(signal.line),
+                    column: Some(signal.column),
+                },
+                detector_id: signal.detector_id.to_string(),
+                confidence: signal.confidence,
+                excerpt: Some(signal.excerpt.clone()),
+                dynamic: signal.dynamic,
+                framework_default: signal.framework_default,
+            });
+        }
+
+        if evidence.is_empty() {
+            continue;
+        }
+
+        output.artifacts.push(Artifact {
+            id: artifact_id,
+            artifact_type: ArtifactType::OAuthAuthCodeFlow,
+            display_name: Some(format!("oauth_auth_code_flow:{flow_line}")),
+            locations: vec![SourceLocation {
                 path: input.path.to_string(),
-                line: Some(signal.line),
-                column: Some(signal.column),
-            },
-            detector_id: signal.detector_id.to_string(),
-            confidence: signal.confidence,
-            excerpt: Some(signal.excerpt),
-            dynamic: signal.dynamic,
-            framework_default: signal.framework_default,
+                line: Some(flow_line),
+                column: Some(1),
+            }],
+            lifecycle_evidence,
+            confidence: Confidence::High,
+            framework_hints: framework_hints(input.path, input.source),
+            cookie_attributes: None,
+            jwt_attributes: None,
+            token_boundary_attributes: None,
         });
+        output.evidence.extend(evidence);
     }
-
-    if evidence.is_empty() {
-        return output;
-    }
-
-    output.artifacts.push(Artifact {
-        id: artifact_id,
-        artifact_type: ArtifactType::OAuthAuthCodeFlow,
-        display_name: Some("oauth_auth_code_flow".to_string()),
-        locations: vec![SourceLocation {
-            path: input.path.to_string(),
-            line: evidence.first().and_then(|item| item.location.line),
-            column: Some(1),
-        }],
-        lifecycle_evidence,
-        confidence: Confidence::High,
-        framework_hints: framework_hints(input.path, input.source),
-        cookie_attributes: None,
-        jwt_attributes: None,
-        token_boundary_attributes: None,
-    });
-    output.evidence = evidence;
     output
+}
+
+fn signal_belongs_to_flow(signal: &Signal, flow_line: usize) -> bool {
+    signal.detector_id == "oauth.flow.auth_code"
+        || (signal.line + 2 >= flow_line && signal.line <= flow_line + 8)
 }
 
 fn push_lifecycle_id(lifecycle: &mut LifecycleEvidence, stage: LifecycleStage, id: EvidenceId) {
@@ -444,5 +466,45 @@ verifyIdToken(token, { nonce })
         assert!(redirect_line_is_broad(
             "redirect_uris: ['https://example.com']"
         ));
+    }
+
+    #[test]
+    fn does_not_mark_state_or_nonce_reads_as_verification() {
+        let output = OAuthFlowDetector.detect(&input(
+            r#"
+const url = client.authorizationUrl({ response_type: 'code', scope: 'openid', state, nonce, code_challenge: challenge })
+const callbackState = req.query.state
+const expectedState = session.oauthState
+const idNonce = id_token.nonce
+"#,
+        ));
+
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "oauth.state.verified")
+        );
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "oauth.nonce.verified")
+        );
+    }
+
+    #[test]
+    fn creates_separate_artifacts_for_separate_flows() {
+        let output = OAuthFlowDetector.detect(&input(
+            r#"
+const good = client.authorizationUrl({ response_type: 'code', state, code_challenge: challenge })
+const farAway = true
+const otherFarAway = true
+const another = true
+const unsafe = client.authorizationUrl({ response_type: 'code' })
+"#,
+        ));
+
+        assert_eq!(output.artifacts.len(), 2);
     }
 }

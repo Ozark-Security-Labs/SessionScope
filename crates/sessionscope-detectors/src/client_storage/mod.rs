@@ -17,6 +17,10 @@ static STORAGE_RE: LazyLock<Regex> = LazyLock::new(|| {
     )
     .expect("storage regex should compile")
 });
+static STORAGE_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?ix)(\b(?:localStorage|sessionStorage)\s*\.\s*setItem\s*\(\s*(?:"(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session)[^"]*"|'(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session)[^']*')\s*,\s*)(["'])([^"']*)(["'])"#)
+        .expect("storage value regex should compile")
+});
 static DOCUMENT_COOKIE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)document\s*\.\s*cookie\s*="#).expect("document cookie regex should compile")
 });
@@ -274,8 +278,11 @@ fn is_browser_client_path(path: &str) -> bool {
 }
 
 fn sanitize_storage_excerpt(line: &str) -> String {
-    SENSITIVE_VALUE_RE
+    let output = STORAGE_VALUE_RE
         .replace_all(line, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
+    SENSITIVE_VALUE_RE
+        .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string()
 }
 
@@ -361,6 +368,18 @@ const clientSecret = 'PLACEHOLDER_SECRET_DO_NOT_USE'
         ));
 
         assert!(output.evidence.is_empty());
+    }
+
+    #[test]
+    fn redacts_storage_second_argument_literals() {
+        let output = ClientStorageDetector.detect(&input(
+            "src/components/Auth.tsx",
+            "localStorage.setItem('access_token', 'raw-token-value')",
+        ));
+
+        let rendered = format!("{:?}", output.evidence);
+        assert!(rendered.contains("[REDACTED]"));
+        assert!(!rendered.contains("raw-token-value"));
     }
 
     #[test]
