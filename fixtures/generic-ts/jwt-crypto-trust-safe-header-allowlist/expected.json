@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-ts.jwt-crypto-trust-safe-header-allowlist",
+  "framework": "generic-typescript",
+  "source_files": ["auth.ts"],
+  "expected_artifacts": ["access_jwt"],
+  "expected_lifecycle_stages": ["validate"],
+  "expected_findings": ["no_header_trust_finding"],
+  "notes": "False-positive fixture: header read is paired with trusted JWKS-style key-map evidence."
+}

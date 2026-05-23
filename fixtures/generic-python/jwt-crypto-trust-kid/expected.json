@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-python.jwt-crypto-trust-kid",
+  "framework": "generic-python",
+  "source_files": ["auth.py"],
+  "expected_artifacts": ["access_jwt"],
+  "expected_lifecycle_stages": ["validate"],
+  "expected_findings": ["jwt_kid_unvalidated_review"],
+  "notes": "Covers PyJWT-like verification that reads kid without visible allow-list or trusted key-map validation."
+}

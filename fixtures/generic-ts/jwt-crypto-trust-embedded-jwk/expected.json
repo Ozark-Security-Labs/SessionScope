@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-ts.jwt-crypto-trust-embedded-jwk",
+  "framework": "generic-typescript",
+  "source_files": ["auth.ts"],
+  "expected_artifacts": ["access_jwt"],
+  "expected_lifecycle_stages": ["validate"],
+  "expected_findings": ["jwt_embedded_jwk_trust"],
+  "notes": "Covers jose verification that reads an embedded jwk header after complete-header verification context."
+}

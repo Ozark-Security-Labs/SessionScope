@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-python.jwt-crypto-trust-clock-skew",
+  "framework": "generic-python",
+  "source_files": ["auth.py"],
+  "expected_artifacts": ["access_jwt"],
+  "expected_lifecycle_stages": ["validate"],
+  "expected_findings": ["jwt_clock_skew_review"],
+  "notes": "Covers PyJWT-like verification with a broad 3600-second clock skew tolerance."
+}
