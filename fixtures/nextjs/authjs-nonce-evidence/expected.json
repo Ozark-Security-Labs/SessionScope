@@ -1,0 +1,17 @@
+{
+  "fixture_id": "authjs-nonce-evidence",
+  "framework": "nextjs",
+  "source_files": [
+    "app/api/auth/[...nextauth]/route.ts"
+  ],
+  "expected_artifacts": [
+    "oauth_auth_code_flow"
+  ],
+  "expected_lifecycle_stages": [
+    "issue"
+  ],
+  "expected_findings": [
+    "oidc_nonce_missing"
+  ],
+  "notes": "P3 OAuth/client-storage fixture with placeholder-only values."
+}

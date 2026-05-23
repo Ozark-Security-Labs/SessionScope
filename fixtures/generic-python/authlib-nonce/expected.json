@@ -1,0 +1,15 @@
+{
+  "fixture_id": "authlib-nonce",
+  "framework": "generic-python",
+  "source_files": [
+    "app.py"
+  ],
+  "expected_artifacts": [
+    "oauth_auth_code_flow"
+  ],
+  "expected_lifecycle_stages": [
+    "issue"
+  ],
+  "expected_findings": [],
+  "notes": "P3 OAuth/client-storage fixture with placeholder-only values."
+}

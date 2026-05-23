@@ -1,0 +1,17 @@
+{
+  "fixture_id": "authlib-state",
+  "framework": "generic-python",
+  "source_files": [
+    "app.py"
+  ],
+  "expected_artifacts": [
+    "oauth_auth_code_flow"
+  ],
+  "expected_lifecycle_stages": [
+    "issue"
+  ],
+  "expected_findings": [
+    "oauth_state_missing"
+  ],
+  "notes": "P3 OAuth/client-storage fixture with placeholder-only values."
+}

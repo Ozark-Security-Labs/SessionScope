@@ -1,0 +1,17 @@
+{
+  "fixture_id": "client-storage-sessionstorage",
+  "framework": "generic-ts",
+  "source_files": [
+    "app.ts"
+  ],
+  "expected_artifacts": [
+    "access_token"
+  ],
+  "expected_lifecycle_stages": [
+    "store"
+  ],
+  "expected_findings": [
+    "token_in_session_storage"
+  ],
+  "notes": "P3 OAuth/client-storage fixture with placeholder-only values."
+}

@@ -1,8 +1,7 @@
 use std::collections::BTreeSet;
 
 use sessionscope_model::{
-    Artifact, Evidence, EvidenceId, Finding, FindingCategory, ScanReport, Severity,
-    stable_finding_id,
+    Artifact, EvidenceId, Finding, FindingCategory, ScanReport, Severity, stable_finding_id,
 };
 
 pub fn classify(report: &ScanReport) -> Vec<Finding> {

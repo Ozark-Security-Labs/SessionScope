@@ -1,0 +1,18 @@
+{
+  "fixture_id": "passport-oauth2-pkce",
+  "framework": "express",
+  "source_files": [
+    "src/app.ts"
+  ],
+  "expected_artifacts": [
+    "oauth_auth_code_flow"
+  ],
+  "expected_lifecycle_stages": [
+    "issue"
+  ],
+  "expected_findings": [
+    "oauth_pkce_missing_review",
+    "oauth_state_missing"
+  ],
+  "notes": "P3 OAuth/client-storage fixture with placeholder-only values."
+}

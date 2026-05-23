@@ -1,0 +1,18 @@
+{
+  "fixture_id": "oauth-flow-state",
+  "framework": "generic-ts",
+  "source_files": [
+    "src/app.ts"
+  ],
+  "expected_artifacts": [
+    "oauth_auth_code_flow"
+  ],
+  "expected_lifecycle_stages": [
+    "issue"
+  ],
+  "expected_findings": [
+    "oauth_state_static_review",
+    "oauth_state_unverified_review"
+  ],
+  "notes": "P3 OAuth/client-storage fixture with placeholder-only values."
+}
