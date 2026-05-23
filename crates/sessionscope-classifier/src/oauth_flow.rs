@@ -21,10 +21,39 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
             findings.extend(classify_pkce(report, artifact, &evidence));
             findings.extend(classify_state(report, artifact, &evidence));
             findings.extend(classify_nonce(report, artifact, &evidence));
+            findings.extend(classify_redirect_uri(report, artifact, &evidence));
         }
     }
 
     dedupe_findings(findings)
+}
+
+fn classify_redirect_uri(
+    report: &ScanReport,
+    artifact: &Artifact,
+    evidence: &[&Evidence],
+) -> Option<Finding> {
+    if !evidence
+        .iter()
+        .any(|item| item.detector_id == "oauth.redirect_uri.broad")
+    {
+        return None;
+    }
+
+    Some(finding(
+        artifact,
+        FindingSpec {
+            rule_id: "oauth_redirect_uri_wildcard_review",
+            category: FindingCategory::DynamicReviewRequired,
+            severity: Severity::Medium,
+            evidence_ids: detector_ids(evidence, "oauth.redirect_uri.broad"),
+            title: "OAuth redirect URI literal appears broad or wildcarded".to_string(),
+            description: "A source-visible `redirect_uri` / `redirect_uris` literal contains a wildcard or broad host-only shape. Final matching is enforced by the authorization server, so this is review-required evidence rather than proof of provider-side configuration.".to_string(),
+            suggested_fix: "Register exact redirect URIs with concrete hosts and callback paths; avoid wildcard or bare-host redirect URI entries unless the provider constrains them elsewhere.".to_string(),
+            reviewer_question: "Does the authorization server restrict this client to exact redirect URIs despite the broad source literal?".to_string(),
+        },
+        report,
+    ))
 }
 
 fn classify_nonce(
@@ -461,5 +490,36 @@ mod tests {
             "oauth.nonce.verified",
         ]));
         assert!(verified.is_empty());
+    }
+
+    #[test]
+    fn flags_broad_redirect_uri_literals() {
+        let findings = classify(&report_with(&[
+            "oauth.flow.auth_code",
+            "oauth.pkce.present",
+            "oauth.state.present",
+            "oauth.state.verified",
+            "oauth.redirect_uri.literal",
+            "oauth.redirect_uri.broad",
+        ]));
+
+        assert!(findings.iter().any(|finding| {
+            finding.title.contains("redirect URI")
+                && finding.category == FindingCategory::DynamicReviewRequired
+                && finding.severity == Severity::Medium
+        }));
+    }
+
+    #[test]
+    fn suppresses_exact_redirect_uri_literals() {
+        let findings = classify(&report_with(&[
+            "oauth.flow.auth_code",
+            "oauth.pkce.present",
+            "oauth.state.present",
+            "oauth.state.verified",
+            "oauth.redirect_uri.literal",
+        ]));
+
+        assert!(findings.is_empty());
     }
 }
