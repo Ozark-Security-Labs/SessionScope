@@ -22,6 +22,7 @@ Supported patterns:
 - `NextResponse.cookies.set(...)` and `NextResponse.cookies.delete(...)` cookie storage and logout evidence, including prefix-rule and conflicting-write cookie hardening where source-visible.
 - `Request` header bearer reads and route-local JWT verification through supported JWT libraries such as `jose`.
 - Refresh route handlers that read, validate, rotate, store, expire, or revoke refresh-token evidence in local source.
+- Auth.js/NextAuth OAuth/OIDC provider blocks for source-visible PKCE/state/nonce evidence and browser-client storage hygiene in `app/`, `pages/`, `src/components/`, and `public/` paths.
 
 Unsupported or dynamic patterns:
 
@@ -42,6 +43,8 @@ Supported patterns:
 - `req.session.destroy(...)` server-side logout/session revocation evidence.
 - Session mutation near login, sign-in, auth callback, impersonation, or privilege elevation route handlers.
 - Refresh routes that expose validate, rotate, store, expire, or revoke operations in local source.
+- Passport OAuth2 strategy construction and callback-local state evidence for source-visible P3 OAuth flow checks.
+- Browser/client storage hygiene in source paths that match client-side heuristics.
 
 Unsupported or dynamic patterns:
 
@@ -60,10 +63,12 @@ Supported patterns:
 - JWT encode/decode calls in dependencies and route handlers through supported Python JWT libraries.
 - Logout handlers with cookie deletion and visible session/token revocation helpers.
 - Refresh handlers with visible lookup, validation, rotation, storage, expiry, or revocation helpers.
+- Authlib/generic OAuth2Session authorization URL construction for source-visible PKCE/state/nonce evidence.
 
 Unsupported or dynamic patterns:
 
 - External dependency injection containers and auth backends with no visible implementation.
+
 - Provider-managed OAuth/OIDC behavior not represented in local source; supported source-visible patterns are documented in [`PROVIDER_LIBRARY_COVERAGE.md`](PROVIDER_LIBRARY_COVERAGE.md).
 - Runtime-only OpenAPI/security configuration without source-visible cookie, bearer, JWT, or session handling.
 

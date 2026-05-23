@@ -59,6 +59,18 @@ Unsupported or dynamic patterns:
 - Live OIDC discovery metadata, JWKS state, provider dashboard configuration, and runtime-only client registration.
 - Assertions that a provider validates issuer, audience, expiry, or signature unless local source exposes that validation call/configuration.
 
+## OAuth/OIDC flow integrity
+
+Supported P3 OAuth/OIDC checks are source-only and review-conservative:
+
+- `passport-oauth2` / Express: strategy construction and callback-adjacent code can emit auth-code flow, state, PKCE, and redirect URI evidence. Provider-side redirect matching and PKCE enforcement remain review-required unless visible in source.
+- `openid-client`: `authorizationUrl` / authorization URL construction can emit PKCE, state, nonce, scope, and redirect URI evidence. Live discovery and JWKS/provider metadata are not fetched.
+- NextAuth/Auth.js: provider blocks and `checks` arrays can satisfy source-visible PKCE/state evidence; provider defaults are surfaced as review-required context rather than high-confidence failures.
+- Authlib: `OAuth2Client`, `OAuth2Session`, and authorization URL construction can emit PKCE/state/nonce evidence for Python projects. Authlib JWT validation paths remain out of scope for the P2 JWT detector surface.
+- Generic OAuth/OIDC code: crypto-near identifiers such as `state`, `nonce`, `code_verifier`, and `code_challenge` can provide flow evidence when they appear near auth-code construction.
+
+SessionScope never contacts authorization servers, discovery endpoints, JWKS URLs, or provider dashboards, and it does not prove runtime client registration settings. OAuth `state`, OIDC `nonce`, and PKCE values are redacted from evidence and reports.
+
 ## Common Cloud Identity SDKs
 
 Supported patterns:
