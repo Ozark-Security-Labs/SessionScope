@@ -84,6 +84,7 @@ types are:
 - `unknown_token`
 - `password_reset_token`
 - `email_verification_token`
+- `oauth_auth_code_flow`
 - `session_record`
 - `unknown`
 
@@ -91,7 +92,10 @@ Artifacts include a stable ID, type, optional safe display name, source
 locations, confidence, framework hints, lifecycle evidence references, optional
 cookie attributes for cookie artifacts, optional JWT attributes for JWT
 artifacts, and optional token boundary attributes for JWT, bearer, API-key, and
-service-token artifacts.
+service-token artifacts. `oauth_auth_code_flow` artifacts represent source-visible
+OAuth/OIDC authorization-code flow construction and callback/verification
+evidence; they intentionally do not store authorization codes, `state`, `nonce`,
+PKCE verifier/challenge values, tokens, or client secrets.
 
 Lifecycle evidence is grouped by stage:
 

@@ -112,6 +112,7 @@ SessionScope classifies the artifacts it identifies into the following categorie
 - unknown token flows
 - password-reset tokens
 - email-verification tokens
+- OAuth/OIDC authorization-code flow construction
 - device or session records
 - token scope and trust-boundary evidence
 
@@ -125,6 +126,7 @@ SessionScope is built around defensive, evidence-bound checks. The current and p
 - JWT verification without issuer validation
 - JWT verification without audience validation
 - JWT crypto-trust hardening, including `jwt_alg_none_accepted`, `jwt_alg_confusion_signal`, `jwt_jku_header_trust`, `jwt_x5u_header_trust`, `jwt_embedded_jwk_trust`, `jwt_nbf_missing`, `jwt_clock_skew_review`, and `jwt_kid_unvalidated_review`
+- OAuth/OIDC flow evidence for authorization-code construction across Passport OAuth2, openid-client, NextAuth/Auth.js provider blocks, Authlib, and generic OAuth/OIDC code. P3 classifiers evaluate PKCE, `state`, OIDC `nonce`, and redirect-URI risks from this source-bound evidence.
 - Tokens issued without explicit expiry
 - Refresh tokens without rotation evidence
 - Logout without revocation evidence
