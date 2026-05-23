@@ -15,7 +15,7 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
 
     for context in token_contexts(report, &evidence_by_id) {
         let high_evidence = high_confidence_evidence_ids(&context);
-        findings.extend(classify_deterministic_risks(&context));
+        findings.extend(classify_deterministic_risks(&context, report));
         findings.extend(classify_missing_validation(&context, report));
         findings.extend(classify_issue_without_expiry(&context, report));
         findings.extend(classify_missing_rotation_or_revocation(&context, report));
@@ -63,7 +63,17 @@ fn token_contexts<'a>(
     contexts.into_values().collect()
 }
 
-fn classify_deterministic_risks(context: &TokenContext<'_>) -> Vec<Finding> {
+fn has_client_storage_same_location(report: &ScanReport, bearer_evidence: &Evidence) -> bool {
+    report.evidence.iter().any(|evidence| {
+        matches!(
+            evidence.detector_id.as_str(),
+            "client_storage.local_storage.set_item" | "client_storage.session_storage.set_item"
+        ) && evidence.location.path == bearer_evidence.location.path
+            && evidence.location.line == bearer_evidence.location.line
+    })
+}
+
+fn classify_deterministic_risks(context: &TokenContext<'_>, report: &ScanReport) -> Vec<Finding> {
     let mut findings = Vec::new();
 
     for evidence in &context.evidence {
@@ -85,7 +95,7 @@ fn classify_deterministic_risks(context: &TokenContext<'_>) -> Vec<Finding> {
                 "Can this token be moved out of query parameters on every request path?"
                     .to_string(),
             )),
-            "bearer.store.browser" => findings.push(finding(
+            "bearer.store.browser" if !has_client_storage_same_location(report, evidence) => findings.push(finding(
                 "bearer_token_browser_storage",
                 FindingCategory::HighConfidenceMisconfiguration,
                 Severity::High,
@@ -101,6 +111,7 @@ fn classify_deterministic_risks(context: &TokenContext<'_>) -> Vec<Finding> {
                     .to_string(),
                 "Is this token intended to be readable by browser JavaScript?".to_string(),
             )),
+            "bearer.store.browser" => {}
             "bearer.literal.static" => findings.push(finding(
                 "bearer_static_secret_literal",
                 FindingCategory::HighConfidenceMisconfiguration,

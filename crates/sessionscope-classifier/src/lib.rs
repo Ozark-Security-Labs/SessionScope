@@ -1,4 +1,5 @@
 pub mod bearer;
+pub mod client_storage;
 pub mod cookies;
 pub mod jwt;
 pub mod lifecycle;
@@ -14,6 +15,7 @@ pub fn classify(mut report: ScanReport) -> ScanReport {
     report.findings = cookies::classify(&report);
     report.findings.extend(jwt::classify(&report));
     report.findings.extend(oauth_flow::classify(&report));
+    report.findings.extend(client_storage::classify(&report));
     report.findings.extend(bearer::classify(&report));
     report.findings.extend(trust_boundary::classify(&report));
     report.findings.extend(query_params::classify(&report));
