@@ -250,6 +250,9 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
         .collect::<Vec<_>>();
 
     for (index, flow_line) in flow_lines.iter().copied().enumerate() {
+        let previous_flow_line = index
+            .checked_sub(1)
+            .and_then(|idx| flow_lines.get(idx).copied());
         let next_flow_line = flow_lines.get(index + 1).copied();
         let artifact_id = stable_artifact_id(&[
             DETECTOR_ID,
@@ -260,10 +263,9 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
         let mut lifecycle_evidence = LifecycleEvidence::default();
         let mut evidence = Vec::new();
 
-        for signal in signals
-            .iter()
-            .filter(|signal| signal_belongs_to_flow(signal, flow_line, next_flow_line))
-        {
+        for signal in signals.iter().filter(|signal| {
+            signal_belongs_to_flow(signal, previous_flow_line, flow_line, next_flow_line)
+        }) {
             let line = signal.line.to_string();
             let column = signal.column.to_string();
             let evidence_id = stable_evidence_id(&[
@@ -318,14 +320,16 @@ fn signals_to_output(input: &DetectorInput<'_>, signals: Vec<Signal>) -> Detecti
 
 fn signal_belongs_to_flow(
     signal: &Signal,
+    previous_flow_line: Option<usize>,
     flow_line: usize,
     next_flow_line: Option<usize>,
 ) -> bool {
     if signal.detector_id == "oauth.flow.auth_code" {
         return signal.line == flow_line;
     }
-    signal.line >= flow_line
+    signal.line + 8 >= flow_line
         && signal.line <= flow_line + 8
+        && previous_flow_line.is_none_or(|previous| signal.line > previous)
         && next_flow_line.is_none_or(|next| signal.line < next)
 }
 
