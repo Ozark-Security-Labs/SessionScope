@@ -1,8 +1,7 @@
 use std::collections::BTreeSet;
 
 use sessionscope_model::{
-    Artifact, Evidence, EvidenceId, Finding, FindingCategory, ScanReport, Severity,
-    stable_finding_id,
+    Artifact, EvidenceId, Finding, FindingCategory, ScanReport, Severity, stable_finding_id,
 };
 
 pub fn classify(report: &ScanReport) -> Vec<Finding> {
@@ -117,8 +116,8 @@ fn dedupe_findings(findings: Vec<Finding>) -> Vec<Finding> {
 #[cfg(test)]
 mod tests {
     use sessionscope_model::{
-        ArtifactId, ArtifactType, Confidence, LifecycleEvidence, LifecycleStage, SCHEMA_VERSION,
-        ScanSummary, SourceLocation,
+        ArtifactId, ArtifactType, Confidence, Evidence, LifecycleEvidence, LifecycleStage,
+        SCHEMA_VERSION, ScanSummary, SourceLocation,
     };
 
     use super::*;
