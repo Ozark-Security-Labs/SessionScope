@@ -19,10 +19,94 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
             .any(|item| item.detector_id == "oauth.flow.auth_code")
         {
             findings.extend(classify_pkce(report, artifact, &evidence));
+            findings.extend(classify_state(report, artifact, &evidence));
         }
     }
 
     dedupe_findings(findings)
+}
+
+fn classify_state(
+    report: &ScanReport,
+    artifact: &Artifact,
+    evidence: &[&Evidence],
+) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    let has_state = evidence.iter().any(|item| {
+        matches!(
+            item.detector_id.as_str(),
+            "oauth.state.present"
+                | "oauth.state.static"
+                | "oauth.state.callback_read"
+                | "oauth.state.verified"
+        )
+    });
+    let has_verified = evidence
+        .iter()
+        .any(|item| item.detector_id == "oauth.state.verified");
+
+    if !has_state {
+        findings.push(finding(
+            artifact,
+            FindingSpec {
+                rule_id: "oauth_state_missing",
+                category: FindingCategory::MissingValidationEvidence,
+                severity: Severity::Medium,
+                evidence_ids: detector_ids(evidence, "oauth.flow.auth_code"),
+                title: "OAuth authorization-code flow has no source-visible state parameter"
+                    .to_string(),
+                description: "The authorization-code flow construction lacks source-visible `state` evidence. State is the caller-visible CSRF/correlation value that should be generated per authorization request and verified on callback.".to_string(),
+                suggested_fix: "Generate a cryptographically random state value, bind it to server-side or signed client-side state, include it in the authorization request, and verify it on callback.".to_string(),
+                reviewer_question: "Does another framework/provider layer add and validate OAuth state for this flow?".to_string(),
+            },
+            report,
+        ));
+    }
+
+    if evidence
+        .iter()
+        .any(|item| item.detector_id == "oauth.state.static")
+    {
+        findings.push(finding(
+            artifact,
+            FindingSpec {
+                rule_id: "oauth_state_static_review",
+                category: FindingCategory::DynamicReviewRequired,
+                severity: Severity::Medium,
+                evidence_ids: detector_ids(evidence, "oauth.state.static"),
+                title: "OAuth state appears to be assigned from a static literal".to_string(),
+                description: "State evidence is source-visible but appears to come from a literal value rather than per-request cryptographic randomness. The literal value is redacted from evidence.".to_string(),
+                suggested_fix: "Generate state with a cryptographically secure random source for each authorization request and avoid committing static state values.".to_string(),
+                reviewer_question: "Is this literal only test code, or can production requests reuse the same OAuth state value?".to_string(),
+            },
+            report,
+        ));
+    }
+
+    if evidence
+        .iter()
+        .any(|item| item.detector_id == "oauth.state.callback_read")
+        && !has_verified
+    {
+        let mut ids = detector_ids(evidence, "oauth.state.callback_read");
+        ids.extend(detector_ids(evidence, "oauth.state.present"));
+        findings.push(finding(
+            artifact,
+            FindingSpec {
+                rule_id: "oauth_state_unverified_review",
+                category: FindingCategory::MissingValidationEvidence,
+                severity: Severity::High,
+                evidence_ids: ids,
+                title: "OAuth callback reads state without visible verification".to_string(),
+                description: "Callback evidence reads an OAuth `state` value, but SessionScope did not find a source-visible comparison against server-side session/cache state or a signed cookie/helper value in the same flow evidence.".to_string(),
+                suggested_fix: "Compare the callback state with the value stored when the authorization request was issued, then reject mismatches before exchanging the code.".to_string(),
+                reviewer_question: "Where is this callback state compared with the originally issued state value?".to_string(),
+            },
+            report,
+        ));
+    }
+
+    findings
 }
 
 fn classify_pkce(
@@ -214,6 +298,56 @@ mod tests {
     #[test]
     fn suppresses_auth_code_flow_with_pkce() {
         let report = report_with(&["oauth.flow.auth_code", "oauth.pkce.present"]);
+
+        assert!(
+            classify(&report)
+                .iter()
+                .all(|finding| !finding.title.contains("PKCE"))
+        );
+    }
+
+    #[test]
+    fn flags_missing_static_and_unverified_state() {
+        let missing = classify(&report_with(&[
+            "oauth.flow.auth_code",
+            "oauth.pkce.present",
+        ]));
+        assert!(
+            missing
+                .iter()
+                .any(|finding| finding.title.contains("no source-visible state"))
+        );
+
+        let static_state = classify(&report_with(&[
+            "oauth.flow.auth_code",
+            "oauth.pkce.present",
+            "oauth.state.static",
+        ]));
+        assert!(
+            static_state
+                .iter()
+                .any(|finding| finding.title.contains("static literal"))
+        );
+
+        let unverified = classify(&report_with(&[
+            "oauth.flow.auth_code",
+            "oauth.pkce.present",
+            "oauth.state.callback_read",
+        ]));
+        assert!(unverified.iter().any(|finding| {
+            finding.title.contains("without visible verification")
+                && finding.severity == Severity::High
+        }));
+    }
+
+    #[test]
+    fn suppresses_state_findings_when_state_is_verified() {
+        let report = report_with(&[
+            "oauth.flow.auth_code",
+            "oauth.pkce.present",
+            "oauth.state.present",
+            "oauth.state.verified",
+        ]);
 
         assert!(classify(&report).is_empty());
     }
