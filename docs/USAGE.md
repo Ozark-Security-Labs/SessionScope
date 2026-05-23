@@ -133,6 +133,19 @@ SessionScope is built around defensive, evidence-bound checks. The current and p
 - Token accepted from query parameters
 - Review-required token reuse across services, environments, or trust boundaries
 
+### JWT crypto-trust check catalog
+
+| Check ID | Severity | Description |
+| --- | --- | --- |
+| `jwt_alg_none_accepted` | high or medium | Flags explicit `none` algorithm acceptance as high severity, and missing algorithm allow-lists on default-sensitive `jsonwebtoken`/PyJWT paths as medium framework-default review. |
+| `jwt_alg_confusion_signal` | high or medium | Flags mixed HMAC/asymmetric algorithm allow-lists, or asks for review when HMAC algorithms are paired with public-key-like material. |
+| `jwt_jku_header_trust` | medium | Reviews complete-token verification paths that pass the attacker-controlled `jku` header into key-resolution logic without visible trust constraints. |
+| `jwt_x5u_header_trust` | medium | Reviews complete-token verification paths that pass the attacker-controlled `x5u` header into key-resolution logic without visible trust constraints. |
+| `jwt_embedded_jwk_trust` | medium | Reviews complete-token verification paths that pass an embedded `jwk` header into key-resolution logic without visible trust constraints. |
+| `jwt_nbf_missing` | low | Flags validation paths without source-visible not-before (`nbf`) enforcement, or with not-before checks disabled. |
+| `jwt_clock_skew_review` | medium | Reviews dynamic clock tolerance/leeway or static tolerance above 60 seconds. |
+| `jwt_kid_unvalidated_review` | medium | Flags `kid` header reads used for key selection without visible allow-list, pinned key, key-map lookup, or JWKS validation evidence. |
+
 ## JSON report shape
 
 The canonical schema is documented in [SCHEMA.md](SCHEMA.md). A cookie audit fragment from a real scan looks like this:

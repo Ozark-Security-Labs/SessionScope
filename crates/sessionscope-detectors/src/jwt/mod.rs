@@ -340,9 +340,9 @@ struct FieldSet {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct JwtSourceContext<'a> {
+struct JwtSourceContext<'a, 'tree> {
     source: &'a str,
-    scope_source: &'a str,
+    scope_node: Node<'tree>,
 }
 
 #[derive(Debug, Clone)]
@@ -1002,7 +1002,7 @@ fn js_jwt_call<'tree>(
             &mut fields,
             JwtSourceContext {
                 source,
-                scope_source: &scope_text(node, source),
+                scope_node: scope_node(node),
             },
             &argument_nodes,
             option_aliases,
@@ -1158,7 +1158,7 @@ fn add_js_sign_fields(
 
 fn add_js_verify_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
-    context: JwtSourceContext<'_>,
+    context: JwtSourceContext<'_, '_>,
     argument_nodes: &[Node<'_>],
     option_aliases: &AliasMap,
     line: usize,
@@ -1238,12 +1238,20 @@ fn add_js_verify_fields(
     } else {
         add_missing_for_verify_fields(fields, line, column);
     }
-    add_header_trust_fields(fields, context.scope_source, line, column);
+    add_header_trust_fields(fields, source, context.scope_node, line, column);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HeaderUseContext {
+    Read,
+    KeyResolution,
+    KeyMapLookup,
 }
 
 fn add_header_trust_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
+    scope_node: Node<'_>,
     line: usize,
     column: usize,
 ) {
@@ -1253,24 +1261,146 @@ fn add_header_trust_fields(
         (JwtField::HeaderJwk, "jwk"),
         (JwtField::HeaderKid, "kid"),
     ] {
-        if header_name_is_read(source, header_name) {
-            add_present_value(
-                fields,
-                field,
-                header_name,
-                line,
-                column,
-                format!("JWT header `{header_name}` is read near verification logic"),
-            );
+        if let Some(context) = header_use_context(scope_node, source, header_name) {
+            if field != JwtField::HeaderKid && context == HeaderUseContext::Read {
+                continue;
+            }
+            let excerpt = match context {
+                HeaderUseContext::KeyMapLookup => format!(
+                    "JWT header `{header_name}` is passed to key-map lookup near verification"
+                ),
+                HeaderUseContext::KeyResolution => format!(
+                    "JWT header `{header_name}` is passed to key-resolution logic near verification"
+                ),
+                HeaderUseContext::Read => {
+                    format!("JWT header `{header_name}` is read near verification logic")
+                }
+            };
+            add_present_value(fields, field, header_name, line, column, excerpt);
         }
     }
 }
 
-fn header_name_is_read(source: &str, header_name: &str) -> bool {
-    let dot = format!(".{header_name}");
+fn header_use_context(node: Node<'_>, source: &str, header_name: &str) -> Option<HeaderUseContext> {
+    let mut best = None;
+    collect_header_use_context(node, source, header_name, &mut best);
+    best
+}
+
+fn collect_header_use_context(
+    node: Node<'_>,
+    source: &str,
+    header_name: &str,
+    best: &mut Option<HeaderUseContext>,
+) {
+    if matches!(
+        best,
+        Some(HeaderUseContext::KeyResolution | HeaderUseContext::KeyMapLookup)
+    ) {
+        return;
+    }
+    if header_read_node_matches(node, source, header_name) {
+        let context =
+            header_read_key_resolution_context(node, source).unwrap_or(HeaderUseContext::Read);
+        if matches!(
+            context,
+            HeaderUseContext::KeyResolution | HeaderUseContext::KeyMapLookup
+        ) || best.is_none()
+        {
+            *best = Some(context);
+        }
+    }
+
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_header_use_context(child, source, header_name, best);
+    }
+}
+
+fn header_read_node_matches(node: Node<'_>, source: &str, header_name: &str) -> bool {
+    if is_member_expression(node)
+        && node
+            .child_by_field_name("property")
+            .is_some_and(|property| node_text(property, source) == header_name)
+    {
+        return true;
+    }
+
+    if !matches!(node.kind(), "subscript_expression" | "subscript") {
+        return false;
+    }
     let single = format!("['{header_name}']");
     let double = format!("[\"{header_name}\"]");
-    source.contains(&dot) || source.contains(&single) || source.contains(&double)
+    let text = node_text(node, source);
+    text.contains(&single) || text.contains(&double)
+}
+
+fn header_read_key_resolution_context(node: Node<'_>, source: &str) -> Option<HeaderUseContext> {
+    let mut current = node.parent();
+    while let Some(ancestor) = current {
+        if matches!(ancestor.kind(), "call_expression" | "call") {
+            let function_text = ancestor
+                .child_by_field_name("function")
+                .map(|function| node_text(function, source))
+                .unwrap_or_else(|| node_text(ancestor, source));
+            if !key_resolution_function_name(&function_text) {
+                return None;
+            }
+            return Some(if key_map_function_name(&function_text) {
+                HeaderUseContext::KeyMapLookup
+            } else {
+                HeaderUseContext::KeyResolution
+            });
+        }
+        if is_scope_node(ancestor) {
+            return None;
+        }
+        current = ancestor.parent();
+    }
+    None
+}
+
+fn key_map_function_name(function_text: &str) -> bool {
+    let normalized = function_text.to_ascii_lowercase();
+    normalized.contains("keymap")
+        || normalized.contains("key_map")
+        || normalized.contains("key-map")
+}
+
+fn key_resolution_function_name(function_text: &str) -> bool {
+    let normalized = function_text.to_ascii_lowercase();
+    if [
+        "console",
+        "logger",
+        "log",
+        "debug",
+        "trace",
+        "print",
+        "metric",
+        "telemetry",
+    ]
+    .iter()
+    .any(|term| normalized.contains(term))
+    {
+        return false;
+    }
+
+    [
+        "resolve",
+        "key",
+        "jwks",
+        "jwk",
+        "cert",
+        "pem",
+        "import",
+        "createremotejwkset",
+        "allowlist",
+        "allow_list",
+        "trusted",
+        "pinned",
+    ]
+    .iter()
+    .any(|term| normalized.contains(term))
 }
 
 fn js_verify_option_fields(jose: bool) -> &'static [(JwtField, &'static [&'static str])] {
@@ -1549,7 +1679,7 @@ fn python_jwt_call<'tree>(
         add_python_decode_without_verify_fields(
             &mut fields,
             source,
-            &scope_text(node, source),
+            scope_node(node),
             &argument_nodes,
             option_aliases,
             line,
@@ -1560,7 +1690,7 @@ fn python_jwt_call<'tree>(
         add_python_decode_fields(
             &mut fields,
             source,
-            &scope_text(node, source),
+            scope_node(node),
             &argument_nodes,
             option_aliases,
             line,
@@ -1655,7 +1785,7 @@ fn add_python_encode_fields(
 fn add_python_decode_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
-    scope_source: &str,
+    scope_node: Node<'_>,
     argument_nodes: &[Node<'_>],
     option_aliases: &AliasMap,
     line: usize,
@@ -1712,13 +1842,13 @@ fn add_python_decode_fields(
     }
     add_python_expiry_enforcement(fields, source, argument_nodes, option_aliases, line, column);
     add_missing_for_verify_fields(fields, line, column);
-    add_header_trust_fields(fields, scope_source, line, column);
+    add_header_trust_fields(fields, source, scope_node, line, column);
 }
 
 fn add_python_decode_without_verify_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
-    scope_source: &str,
+    scope_node: Node<'_>,
     argument_nodes: &[Node<'_>],
     option_aliases: &AliasMap,
     line: usize,
@@ -1743,7 +1873,7 @@ fn add_python_decode_without_verify_fields(
     add_python_decode_fields(
         fields,
         source,
-        scope_source,
+        scope_node,
         argument_nodes,
         option_aliases,
         line,
@@ -3106,15 +3236,15 @@ fn node_text(node: Node<'_>, source: &str) -> String {
         .to_string()
 }
 
-fn scope_text(node: Node<'_>, source: &str) -> String {
+fn scope_node(node: Node<'_>) -> Node<'_> {
     let mut current = Some(node);
     while let Some(candidate) = current {
         if is_scope_node(candidate) && candidate.kind() != "program" {
-            return node_text(candidate, source);
+            return candidate;
         }
         current = candidate.parent();
     }
-    node_text(node, source)
+    node
 }
 
 #[cfg(test)]
@@ -3452,6 +3582,78 @@ export function unrelated(decoded: any) {
                 .evidence
                 .iter()
                 .all(|evidence| evidence.detector_id != "jwt.header.jku")
+        );
+    }
+
+    #[test]
+    fn does_not_emit_header_evidence_from_comments_strings_or_logging() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+import { jwtVerify } from "jose";
+export async function verifyAccessJwt(token: string) {
+  const result = await jwtVerify(token, publicKey, {
+    algorithms: ["RS256"],
+    issuer,
+    audience,
+    complete: true,
+  });
+  // Never trust result.protectedHeader.jku from user tokens.
+  const note = "result.protectedHeader.x5u is documented here";
+  console.log(result.protectedHeader.jwk, note);
+  return result.protectedHeader.jku;
+}
+"#,
+        );
+
+        for detector_id in ["jwt.header.jku", "jwt.header.x5u", "jwt.header.jwk"] {
+            assert!(
+                output
+                    .evidence
+                    .iter()
+                    .all(|evidence| evidence.detector_id != detector_id),
+                "unexpected {detector_id} in {:?}",
+                output
+                    .evidence
+                    .iter()
+                    .map(|evidence| evidence.detector_id.as_str())
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn emits_kid_evidence_for_key_map_lookup_context() {
+        let output = detect(
+            Language::Python,
+            r#"
+import jwt
+
+trusted_key_map = {"placeholder-key-id": PUBLIC_KEY}
+
+def verify_access_jwt(token):
+    decoded = jwt.decode(
+        token,
+        key=trusted_key_map,
+        algorithms=["RS256"],
+        issuer=ISSUER,
+        audience=AUDIENCE,
+        options={"complete": True, "verify_nbf": True},
+    )
+    return trusted_key_map.get(decoded["header"]["kid"])
+"#,
+        );
+
+        let kid_evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.detector_id == "jwt.header.kid")
+            .expect("kid evidence should be emitted");
+        assert!(
+            kid_evidence
+                .excerpt
+                .as_ref()
+                .is_some_and(|excerpt| excerpt.as_str().contains("key-map lookup"))
         );
     }
 

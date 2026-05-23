@@ -486,54 +486,107 @@ fn nbf_is_ignored(evidence: &&Evidence) -> bool {
 
 fn clock_tolerance_seconds(evidence: &Evidence) -> Option<u64> {
     let text = evidence.excerpt.as_ref()?.as_str();
-    text.split(|character: char| !character.is_ascii_digit())
-        .find(|part| !part.is_empty())
-        .and_then(|part| part.parse::<u64>().ok())
+    parse_duration_seconds(text)
 }
 
 fn has_visible_kid_validation(report: &ScanReport, artifact: &Artifact) -> bool {
-    artifact.jwt_attributes.as_ref().is_some_and(|attributes| {
-        attributes
-            .key_reference
-            .value
-            .as_deref()
-            .is_some_and(kid_key_reference_is_validated)
-    }) || report.evidence.iter().any(|evidence| {
+    report.evidence.iter().any(|evidence| {
         artifact.lifecycle_evidence.validate.contains(&evidence.id)
-            && evidence.excerpt.as_ref().is_some_and(|excerpt| {
-                let text = excerpt.as_str().to_ascii_lowercase();
-                text.contains("allowlist") || text.contains("allow-list") || text.contains("jwks")
-            })
+            && evidence
+                .excerpt
+                .as_ref()
+                .is_some_and(|excerpt| text_has_explicit_key_trust_validation(excerpt.as_str()))
     })
 }
 
 fn has_visible_key_trust_validation(report: &ScanReport, artifact: &Artifact) -> bool {
-    artifact.jwt_attributes.as_ref().is_some_and(|attributes| {
-        attributes
-            .key_reference
-            .value
-            .as_deref()
-            .is_some_and(kid_key_reference_is_validated)
-    }) || report.evidence.iter().any(|evidence| {
+    report.evidence.iter().any(|evidence| {
         artifact.lifecycle_evidence.validate.contains(&evidence.id)
-            && evidence.excerpt.as_ref().is_some_and(|excerpt| {
-                let text = excerpt.as_str().to_ascii_lowercase();
-                text.contains("allowlist")
-                    || text.contains("allow-list")
-                    || text.contains("trusted key")
-                    || text.contains("pinned")
-                    || text.contains("jwks")
-            })
+            && evidence
+                .excerpt
+                .as_ref()
+                .is_some_and(|excerpt| text_has_explicit_key_trust_validation(excerpt.as_str()))
     })
 }
 
-fn kid_key_reference_is_validated(value: &str) -> bool {
-    let normalized = value.to_ascii_lowercase();
-    normalized.contains("allow")
-        || normalized.contains("keymap")
-        || normalized.contains("key_map")
-        || normalized.contains("jwks")
+fn text_has_explicit_key_trust_validation(text: &str) -> bool {
+    let normalized = text.to_ascii_lowercase();
+    if [
+        "untrusted",
+        "unsafe",
+        "unvalidated",
+        "external",
+        "attacker",
+        "raw",
+        "user controlled",
+        "user-controlled",
+    ]
+    .iter()
+    .any(|term| normalized.contains(term))
+    {
+        return false;
+    }
+
+    normalized.contains("allowlist")
+        || normalized.contains("allow-list")
+        || normalized.contains("allow list")
+        || normalized.contains("trusted key")
+        || normalized.contains("trusted jwks")
         || normalized.contains("pinned")
+        || normalized.contains("key-map lookup")
+        || normalized.contains("key map lookup")
+        || normalized.contains("jwks validation")
+        || normalized.contains("jwks lookup")
+}
+
+fn parse_duration_seconds(text: &str) -> Option<u64> {
+    let chars = text.char_indices().collect::<Vec<_>>();
+    let mut index = 0;
+    while index < chars.len() {
+        if !chars[index].1.is_ascii_digit() {
+            index += 1;
+            continue;
+        }
+
+        let start = chars[index].0;
+        let mut end_index = index;
+        while end_index < chars.len() && chars[end_index].1.is_ascii_digit() {
+            end_index += 1;
+        }
+        let end = chars
+            .get(end_index)
+            .map(|(byte_index, _)| *byte_index)
+            .unwrap_or(text.len());
+        let value = text[start..end].parse::<u64>().ok()?;
+
+        let mut unit_index = end_index;
+        while unit_index < chars.len() && matches!(chars[unit_index].1, ' ' | '\t' | '-' | '_') {
+            unit_index += 1;
+        }
+        let unit_start = chars
+            .get(unit_index)
+            .map(|(byte_index, _)| *byte_index)
+            .unwrap_or(text.len());
+        let mut unit_end_index = unit_index;
+        while unit_end_index < chars.len() && chars[unit_end_index].1.is_ascii_alphabetic() {
+            unit_end_index += 1;
+        }
+        let unit_end = chars
+            .get(unit_end_index)
+            .map(|(byte_index, _)| *byte_index)
+            .unwrap_or(text.len());
+        let unit = text[unit_start..unit_end].to_ascii_lowercase();
+
+        return match unit.as_str() {
+            "" | "s" | "sec" | "secs" | "second" | "seconds" => Some(value),
+            "ms" | "millisecond" | "milliseconds" => Some(value / 1000),
+            "m" | "min" | "mins" | "minute" | "minutes" => value.checked_mul(60),
+            "h" | "hr" | "hrs" | "hour" | "hours" => value.checked_mul(60 * 60),
+            "d" | "day" | "days" => value.checked_mul(24 * 60 * 60),
+            _ => Some(value),
+        };
+    }
+    None
 }
 
 fn accepted_algorithms(
@@ -1344,6 +1397,56 @@ mod tests {
 
     #[test]
     fn header_trust_suppressed_by_visible_trusted_key_lookup() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_complete".to_string()),
+                    EvidenceId("evidence_jku".to_string()),
+                    EvidenceId("evidence_validation".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_complete",
+                    "jwt.option.complete",
+                    "complete: true",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_jku",
+                    "jwt.header.jku",
+                    "JWT header `jku` is read near verification logic",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_validation",
+                    "jwt.validate",
+                    "trusted key allowlist is checked before key resolution",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("jku URL"))
+        );
+    }
+
+    #[test]
+    fn untrusted_jwks_key_reference_does_not_suppress_header_trust() {
         let mut attributes = attributes(
             JwtAttributeState::Present,
             JwtAttributeState::Present,
@@ -1353,7 +1456,7 @@ mod tests {
         attributes.key_reference = observation(
             "key",
             JwtAttributeState::Present,
-            Some("trustedJwksKeyMap"),
+            Some("untrustedJwks"),
             EvidenceId("evidence_key".to_string()),
         );
         let artifact = artifact(
@@ -1379,7 +1482,7 @@ mod tests {
                 option_evidence(
                     "evidence_jku",
                     "jwt.header.jku",
-                    "JWT header `jku` is read near verification logic",
+                    "JWT header `jku` is passed to key-resolution logic near verification",
                     false,
                 ),
             ],
@@ -1388,7 +1491,7 @@ mod tests {
         assert!(
             findings
                 .iter()
-                .all(|finding| !finding.title.contains("jku URL"))
+                .any(|finding| finding.title.contains("jku URL"))
         );
     }
 
@@ -1544,6 +1647,92 @@ mod tests {
     }
 
     #[test]
+    fn unit_suffixed_clock_skew_requires_review() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_clock".to_string()),
+                    EvidenceId("evidence_nbf".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_clock",
+                    "jwt.option.clock_tolerance",
+                    "clockTolerance: \"2 minutes\"",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_nbf",
+                    "jwt.option.ignore_not_before",
+                    "ignoreNotBefore: false",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.title.contains("clock skew"))
+        );
+    }
+
+    #[test]
+    fn small_unit_suffixed_clock_skew_does_not_require_review() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_clock".to_string()),
+                    EvidenceId("evidence_nbf".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_clock",
+                    "jwt.option.clock_tolerance",
+                    "clockTolerance: \"1m\"",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_nbf",
+                    "jwt.option.ignore_not_before",
+                    "ignoreNotBefore: false",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("clock skew"))
+        );
+    }
+
+    #[test]
     fn kid_read_without_validation_is_missing_validation() {
         let artifact = artifact(
             attributes(
@@ -1588,6 +1777,49 @@ mod tests {
 
     #[test]
     fn kid_allowlist_key_reference_suppresses_kid_review() {
+        let artifact = artifact(
+            attributes(
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                JwtAttributeState::Present,
+                "validate",
+            ),
+            LifecycleEvidence {
+                validate: vec![
+                    EvidenceId("evidence_verify".to_string()),
+                    EvidenceId("evidence_kid".to_string()),
+                    EvidenceId("evidence_nbf".to_string()),
+                ],
+                ..LifecycleEvidence::default()
+            },
+        );
+        let findings = classify_report(
+            vec![artifact],
+            vec![
+                option_evidence(
+                    "evidence_kid",
+                    "jwt.header.kid",
+                    "JWT header `kid` is passed to key-map lookup near verification",
+                    false,
+                ),
+                option_evidence(
+                    "evidence_nbf",
+                    "jwt.option.ignore_not_before",
+                    "ignoreNotBefore: false",
+                    false,
+                ),
+            ],
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.title.contains("`kid`"))
+        );
+    }
+
+    #[test]
+    fn untrusted_key_map_reference_does_not_suppress_kid_review() {
         let mut attributes = attributes(
             JwtAttributeState::Present,
             JwtAttributeState::Present,
@@ -1597,7 +1829,7 @@ mod tests {
         attributes.key_reference = observation(
             "key",
             JwtAttributeState::Present,
-            Some("trustedKeyMap"),
+            Some("untrusted_key_map"),
             EvidenceId("evidence_key".to_string()),
         );
         let artifact = artifact(
@@ -1632,7 +1864,7 @@ mod tests {
         assert!(
             findings
                 .iter()
-                .all(|finding| !finding.title.contains("`kid`"))
+                .any(|finding| finding.title.contains("`kid`"))
         );
     }
 
