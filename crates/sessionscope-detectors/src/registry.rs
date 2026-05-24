@@ -1,8 +1,10 @@
 use std::time::Instant;
 
 use crate::bearer::BearerTokenDetector;
+use crate::client_storage::ClientStorageDetector;
 use crate::cookies::CookieSetDetector;
 use crate::jwt::JwtDetector;
+use crate::oauth_flow::OAuthFlowDetector;
 use crate::query_params::QueryParameterTokenDetector;
 use crate::reset_tokens::ResetTokenDetector;
 use crate::sessions::{RefreshTokenLifecycleDetector, SessionLifecycleDetector};
@@ -22,6 +24,8 @@ impl DetectorRegistry {
         Self::empty()
             .with_detector(Box::new(CookieSetDetector))
             .with_detector(Box::new(JwtDetector))
+            .with_detector(Box::new(OAuthFlowDetector))
+            .with_detector(Box::new(ClientStorageDetector))
             .with_detector(Box::new(BearerTokenDetector))
             .with_detector(Box::new(QueryParameterTokenDetector))
             .with_detector(Box::new(ResetTokenDetector))

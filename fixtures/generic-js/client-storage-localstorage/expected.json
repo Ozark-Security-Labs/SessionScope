@@ -1,0 +1,17 @@
+{
+  "fixture_id": "client-storage-localstorage",
+  "framework": "generic-js",
+  "source_files": [
+    "app.js"
+  ],
+  "expected_artifacts": [
+    "access_token"
+  ],
+  "expected_lifecycle_stages": [
+    "store"
+  ],
+  "expected_findings": [
+    "token_in_local_storage"
+  ],
+  "notes": "P3 OAuth/client-storage fixture with placeholder-only values."
+}

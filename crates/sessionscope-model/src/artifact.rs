@@ -18,6 +18,12 @@ pub enum ArtifactType {
     UnknownToken,
     PasswordResetToken,
     EmailVerificationToken,
+    /// Source-visible OAuth/OIDC authorization-code flow construction.
+    ///
+    /// Added by the P3.1 artifact audit because existing session, bearer,
+    /// cookie, and JWT artifacts do not accurately model an authorization
+    /// request plus callback verification lifecycle.
+    OAuthAuthCodeFlow,
     SessionRecord,
     Unknown,
 }

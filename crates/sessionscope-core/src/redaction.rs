@@ -26,7 +26,7 @@ static API_KEY_HEADER_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static URL_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?i)([?&](?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|api[_-]?key|apikey|secret|session|jwt|code)=)([^&#\s"']+)"#,
+        r#"(?i)([?&#](?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|api[_-]?key|apikey|secret|session|jwt|code|state|nonce|code[_-]?verifier|code[_-]?challenge)=)([^&#\s"']+)"#,
     )
     .expect("URL param regex should compile")
 });
@@ -35,6 +35,10 @@ static COOKIE_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
         r#"(?ix)(\b(?:[A-Za-z_][A-Za-z0-9_]*|cookies\(\))\s*\.\s*(?:cookie|set_cookie|set)\s*\(\s*["'][^"']+["']\s*,\s*)(["'])([^"']*)(["'])"#,
     )
     .expect("cookie call regex should compile")
+});
+static BROWSER_STORAGE_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?ix)(\b(?:localStorage|sessionStorage)\s*\.\s*setItem\s*\(\s*(?:"(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session)[^"]*"|'(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session)[^']*')\s*,\s*)(["'`])([^"'`]*)(["'`])"#)
+        .expect("browser storage call regex should compile")
 });
 static COOKIE_VALUE_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?ix)(\bvalue\s*[:=]\s*)(["'])([^"']*)(["'])"#)
@@ -52,13 +56,13 @@ static QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static SENSITIVE_QUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?ix)(["']?\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b["']?\s*[:=]\s*)(["'])([^"']*)(["'])"#,
+        r#"(?ix)(["']?\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key|state|nonce|code[_-]?verifier|code[_-]?challenge|codeVerifier|codeChallenge)\b["']?\s*[:=]\s*)(["'])([^"']*)(["'])"#,
     )
     .expect("sensitive quoted assignment regex should compile")
 });
 static SENSITIVE_UNQUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?ix)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|bearer[_-]?token|service[_-]?token|authorization|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key)\b\s*[:=]\s*)([^\s,;)\]\[}'"]+)"#,
+        r#"(?ix)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|bearer[_-]?token|service[_-]?token|authorization|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|clientSecret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key|state|nonce|code[_-]?verifier|code[_-]?challenge|codeVerifier|codeChallenge)\b\s*[:=]\s*)([^\s,;)\]\[}'"]+)"#,
     )
     .expect("sensitive unquoted assignment regex should compile")
 });
@@ -103,6 +107,7 @@ pub enum RedactionContext {
     Jwt,
     Bearer,
     ApiKey,
+    OAuth,
     Generic,
 }
 
@@ -215,6 +220,9 @@ pub fn redact_sensitive_values(input: &str) -> String {
         .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string();
     output = COOKIE_CALL_RE
+        .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
+    output = BROWSER_STORAGE_CALL_RE
         .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string();
     output = COOKIE_VALUE_KEY_RE
@@ -686,6 +694,56 @@ mod tests {
     }
 
     #[test]
+    fn redacts_oauth_state_nonce_and_pkce_material() {
+        let source = concat!(
+            "const state = \"abcdefghijklmnopqrstuvwxyzABCDEF0123456789\";\n",
+            "const nonce = 'ZYXWVUTSRQPONMLKJIHGFEDCBA987654';\n",
+            "const code_verifier = \"verifierabcdefghijklmnopqrstuvwxyz123456\";\n",
+            "const codeChallenge = 'challengeabcdefghijklmnopqrstuvwxyz123456';\n",
+            "const callback = \"/cb?state=stateabcdefghijklmnopqrstuvwxyz123456&nonce=nonceabcdefghijklmnopqrstuvwxyz123456#code_challenge=challengeabcdefghijklmnopqrstuvwxyz123456\";"
+        );
+
+        let output = redact_sensitive_values(source);
+
+        for secret in [
+            "abcdefghijklmnopqrstuvwxyzABCDEF0123456789",
+            "ZYXWVUTSRQPONMLKJIHGFEDCBA987654",
+            "verifierabcdefghijklmnopqrstuvwxyz123456",
+            "challengeabcdefghijklmnopqrstuvwxyz123456",
+            "stateabcdefghijklmnopqrstuvwxyz123456",
+            "nonceabcdefghijklmnopqrstuvwxyz123456",
+        ] {
+            assert!(!output.contains(secret), "OAuth value leaked: {output}");
+        }
+        assert!(output.contains("state = \"[REDACTED]\""));
+        assert!(output.contains("nonce = '[REDACTED]'"));
+        assert!(output.contains("code_verifier = \"[REDACTED]\""));
+        assert!(output.contains("codeChallenge = '[REDACTED]'"));
+        assert!(output.contains("state=[REDACTED]"));
+        assert!(output.contains("nonce=[REDACTED]"));
+        assert!(output.contains("code_challenge=[REDACTED]"));
+    }
+
+    #[test]
+    fn redacts_browser_storage_token_values() {
+        let output = redact_sensitive_values(
+            "localStorage.setItem('access_token', `raw-token-value`); sessionStorage.setItem(\"refresh_token\", 'short-secret')",
+        );
+
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains("raw-token-value"));
+        assert!(!output.contains("short-secret"));
+    }
+
+    #[test]
+    fn redacts_unquoted_camel_case_client_secret() {
+        let output = redact_sensitive_values("const clientSecret = abcdefghijklmno");
+
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains("abcdefghijklmno"));
+    }
+
+    #[test]
     fn redacts_placeholder_secret_values() {
         let output = redact_sensitive_values(
             "const rotatedRefreshToken = \"PLACEHOLDER_RESET_TOKEN_ROTATED\"; const signingSecret = \"PLACEHOLDER_SECRET_DO_NOT_USE\"; const apiKey = \"PLACEHOLDER_API_KEY_DO_NOT_USE\";",
@@ -709,6 +767,7 @@ mod tests {
             RedactionContext::Jwt,
             RedactionContext::Bearer,
             RedactionContext::ApiKey,
+            RedactionContext::OAuth,
         ] {
             let excerpt = safe_excerpt_with_context(source, 200, context);
             assert!(

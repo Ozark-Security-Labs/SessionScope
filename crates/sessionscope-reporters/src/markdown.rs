@@ -498,6 +498,7 @@ fn format_artifact_type(artifact_type: ArtifactType) -> &'static str {
         ArtifactType::PasswordResetToken => "password_reset_token",
         ArtifactType::EmailVerificationToken => "email_verification_token",
         ArtifactType::SessionRecord => "session_record",
+        ArtifactType::OAuthAuthCodeFlow => "oauth_auth_code_flow",
         ArtifactType::Unknown => "unknown",
     }
 }

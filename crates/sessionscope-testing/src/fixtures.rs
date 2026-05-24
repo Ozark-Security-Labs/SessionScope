@@ -640,6 +640,129 @@ mod tests {
     }
 
     #[test]
+    fn p3_oauth_and_client_storage_fixtures_emit_expected_findings() {
+        let cases = [
+            (
+                fixture_root().join("generic-ts").join("oauth-flow-pkce"),
+                ["PKCE"].as_slice(),
+            ),
+            (
+                fixture_root().join("generic-ts").join("oauth-flow-state"),
+                ["static literal", "without visible verification"].as_slice(),
+            ),
+            (
+                fixture_root().join("generic-ts").join("oauth-flow-nonce"),
+                ["no source-visible nonce"].as_slice(),
+            ),
+            (
+                fixture_root()
+                    .join("generic-ts")
+                    .join("oauth-flow-redirect-uri"),
+                ["redirect URI"].as_slice(),
+            ),
+            (
+                fixture_root()
+                    .join("generic-js")
+                    .join("client-storage-localstorage"),
+                ["localStorage"].as_slice(),
+            ),
+            (
+                fixture_root()
+                    .join("generic-ts")
+                    .join("client-storage-sessionstorage"),
+                ["sessionStorage"].as_slice(),
+            ),
+            (
+                fixture_root()
+                    .join("generic-js")
+                    .join("client-storage-url-fragment"),
+                ["URL path or fragment"].as_slice(),
+            ),
+        ];
+
+        for (root, fragments) in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            for fragment in fragments {
+                assert!(
+                    report
+                        .findings
+                        .iter()
+                        .any(|finding| finding.title.contains(fragment)),
+                    "{} should include finding containing {fragment:?}. Findings: {:?}",
+                    root.display(),
+                    report
+                        .findings
+                        .iter()
+                        .map(|finding| finding.title.as_str())
+                        .collect::<Vec<_>>()
+                );
+            }
+
+            for format in [ReportFormat::Json, ReportFormat::Markdown] {
+                let rendered = render(&report, format);
+                assert!(!rendered.contains("STATIC_STATE_PLACEHOLDER"));
+                assert!(!rendered.contains("PLACEHOLDER_CODE_CHALLENGE"));
+            }
+        }
+    }
+
+    #[test]
+    fn p3_false_positive_fixtures_stay_clean() {
+        let cases = [
+            fixture_root().join("nextjs").join("authjs-pkce-evidence"),
+            fixture_root().join("express").join("passport-oauth2-state"),
+            fixture_root().join("generic-python").join("authlib-pkce"),
+            fixture_root().join("generic-python").join("authlib-nonce"),
+        ];
+        let p3_fragments = [
+            "PKCE",
+            "source-visible state",
+            "static literal",
+            "without visible verification",
+            "source-visible nonce",
+            "ID-token nonce verification",
+            "redirect URI",
+            "localStorage",
+            "sessionStorage",
+            "URL path or fragment",
+            "Client secret-like",
+        ];
+
+        for root in cases {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            for fragment in p3_fragments {
+                assert!(
+                    report
+                        .findings
+                        .iter()
+                        .all(|finding| !finding.title.contains(fragment)),
+                    "{} should not include P3 finding containing {fragment:?}. Findings: {:?}",
+                    root.display(),
+                    report
+                        .findings
+                        .iter()
+                        .map(|finding| finding.title.as_str())
+                        .collect::<Vec<_>>()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn logout_fixtures_emit_revoke_evidence() {
         let cases = [
             (

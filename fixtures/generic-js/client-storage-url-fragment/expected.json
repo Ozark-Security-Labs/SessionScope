@@ -1,0 +1,17 @@
+{
+  "fixture_id": "client-storage-url-fragment",
+  "framework": "generic-js",
+  "source_files": [
+    "app.js"
+  ],
+  "expected_artifacts": [
+    "access_token"
+  ],
+  "expected_lifecycle_stages": [
+    "store"
+  ],
+  "expected_findings": [
+    "token_in_url_path_or_fragment"
+  ],
+  "notes": "P3 OAuth/client-storage fixture with placeholder-only values."
+}

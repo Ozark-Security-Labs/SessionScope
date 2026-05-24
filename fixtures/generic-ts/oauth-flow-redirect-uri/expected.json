@@ -1,0 +1,17 @@
+{
+  "fixture_id": "oauth-flow-redirect-uri",
+  "framework": "generic-ts",
+  "source_files": [
+    "src/app.ts"
+  ],
+  "expected_artifacts": [
+    "oauth_auth_code_flow"
+  ],
+  "expected_lifecycle_stages": [
+    "issue"
+  ],
+  "expected_findings": [
+    "oauth_redirect_uri_wildcard_review"
+  ],
+  "notes": "P3 OAuth/client-storage fixture with placeholder-only values."
+}
