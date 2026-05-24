@@ -1092,6 +1092,53 @@ mod tests {
     }
 
     #[test]
+    fn logout_refresh_family_missing_fixture_produces_review_gap() {
+        let root = fixture_root()
+            .join("express")
+            .join("logout-refresh-family-missing");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("logout refresh family missing fixture should scan"),
+        );
+
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("without family revocation")
+                && finding.reviewer_question.is_some()
+        }));
+    }
+
+    #[test]
+    fn logout_refresh_family_revoked_fixture_stays_clean_for_family_gap() {
+        let root = fixture_root()
+            .join("express")
+            .join("logout-refresh-family-revoked");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("logout refresh family revoked fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Revoke
+                && evidence.detector_id == "refresh.revoke"
+        }));
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("without family revocation")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
     fn unrelated_refresh_fixtures_do_not_satisfy_each_other() {
         let root = fixture_root().join("express");
         let report = classify(

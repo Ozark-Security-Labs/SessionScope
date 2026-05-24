@@ -1,0 +1,9 @@
+{
+  "fixture_id": "express.logout-refresh-family-missing",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["refresh_token"],
+  "expected_lifecycle_stages": ["issue", "store", "refresh", "revoke", "expire"],
+  "expected_findings": ["refresh_family_revocation_absent_on_logout_review"],
+  "notes": "Covers logout that clears the refresh cookie while leaving the server-side refresh-token family active."
+}

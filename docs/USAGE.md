@@ -130,7 +130,7 @@ SessionScope is built around defensive, evidence-bound checks. The current and p
 - Client storage hygiene, including `token_in_local_storage`, `token_in_session_storage`, `token_in_url_path_or_fragment`, and `client_secret_in_browser_code` for browser-accessible storage and URL channels; `document.cookie` token writes are emitted as source evidence only in this phase.
 - Tokens issued without explicit expiry
 - Refresh tokens without rotation evidence
-- Logout without revocation evidence, including `jwt_denylist_absent_on_logout_review` when access-JWT logout flows lack linked denylist/blocklist/revocation-store evidence
+- Logout without revocation evidence, including `jwt_denylist_absent_on_logout_review` when access-JWT logout flows lack linked denylist/blocklist/revocation-store evidence and `refresh_family_revocation_absent_on_logout_review` when refresh-token logout flows lack family/user-scoped revocation evidence
 - Password-reset tokens without expiry or single-use evidence
 - Session fixation risk signals
 - Token accepted from query parameters

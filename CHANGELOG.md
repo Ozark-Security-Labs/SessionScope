@@ -15,6 +15,7 @@ and SessionScope uses semantic versioning as described in
 - Added v0.2 P2 JWT crypto-trust coverage for `alg:none`, HMAC/asymmetric algorithm-confusion signals, `jku`/`x5u`/embedded-JWK header trust review, missing `nbf` validation, broad clock-skew review, and unvalidated `kid` header review across existing `jsonwebtoken`, `jose`, and PyJWT detector surfaces.
 - Added v0.2 P3 OAuth/OIDC flow integrity coverage for PKCE, `state`, OIDC `nonce`, broad redirect URI review, and client storage hygiene checks for localStorage, sessionStorage, URL path/fragment token exposure, and browser-path client secrets.
 - Added `jwt_denylist_absent_on_logout_review` lifecycle coverage for access-JWT logout flows that lack linked denylist, blocklist, or token revocation-store evidence.
+- Added `refresh_family_revocation_absent_on_logout_review` lifecycle coverage for refresh-token logout flows that lack linked family/user-scoped revocation evidence.
 - Extended report redaction for OAuth/OIDC `state`, `nonce`, `code_verifier`, and `code_challenge` values in assignments, object keys, and URL parameters.
 
 ### Pre-release remediation (v0.1.0 readiness)

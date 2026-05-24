@@ -56,6 +56,12 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
             report,
             &evidence_by_id,
         ));
+        findings.extend(classify_refresh_family_revocation_absent_on_logout(
+            artifact,
+            path,
+            report,
+            &evidence_by_id,
+        ));
     }
 
     findings
@@ -645,6 +651,61 @@ fn classify_jwt_denylist_absent_on_logout(
     ))
 }
 
+fn classify_refresh_family_revocation_absent_on_logout(
+    artifact: &Artifact,
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Option<Finding> {
+    if !is_refresh_artifact(artifact)
+        || !(has_stage(path, LifecycleStage::Issue)
+            || has_stage(path, LifecycleStage::Store)
+            || has_stage(path, LifecycleStage::Refresh)
+            || has_stage(path, LifecycleStage::Validate))
+    {
+        return None;
+    }
+
+    let logout_ids = linked_logout_handler_ids(path, report, evidence_by_id);
+    if logout_ids.is_empty() || has_linked_refresh_family_revoke(path, report, evidence_by_id) {
+        return None;
+    }
+
+    let mut evidence_ids = logout_ids;
+    evidence_ids.extend(evidence_ids_for_stage(path, LifecycleStage::Refresh));
+    if evidence_ids.len() == 1 {
+        evidence_ids.extend(evidence_ids_for_stage(path, LifecycleStage::Store));
+    }
+    if evidence_ids.len() == 1 {
+        evidence_ids.extend(evidence_ids_for_stage(path, LifecycleStage::Issue));
+    }
+    evidence_ids.sort();
+    evidence_ids.dedup();
+
+    let name = artifact.display_name.as_deref().unwrap_or("refresh_token");
+    Some(finding(
+        artifact,
+        path,
+        FindingSpec {
+            rule_id: "refresh_family_revocation_absent_on_logout_review",
+            category: FindingCategory::LifecycleGap,
+            severity: Severity::Medium,
+            evidence_ids,
+            title: format!(
+                "Refresh token `{name}` has logout evidence without family revocation"
+            ),
+            description: "Logout and refresh-token lifecycle evidence were detected in linked source context, but no source-bound user-scoped or refresh-family revocation evidence was linked for the logout flow."
+                .to_string(),
+            suggested_fix:
+                "Revoke the user's refresh-token family, delete user-scoped refresh-token records, or remove the refresh-family cache key during logout."
+                    .to_string(),
+            reviewer_question: format!(
+                "Where does logout revoke every refresh token in the `{name}` family or for the current user?"
+            ),
+        },
+    ))
+}
+
 fn attribute_missing_or_mismatched(
     observation: &sessionscope_model::CookieAttributeObservation,
     attribute: &str,
@@ -873,6 +934,62 @@ fn has_linked_jwt_denylist_or_revoke(
             is_jwt_denylist_or_revoke_evidence(evidence)
                 && evidence_linked_to_path_context(evidence, path, evidence_by_id)
         })
+}
+
+fn has_linked_refresh_family_revoke(
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    evidence_ids_for_stage(path, LifecycleStage::Revoke)
+        .iter()
+        .any(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| is_refresh_family_revoke_evidence(evidence))
+        })
+        || report.evidence.iter().any(|evidence| {
+            is_refresh_family_revoke_evidence(evidence)
+                && evidence_linked_to_path_context(evidence, path, evidence_by_id)
+        })
+}
+
+fn is_refresh_family_revoke_evidence(evidence: &Evidence) -> bool {
+    (evidence.detector_id == "refresh.reuse_detection"
+        && evidence.lifecycle_stage == LifecycleStage::Revoke)
+        || (matches!(
+            evidence.detector_id.as_str(),
+            "refresh.revoke" | "refresh.rotate" | "logout.token_revoke" | "logout.provider_revoke"
+        ) && evidence
+            .excerpt
+            .as_ref()
+            .is_some_and(|excerpt| contains_refresh_family_revoke_text(excerpt.as_str())))
+}
+
+fn contains_refresh_family_revoke_text(value: &str) -> bool {
+    let normalized = value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+        .collect::<String>()
+        .to_ascii_lowercase();
+    normalized.contains("refresh")
+        && (normalized.contains("family")
+            || normalized.contains("userid")
+            || normalized.contains("user_id")
+            || normalized.contains("usersessions")
+            || normalized.contains("allsessions")
+            || normalized.contains("allrefresh")
+            || normalized.contains("tokenfamily")
+            || normalized.contains("token_family")
+            || normalized.contains("familyid")
+            || normalized.contains("family_id"))
+        && (normalized.contains("revoke")
+            || normalized.contains("delete")
+            || normalized.contains("del")
+            || normalized.contains("invalidate")
+            || normalized.contains("destroy")
+            || normalized.contains("blacklist")
+            || normalized.contains("denylist"))
 }
 
 fn is_jwt_denylist_or_revoke_evidence(evidence: &Evidence) -> bool {
@@ -2398,6 +2515,96 @@ mod tests {
             !findings
                 .iter()
                 .any(|finding| finding.title.contains("without linked denylist")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn refresh_logout_without_family_revoke_is_lifecycle_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_refresh",
+                ArtifactType::RefreshJwt,
+                "refresh_token",
+                LifecycleEvidence {
+                    refresh: vec![EvidenceId("evidence_refresh".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence_with_detector(
+                    "evidence_refresh",
+                    LifecycleStage::Refresh,
+                    "refresh.handler",
+                    10,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_logout",
+                    LifecycleStage::Revoke,
+                    "logout.handler",
+                    20,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("without family revocation"))
+            .expect("refresh family revocation review finding");
+
+        assert_eq!(finding.category, FindingCategory::LifecycleGap);
+        assert_eq!(finding.severity, Severity::Medium);
+        assert!(finding.reviewer_question.is_some());
+    }
+
+    #[test]
+    fn linked_refresh_family_revoke_prevents_logout_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_refresh",
+                ArtifactType::RefreshJwt,
+                "refresh_token",
+                LifecycleEvidence {
+                    refresh: vec![EvidenceId("evidence_refresh".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence_with_detector(
+                    "evidence_refresh",
+                    LifecycleStage::Refresh,
+                    "refresh.handler",
+                    10,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_logout",
+                    LifecycleStage::Revoke,
+                    "logout.handler",
+                    20,
+                    false,
+                ),
+                evidence_with_excerpt(
+                    "evidence_family_revoke",
+                    LifecycleStage::Revoke,
+                    "refresh.revoke",
+                    21,
+                    "revokeRefreshFamily(user.id)",
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            !findings
+                .iter()
+                .any(|finding| finding.title.contains("without family revocation")),
             "{findings:?}"
         );
     }
