@@ -132,13 +132,15 @@ mod tests {
             assert!(!case.expected.framework.is_empty());
             assert!(!case.expected.notes.is_empty());
             assert!(!case.expected.source_files.is_empty());
-            assert!(
-                !case.expected.expected_artifacts.is_empty()
-                    || !case.expected.expected_lifecycle_stages.is_empty()
-                    || !case.expected.expected_findings.is_empty(),
-                "{} should include at least one expectation",
-                case.expected.fixture_id
-            );
+            if !case.expected.fixture_id.contains("clean-baseline") {
+                assert!(
+                    !case.expected.expected_artifacts.is_empty()
+                        || !case.expected.expected_lifecycle_stages.is_empty()
+                        || !case.expected.expected_findings.is_empty(),
+                    "{} should include at least one expectation",
+                    case.expected.fixture_id
+                );
+            }
 
             for source_file in &case.expected.source_files {
                 assert!(
@@ -759,6 +761,87 @@ mod tests {
                         .collect::<Vec<_>>()
                 );
             }
+        }
+    }
+
+    #[test]
+    fn clean_baseline_fixtures_have_no_findings() {
+        const NEW_P1_P4_CHECK_IDS: &[&str] = &[
+            "cookie_host_prefix_path_violation",
+            "cookie_host_prefix_domain_violation",
+            "cookie_host_prefix_secure_violation",
+            "cookie_secure_prefix_secure_violation",
+            "cookie_samesite_none_without_secure",
+            "cookie_partitioned_review",
+            "cookie_domain_leak_review",
+            "cookie_conflicting_writes_review",
+            "jwt_alg_none_accepted",
+            "jwt_alg_confusion_signal",
+            "jwt_jku_header_trust",
+            "jwt_x5u_header_trust",
+            "jwt_embedded_jwk_trust",
+            "jwt_nbf_missing",
+            "jwt_clock_skew_review",
+            "jwt_kid_unvalidated_review",
+            "oauth_pkce_missing_review",
+            "oauth_state_missing",
+            "oauth_state_static_review",
+            "oauth_state_unverified_review",
+            "oidc_nonce_missing",
+            "oidc_nonce_unverified_review",
+            "oauth_redirect_uri_wildcard_review",
+            "token_in_local_storage",
+            "token_in_session_storage",
+            "token_in_url_path_or_fragment",
+            "client_secret_in_browser_code",
+            "jwt_denylist_absent_on_logout_review",
+            "refresh_family_revocation_absent_on_logout_review",
+            "sliding_expiry_without_rotation_review",
+            "password_change_global_revocation_absent_review",
+        ];
+        let roots = [
+            fixture_root()
+                .join("express")
+                .join("clean-baseline-lifecycle"),
+            fixture_root()
+                .join("nextjs")
+                .join("clean-baseline-oauth-storage"),
+            fixture_root()
+                .join("fastapi")
+                .join("clean-baseline-lifecycle"),
+            fixture_root()
+                .join("django")
+                .join("clean-baseline-password-refresh"),
+            fixture_root().join("generic-js").join("clean-baseline-jwt"),
+            fixture_root()
+                .join("generic-ts")
+                .join("clean-baseline-jwt-oauth"),
+            fixture_root()
+                .join("generic-python")
+                .join("clean-baseline-jwt-refresh"),
+        ];
+
+        assert!(
+            NEW_P1_P4_CHECK_IDS.len() >= 31,
+            "new check inventory should stay explicit"
+        );
+
+        for root in roots {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            assert!(
+                report.findings.is_empty(),
+                "{} should not produce any findings, including {:?}; got {:?}",
+                root.display(),
+                NEW_P1_P4_CHECK_IDS,
+                report.findings
+            );
         }
     }
 

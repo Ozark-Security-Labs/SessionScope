@@ -1,0 +1,11 @@
+{
+  "fixture_id": "generic-js.clean-baseline-jwt",
+  "framework": "generic-javascript",
+  "source_files": [
+    "app.js"
+  ],
+  "expected_artifacts": [],
+  "expected_lifecycle_stages": [],
+  "expected_findings": [],
+  "notes": "Clean JavaScript baseline with no JWT or client-storage findings."
+}

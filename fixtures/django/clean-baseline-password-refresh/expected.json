@@ -1,0 +1,11 @@
+{
+  "fixture_id": "django.clean-baseline-password-refresh",
+  "framework": "django",
+  "source_files": [
+    "views.py"
+  ],
+  "expected_artifacts": [],
+  "expected_lifecycle_stages": [],
+  "expected_findings": [],
+  "notes": "Clean Django baseline with no password-change or refresh findings."
+}

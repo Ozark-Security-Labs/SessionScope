@@ -1,0 +1,11 @@
+{
+  "fixture_id": "nextjs.clean-baseline-oauth-storage",
+  "framework": "nextjs",
+  "source_files": [
+    "route.ts"
+  ],
+  "expected_artifacts": [],
+  "expected_lifecycle_stages": [],
+  "expected_findings": [],
+  "notes": "Clean Next.js baseline with no OAuth or client-storage findings."
+}

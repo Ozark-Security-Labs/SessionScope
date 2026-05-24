@@ -1,0 +1,11 @@
+{
+  "fixture_id": "fastapi.clean-baseline-lifecycle",
+  "framework": "fastapi",
+  "source_files": [
+    "app.py"
+  ],
+  "expected_artifacts": [],
+  "expected_lifecycle_stages": [],
+  "expected_findings": [],
+  "notes": "Clean FastAPI baseline with no token/session lifecycle findings."
+}
