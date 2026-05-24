@@ -48,7 +48,7 @@ static REDIRECT_RE: LazyLock<Regex> = LazyLock::new(|| {
 static QUOTED_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"["']([^"']+)["']"#).expect("quoted regex should compile"));
 static OAUTH_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?ix)(\b(?:state|nonce|code_verifier|codeVerifier|code_challenge|codeChallenge)\b\s*[:=]\s*)(["'`])([^"'`]{8,})(["'`])"#)
+    Regex::new(r#"(?ix)(\b(?:state|nonce|code_verifier|codeVerifier|code_challenge|codeChallenge|client_secret|clientSecret|secret)\b\s*[:=]\s*)(["'`])([^"'`]+)(["'`])"#)
         .expect("oauth value regex should compile")
 });
 static OAUTH_URL_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -139,14 +139,25 @@ fn detect(input: &DetectorInput<'_>) -> DetectionOutput {
             } else {
                 "oauth.state.present"
             };
-            signals.push(signal(
+            if matches!(
                 detector_id,
-                LifecycleStage::Validate,
-                line,
-                line_number,
-                !STATIC_STATE_RE.is_match(line),
-                false,
-            ));
+                "oauth.state.callback_read" | "oauth.state.verified"
+            ) || is_state_issue_line(line)
+            {
+                let stage = if matches!(detector_id, "oauth.state.present" | "oauth.state.static") {
+                    LifecycleStage::Issue
+                } else {
+                    LifecycleStage::Validate
+                };
+                signals.push(signal(
+                    detector_id,
+                    stage,
+                    line,
+                    line_number,
+                    !STATIC_STATE_RE.is_match(line),
+                    false,
+                ));
+            }
         }
         if STATE_VERIFY_RE.is_match(line) {
             signals.push(signal(
@@ -168,7 +179,7 @@ fn detect(input: &DetectorInput<'_>) -> DetectionOutput {
                 false,
             ));
         }
-        if NONCE_RE.is_match(line) {
+        if is_nonce_issue_line(line) {
             signals.push(signal(
                 "oauth.nonce.present",
                 LifecycleStage::Issue,
@@ -387,7 +398,7 @@ fn is_import_only_line(line: &str) -> bool {
 fn redirect_line_is_broad(line: &str) -> bool {
     QUOTED_RE.captures_iter(line).any(|capture| {
         let value = capture.get(1).map_or("", |capture| capture.as_str());
-        if is_loopback_redirect(value) {
+        if is_loopback_redirect(value) && !value.contains('*') {
             return false;
         }
         value.contains('*') || bare_host(value) || top_level_wildcard(value)
@@ -396,6 +407,32 @@ fn redirect_line_is_broad(line: &str) -> bool {
 
 fn is_loopback_redirect(value: &str) -> bool {
     value.contains("localhost") || value.contains("127.0.0.1") || value.contains("[::1]")
+}
+
+fn is_nonce_issue_line(line: &str) -> bool {
+    if !NONCE_RE.is_match(line) {
+        return false;
+    }
+    let normalized = line.to_ascii_lowercase();
+    normalized.contains("authorizationurl")
+        || normalized.contains("authorization_url")
+        || normalized.contains("authorize_redirect")
+        || normalized.contains("oauthprovider")
+        || normalized.contains("oidcprovider")
+        || (normalized.contains("response_type") && normalized.contains("code"))
+}
+
+fn is_state_issue_line(line: &str) -> bool {
+    if !STATE_RE.is_match(line) {
+        return false;
+    }
+    let normalized = line.to_ascii_lowercase();
+    normalized.contains("authorizationurl")
+        || normalized.contains("authorization_url")
+        || normalized.contains("authorize_redirect")
+        || normalized.contains("oauthprovider")
+        || normalized.contains("oidcprovider")
+        || (normalized.contains("response_type") && normalized.contains("code"))
 }
 
 fn bare_host(value: &str) -> bool {
@@ -443,7 +480,7 @@ mod tests {
     fn detects_auth_code_flow_with_pkce_state_and_redirect_evidence() {
         let output = OAuthFlowDetector.detect(&input(
             r#"
-const url = client.authorizationUrl({ response_type: 'code', scope: 'openid profile', state: crypto.randomUUID(), code_challenge: challenge, redirect_uris: ['https://*.example.com'] });
+const url = client.authorizationUrl({ response_type: 'code', scope: 'openid profile', state: crypto.randomUUID(), nonce: crypto.randomUUID(), code_challenge: challenge, redirect_uris: ['https://*.example.com'] });
 if (req.query.state === session.oauthState) {}
 verifyIdToken(token, { nonce })
 "#,
@@ -520,8 +557,107 @@ const url = client.authorizationUrl({ response_type: 'code', state: makeState("c
             "redirect_uris: ['http://localhost:3000']"
         ));
         assert!(redirect_line_is_broad(
+            "redirect_uris: ['http://localhost:3000/*']"
+        ));
+        assert!(redirect_line_is_broad(
             "redirect_uris: ['https://example.com']"
         ));
+    }
+
+    #[test]
+    fn does_not_treat_nonce_verification_as_nonce_issue_evidence() {
+        let output = OAuthFlowDetector.detect(&input(
+            r#"
+const url = client.authorizationUrl({ response_type: 'code', scope: 'openid', state, code_challenge: challenge })
+verifyIdToken(token, { nonce })
+"#,
+        ));
+
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "oauth.nonce.present")
+        );
+        assert!(
+            output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "oauth.nonce.verified")
+        );
+    }
+
+    #[test]
+    fn does_not_treat_session_state_reads_as_state_issue_evidence() {
+        let output = OAuthFlowDetector.detect(&input(
+            r#"
+const url = client.authorizationUrl({ response_type: 'code', code_challenge: challenge })
+const expectedState = session.oauthState
+if (req.query.state === expectedState) {}
+"#,
+        ));
+
+        assert!(
+            !output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "oauth.state.present")
+        );
+        assert!(
+            output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "oauth.state.callback_read")
+        );
+        assert!(
+            output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "oauth.state.verified")
+        );
+    }
+
+    #[test]
+    fn detects_nonce_issue_evidence_when_nonce_precedes_response_type() {
+        let output = OAuthFlowDetector.detect(&input(
+            r#"
+const url = client.authorizationUrl({ nonce, state, response_type: 'code', scope: 'openid', code_challenge: challenge })
+"#,
+        ));
+
+        assert!(
+            output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "oauth.nonce.present")
+        );
+    }
+
+    #[test]
+    fn detects_state_issue_evidence_when_state_precedes_response_type() {
+        let output = OAuthFlowDetector.detect(&input(
+            r#"
+const url = client.authorizationUrl({ state, response_type: 'code', code_challenge: challenge })
+"#,
+        ));
+
+        let state_evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.detector_id == "oauth.state.present")
+            .expect("state issue evidence");
+        assert_eq!(state_evidence.lifecycle_stage, LifecycleStage::Issue);
+    }
+
+    #[test]
+    fn redacts_oauth_client_secret_values_in_excerpts() {
+        let output = OAuthFlowDetector.detect(&input(
+            r#"new OAuth2Strategy({ response_type: 'code', clientSecret: "short" })"#,
+        ));
+        let rendered = format!("{:?}", output.evidence);
+
+        assert!(rendered.contains("[REDACTED]"));
+        assert!(!rendered.contains("short"));
     }
 
     #[test]

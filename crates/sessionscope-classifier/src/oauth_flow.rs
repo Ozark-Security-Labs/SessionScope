@@ -68,9 +68,8 @@ fn classify_nonce(
         return Vec::new();
     }
 
-    let has_nonce = evidence
-        .iter()
-        .any(|item| item.detector_id == "oauth.nonce.present");
+    let nonce_ids = detector_ids(evidence, "oauth.nonce.present");
+    let has_nonce = !nonce_ids.is_empty();
     let has_verified = evidence
         .iter()
         .any(|item| item.detector_id == "oauth.nonce.verified");
@@ -101,7 +100,7 @@ fn classify_nonce(
                 rule_id: "oidc_nonce_unverified_review",
                 category: FindingCategory::MissingValidationEvidence,
                 severity: Severity::Medium,
-                evidence_ids: detector_ids(evidence, "oauth.nonce.present"),
+                evidence_ids: nonce_ids,
                 title: "OIDC nonce is set without visible ID-token nonce verification".to_string(),
                 description: "OIDC flow evidence includes a nonce, but SessionScope did not find same-flow ID-token verification options or comparison evidence for that nonce.".to_string(),
                 suggested_fix: "Pass the expected nonce to the ID-token verification API or compare the validated ID-token nonce claim with the issued nonce.".to_string(),
@@ -123,10 +122,7 @@ fn classify_state(
     let has_state = evidence.iter().any(|item| {
         matches!(
             item.detector_id.as_str(),
-            "oauth.state.present"
-                | "oauth.state.static"
-                | "oauth.state.callback_read"
-                | "oauth.state.verified"
+            "oauth.state.present" | "oauth.state.static"
         )
     });
     let has_verified = evidence
@@ -443,6 +439,21 @@ mod tests {
     }
 
     #[test]
+    fn verified_callback_state_does_not_suppress_missing_state() {
+        let findings = classify(&report_with(&[
+            "oauth.flow.auth_code",
+            "oauth.pkce.present",
+            "oauth.state.callback_read",
+            "oauth.state.verified",
+        ]));
+
+        assert!(findings.iter().any(|finding| {
+            finding.id.0.contains("oauth_state_missing")
+                || finding.title.contains("no source-visible state")
+        }));
+    }
+
+    #[test]
     fn flags_oidc_nonce_missing_and_unverified() {
         let missing = classify(&report_with(&[
             "oauth.flow.auth_code",
@@ -492,6 +503,25 @@ mod tests {
             "oauth.nonce.verified",
         ]));
         assert!(verified.is_empty());
+    }
+
+    #[test]
+    fn verified_oidc_nonce_does_not_suppress_missing_nonce() {
+        let findings = classify(&report_with(&[
+            "oauth.flow.auth_code",
+            "oauth.pkce.present",
+            "oauth.state.present",
+            "oauth.state.verified",
+            "oauth.oidc.openid_scope",
+            "oauth.nonce.verified",
+        ]));
+
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.title.contains("no source-visible nonce")),
+            "{findings:?}"
+        );
     }
 
     #[test]

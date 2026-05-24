@@ -56,7 +56,7 @@ static QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static SENSITIVE_QUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?ix)(["']?\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key|state|nonce|code[_-]?verifier|code[_-]?challenge|codeVerifier|codeChallenge)\b["']?\s*[:=]\s*)(["'])([^"']*)(["'])"#,
+        r#"(?ix)(["']?\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|clientSecret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key|state|nonce|code[_-]?verifier|code[_-]?challenge|codeVerifier|codeChallenge)\b["']?\s*[:=]\s*)(["'])([^"']*)(["'])"#,
     )
     .expect("sensitive quoted assignment regex should compile")
 });
@@ -741,6 +741,14 @@ mod tests {
 
         assert!(output.contains("[REDACTED]"));
         assert!(!output.contains("abcdefghijklmno"));
+    }
+
+    #[test]
+    fn redacts_quoted_camel_case_client_secret() {
+        let output = redact_sensitive_values("const config = { clientSecret: \"short\" }");
+
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains("short"));
     }
 
     #[test]

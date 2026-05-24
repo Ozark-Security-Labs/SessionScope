@@ -1198,10 +1198,7 @@ fn contains_refresh_family_revoke_text(value: &str) -> bool {
 }
 
 fn is_jwt_denylist_or_revoke_evidence(evidence: &Evidence) -> bool {
-    matches!(
-        evidence.detector_id.as_str(),
-        "logout.token_revoke" | "logout.provider_revoke"
-    ) || evidence
+    evidence
         .excerpt
         .as_ref()
         .is_some_and(|excerpt| contains_jwt_denylist_text(excerpt.as_str()))
@@ -1213,17 +1210,20 @@ fn contains_jwt_denylist_text(value: &str) -> bool {
         .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
         .collect::<String>()
         .to_ascii_lowercase();
-    (normalized.contains("denylist")
+    let has_revoke_action = normalized.contains("denylist")
         || normalized.contains("blocklist")
         || normalized.contains("blacklist")
         || normalized.contains("revokedtokens")
         || normalized.contains("revokedtoken")
         || normalized.contains("revoketoken")
-        || normalized.contains("addtoblocklist"))
-        && (normalized.contains("jwt")
-            || normalized.contains("jti")
-            || normalized.contains("access")
-            || normalized.contains("token"))
+        || normalized.contains("addtoblocklist")
+        || normalized.contains("revoke");
+    let has_access_token_context = normalized.contains("jwt")
+        || normalized.contains("jti")
+        || normalized.contains("access")
+        || (normalized.contains("token") && !normalized.contains("refresh"));
+
+    has_revoke_action && has_access_token_context
 }
 
 fn evidence_linked_to_path_context(
@@ -1661,8 +1661,8 @@ fn artifact_type_part(artifact_type: ArtifactType) -> &'static str {
 #[cfg(test)]
 mod tests {
     use sessionscope_model::{
-        ArtifactId, CookieAttributeObservation, LifecyclePathId, SCHEMA_VERSION, ScanSummary,
-        SourceLocation,
+        ArtifactId, CookieAttributeObservation, LifecyclePathId, SCHEMA_VERSION, SanitizedExcerpt,
+        ScanSummary, SourceLocation,
     };
 
     use super::*;
@@ -2712,12 +2712,60 @@ mod tests {
                 ),
             ],
         );
+        report.evidence[2].excerpt = Some(SanitizedExcerpt::from_sanitized(
+            "revokeAccessToken(accessToken)".to_string(),
+        ));
         report.lifecycle_paths = link(&report);
 
         let findings = classify(&report);
 
         assert!(
             !findings
+                .iter()
+                .any(|finding| finding.title.contains("without linked denylist")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn refresh_revoke_does_not_prevent_jwt_logout_denylist_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_access",
+                ArtifactType::AccessJwt,
+                "access_token",
+                LifecycleEvidence {
+                    issue: vec![EvidenceId("evidence_issue".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence("evidence_issue", LifecycleStage::Issue, 10, false),
+                evidence_with_detector(
+                    "evidence_logout",
+                    LifecycleStage::Revoke,
+                    "logout.handler",
+                    20,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_refresh_revoke",
+                    LifecycleStage::Revoke,
+                    "logout.token_revoke",
+                    21,
+                    false,
+                ),
+            ],
+        );
+        report.evidence[2].excerpt = Some(SanitizedExcerpt::from_sanitized(
+            "revokeRefreshToken(refreshToken)".to_string(),
+        ));
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            findings
                 .iter()
                 .any(|finding| finding.title.contains("without linked denylist")),
             "{findings:?}"
