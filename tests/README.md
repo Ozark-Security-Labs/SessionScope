@@ -21,3 +21,11 @@ them after intentional report-output changes with:
 SESSIONSCOPE_UPDATE_JSON_SNAPSHOTS=1 cargo test -p sessionscope-testing --test json_snapshots
 ```
 
+## CLI exit-code matrix
+
+`crates/sessionscope-cli/tests/cli_exit_matrix.rs` is the Rust integration-test
+equivalent of the documented exit-code shell matrix. It evaluates synthetic JSON
+reports through the real `sessionscope evaluate` binary path and covers advisory
+mode, enforce thresholds, category filters, include/exclude finding IDs, and
+baseline suppression/precedence.
+
