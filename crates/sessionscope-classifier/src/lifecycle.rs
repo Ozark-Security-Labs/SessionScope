@@ -68,6 +68,12 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
             report,
             &evidence_by_id,
         ));
+        findings.extend(classify_password_change_global_revocation_absent(
+            artifact,
+            path,
+            report,
+            &evidence_by_id,
+        ));
     }
 
     findings
@@ -754,6 +760,44 @@ fn classify_sliding_expiry_without_rotation(
     ))
 }
 
+fn classify_password_change_global_revocation_absent(
+    artifact: &Artifact,
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Option<Finding> {
+    let handler_ids = password_change_handler_ids(path, evidence_by_id);
+    if handler_ids.is_empty()
+        || has_linked_password_change_global_revoke(path, report, evidence_by_id)
+    {
+        return None;
+    }
+
+    let mut evidence_ids = handler_ids;
+    evidence_ids.sort();
+    evidence_ids.dedup();
+
+    Some(finding(
+        artifact,
+        path,
+        FindingSpec {
+            rule_id: "password_change_global_revocation_absent_review",
+            category: FindingCategory::LifecycleGap,
+            severity: Severity::Medium,
+            evidence_ids,
+            title: "Password-change handler lacks linked global session revocation".to_string(),
+            description: "A password-change handler was detected, but no linked global session invalidation, refresh-family revocation, or token-version bump evidence was found in the same source scope."
+                .to_string(),
+            suggested_fix:
+                "After password changes, revoke all active sessions/refresh-token families or bump a token/session version checked during authentication."
+                    .to_string(),
+            reviewer_question:
+                "Where are existing sessions and refresh-token families invalidated after this password change?"
+                    .to_string(),
+        },
+    ))
+}
+
 fn attribute_missing_or_mismatched(
     observation: &sessionscope_model::CookieAttributeObservation,
     attribute: &str,
@@ -1081,6 +1125,41 @@ fn has_linked_rotation_evidence(
             is_rotation_evidence(evidence)
                 && evidence_linked_to_path_context(evidence, path, evidence_by_id)
         })
+}
+
+fn password_change_handler_ids(
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Vec<EvidenceId> {
+    fallback_path_ids(path)
+        .into_iter()
+        .filter(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| evidence.detector_id == "password_change.handler")
+        })
+        .collect()
+}
+
+fn has_linked_password_change_global_revoke(
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    fallback_path_ids(path).iter().any(|evidence_id| {
+        evidence_by_id
+            .get(evidence_id.0.as_str())
+            .is_some_and(|evidence| is_password_change_global_revoke_evidence(evidence))
+    }) || report.evidence.iter().any(|evidence| {
+        is_password_change_global_revoke_evidence(evidence)
+            && evidence_linked_to_path_context(evidence, path, evidence_by_id)
+    })
+}
+
+fn is_password_change_global_revoke_evidence(evidence: &Evidence) -> bool {
+    evidence.detector_id == "password_change.global_revoke"
+        || evidence.detector_id == "logout.session_destroy"
+        || is_refresh_family_revoke_evidence(evidence)
 }
 
 fn is_rotation_evidence(evidence: &Evidence) -> bool {
@@ -2839,6 +2918,80 @@ mod tests {
             !findings
                 .iter()
                 .any(|finding| finding.title.contains("sliding expiry")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn password_change_without_global_revoke_is_lifecycle_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_password_change",
+                ArtifactType::Unknown,
+                "password_change",
+                LifecycleEvidence {
+                    revoke: vec![EvidenceId("evidence_handler".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![evidence_with_detector(
+                "evidence_handler",
+                LifecycleStage::Revoke,
+                "password_change.handler",
+                10,
+                false,
+            )],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("Password-change handler"))
+            .expect("password-change global revocation review finding");
+
+        assert_eq!(finding.category, FindingCategory::LifecycleGap);
+        assert_eq!(finding.severity, Severity::Medium);
+        assert!(finding.reviewer_question.is_some());
+    }
+
+    #[test]
+    fn linked_global_revoke_prevents_password_change_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_password_change",
+                ArtifactType::Unknown,
+                "password_change",
+                LifecycleEvidence {
+                    revoke: vec![EvidenceId("evidence_handler".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence_with_detector(
+                    "evidence_handler",
+                    LifecycleStage::Revoke,
+                    "password_change.handler",
+                    10,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_global_revoke",
+                    LifecycleStage::Revoke,
+                    "password_change.global_revoke",
+                    12,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            !findings
+                .iter()
+                .any(|finding| finding.title.contains("Password-change handler")),
             "{findings:?}"
         );
     }

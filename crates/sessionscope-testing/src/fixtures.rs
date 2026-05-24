@@ -1207,6 +1207,88 @@ mod tests {
     }
 
     #[test]
+    fn password_change_without_global_revoke_fixture_produces_review_gap() {
+        let root = fixture_root()
+            .join("django")
+            .join("password-change-without-global-revoke");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("password-change without global revoke fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Revoke
+                && evidence.detector_id == "password_change.handler"
+        }));
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("Password-change handler")
+                && finding.reviewer_question.is_some()
+        }));
+    }
+
+    #[test]
+    fn password_change_global_revoke_fixture_stays_clean_for_global_gap() {
+        let root = fixture_root()
+            .join("django")
+            .join("password-change-global-revoke");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("password-change global revoke fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Revoke
+                && evidence.detector_id == "password_change.global_revoke"
+        }));
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("Password-change handler")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn password_validation_utility_fixture_does_not_emit_password_change_review() {
+        let root = fixture_root()
+            .join("generic-python")
+            .join("password-validation-utility");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("password validation utility fixture should scan"),
+        );
+
+        assert!(
+            !report
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "password_change.handler"),
+            "{:?}",
+            report.evidence
+        );
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("Password-change handler")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
     fn unrelated_refresh_fixtures_do_not_satisfy_each_other() {
         let root = fixture_root().join("express");
         let report = classify(

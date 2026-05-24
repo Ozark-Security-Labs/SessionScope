@@ -562,7 +562,20 @@ fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
         "function_declaration" | "method_definition" => {
             let name = js_function_name(node, source).unwrap_or_default();
             let normalized = normalize_symbol(&name);
-            if is_auth_handler_context(&normalized) {
+            if is_password_change_handler_context(&normalized) {
+                signals.push(signal(
+                    SignalSpec::revoke(
+                        "password_change.handler",
+                        ArtifactType::Unknown,
+                        "password_change",
+                        "javascript",
+                        Confidence::Medium,
+                        true,
+                    ),
+                    node,
+                    source,
+                ));
+            } else if is_auth_handler_context(&normalized) {
                 signals.push(session_fixation_signal(
                     "session.auth_transition",
                     LifecycleStage::Issue,
@@ -603,7 +616,20 @@ fn collect_js_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal>) {
                 ));
             }
             let normalized = normalize_symbol_without_literals(&text);
-            if is_auth_handler_context(&normalized) {
+            if is_password_change_handler_context(&normalized) {
+                signals.push(signal(
+                    SignalSpec::revoke(
+                        "password_change.handler",
+                        ArtifactType::Unknown,
+                        "password_change",
+                        "nextjs",
+                        Confidence::Medium,
+                        true,
+                    ),
+                    node,
+                    source,
+                ));
+            } else if is_auth_handler_context(&normalized) {
                 signals.push(session_fixation_signal(
                     "session.auth_transition",
                     LifecycleStage::Issue,
@@ -796,6 +822,21 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
         return;
     }
 
+    if is_global_password_change_revocation_call(&normalized) {
+        signals.push(signal(
+            SignalSpec::revoke(
+                "password_change.global_revoke",
+                ArtifactType::SessionRecord,
+                "session",
+                "javascript",
+                Confidence::High,
+                false,
+            ),
+            node,
+            source,
+        ));
+    }
+
     if is_js_provider_revoke_call(&normalized) {
         let display_name = token_display_name(&normalized);
         signals.push(signal(
@@ -866,6 +907,19 @@ fn collect_python_signals(node: Node<'_>, source: &str, signals: &mut Vec<Signal
                     "logout.handler",
                     ArtifactType::Unknown,
                     "logout",
+                    python_framework_hint(&decorators),
+                    Confidence::High,
+                    false,
+                ),
+                node,
+                source,
+            ));
+        } else if is_password_change_handler_context(&normalized_context) {
+            signals.push(signal(
+                SignalSpec::revoke(
+                    "password_change.handler",
+                    ArtifactType::Unknown,
+                    "password_change",
                     python_framework_hint(&decorators),
                     Confidence::High,
                     false,
@@ -1056,6 +1110,21 @@ fn collect_python_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Si
             source,
         ));
         return;
+    }
+
+    if is_global_password_change_revocation_call(&normalized) {
+        signals.push(signal(
+            SignalSpec::revoke(
+                "password_change.global_revoke",
+                ArtifactType::SessionRecord,
+                "session",
+                python_framework_hint(&text),
+                Confidence::High,
+                false,
+            ),
+            node,
+            source,
+        ));
     }
 
     if is_provider_revoke_text(&normalized) {
@@ -1603,6 +1672,45 @@ fn is_python_session_destroy_call(normalized: &str) -> bool {
         || normalized.contains("invalidatesession")
         || normalized.contains("destroy_session")
         || normalized.contains("destroysession")
+}
+
+fn is_password_change_handler_context(normalized: &str) -> bool {
+    (normalized.contains("passwordchange")
+        || normalized.contains("password_change")
+        || normalized.contains("change_password")
+        || normalized.contains("changepassword")
+        || normalized.contains("updatepassword")
+        || normalized.contains("update_password")
+        || normalized.contains("password_update")
+        || normalized.contains("passwordupdate"))
+        && !normalized.contains("validate")
+        && !normalized.contains("validator")
+        && !normalized.contains("verify")
+        && !normalized.contains("check")
+        && !normalized.contains("strength")
+}
+
+fn is_global_password_change_revocation_call(normalized: &str) -> bool {
+    (normalized.contains("revokeallsessions")
+        || normalized.contains("revoke_all_sessions")
+        || normalized.contains("invalidateallsessions")
+        || normalized.contains("invalidate_all_sessions")
+        || normalized.contains("bump token version")
+        || normalized.contains("bumptokenversion")
+        || normalized.contains("bump_token_version")
+        || normalized.contains("tokenversion")
+        || normalized.contains("token_version")
+        || normalized.contains("cycle_key")
+        || normalized.contains("cyclekey"))
+        || (normalized.contains("refresh")
+            && (normalized.contains("user")
+                || normalized.contains("family")
+                || normalized.contains("allsessions")
+                || normalized.contains("all_sessions"))
+            && (normalized.contains("revoke")
+                || normalized.contains("delete")
+                || normalized.contains("invalidate")
+                || normalized.contains("destroy")))
 }
 
 fn is_js_provider_revoke_call(normalized: &str) -> bool {

@@ -17,6 +17,7 @@ and SessionScope uses semantic versioning as described in
 - Added `jwt_denylist_absent_on_logout_review` lifecycle coverage for access-JWT logout flows that lack linked denylist, blocklist, or token revocation-store evidence.
 - Added `refresh_family_revocation_absent_on_logout_review` lifecycle coverage for refresh-token logout flows that lack linked family/user-scoped revocation evidence.
 - Added `sliding_expiry_without_rotation_review` lifecycle coverage for rolling/sliding session expiry that lacks linked session or refresh-token rotation evidence.
+- Added `password_change_global_revocation_absent_review` lifecycle coverage for password-change handlers that lack linked global session invalidation, refresh-family revocation, or token-version bump evidence.
 - Extended report redaction for OAuth/OIDC `state`, `nonce`, `code_verifier`, and `code_challenge` values in assignments, object keys, and URL parameters.
 
 ### Pre-release remediation (v0.1.0 readiness)

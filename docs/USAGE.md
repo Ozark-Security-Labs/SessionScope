@@ -132,6 +132,7 @@ SessionScope is built around defensive, evidence-bound checks. The current and p
 - Sliding/idle expiry without linked rotation evidence, including `sliding_expiry_without_rotation_review`
 - Refresh tokens without rotation evidence
 - Logout without revocation evidence, including `jwt_denylist_absent_on_logout_review` when access-JWT logout flows lack linked denylist/blocklist/revocation-store evidence and `refresh_family_revocation_absent_on_logout_review` when refresh-token logout flows lack family/user-scoped revocation evidence
+- Password-change without global session or refresh-family revocation evidence, including `password_change_global_revocation_absent_review`
 - Password-reset tokens without expiry or single-use evidence
 - Session fixation risk signals
 - Token accepted from query parameters
