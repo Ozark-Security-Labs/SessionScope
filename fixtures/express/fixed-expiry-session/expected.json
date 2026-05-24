@@ -1,0 +1,9 @@
+{
+  "fixture_id": "express.fixed-expiry-session",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["session"],
+  "expected_lifecycle_stages": ["store"],
+  "expected_findings": ["fixed_expiry_session_no_sliding_review"],
+  "notes": "Covers fixed-expiry Express session middleware that should not trigger sliding-expiry review."
+}

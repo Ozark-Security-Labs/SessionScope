@@ -129,6 +129,7 @@ SessionScope is built around defensive, evidence-bound checks. The current and p
 - OAuth/OIDC flow integrity, including `oauth_pkce_missing_review`, `oauth_state_missing`, `oauth_state_static_review`, `oauth_state_unverified_review`, `oidc_nonce_missing`, `oidc_nonce_unverified_review`, and `oauth_redirect_uri_wildcard_review` across Passport OAuth2, openid-client, NextAuth/Auth.js provider blocks, Authlib, and generic OAuth/OIDC code.
 - Client storage hygiene, including `token_in_local_storage`, `token_in_session_storage`, `token_in_url_path_or_fragment`, and `client_secret_in_browser_code` for browser-accessible storage and URL channels; `document.cookie` token writes are emitted as source evidence only in this phase.
 - Tokens issued without explicit expiry
+- Sliding/idle expiry without linked rotation evidence, including `sliding_expiry_without_rotation_review`
 - Refresh tokens without rotation evidence
 - Logout without revocation evidence, including `jwt_denylist_absent_on_logout_review` when access-JWT logout flows lack linked denylist/blocklist/revocation-store evidence and `refresh_family_revocation_absent_on_logout_review` when refresh-token logout flows lack family/user-scoped revocation evidence
 - Password-reset tokens without expiry or single-use evidence

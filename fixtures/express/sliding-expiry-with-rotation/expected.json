@@ -1,0 +1,9 @@
+{
+  "fixture_id": "express.sliding-expiry-with-rotation",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["session"],
+  "expected_lifecycle_stages": ["store", "refresh"],
+  "expected_findings": ["sliding_expiry_rotation_evidence_present"],
+  "notes": "Covers rolling session middleware with visible session regeneration evidence."
+}

@@ -1139,6 +1139,74 @@ mod tests {
     }
 
     #[test]
+    fn sliding_expiry_fixture_produces_rotation_review_gap() {
+        let root = fixture_root()
+            .join("express")
+            .join("sliding-expiry-without-rotation");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("sliding expiry fixture should scan"),
+        );
+
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("sliding expiry")
+                && finding.reviewer_question.is_some()
+        }));
+    }
+
+    #[test]
+    fn sliding_expiry_with_rotation_fixture_stays_clean_for_rotation_gap() {
+        let root = fixture_root()
+            .join("express")
+            .join("sliding-expiry-with-rotation");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("sliding expiry with rotation fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Refresh
+                && evidence.detector_id == "session.regenerate"
+        }));
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("sliding expiry")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn fixed_expiry_fixture_stays_clean_for_sliding_review() {
+        let root = fixture_root().join("express").join("fixed-expiry-session");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("fixed expiry fixture should scan"),
+        );
+
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("sliding expiry")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
     fn unrelated_refresh_fixtures_do_not_satisfy_each_other() {
         let root = fixture_root().join("express");
         let report = classify(

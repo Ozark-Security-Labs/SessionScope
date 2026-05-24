@@ -1,0 +1,9 @@
+{
+  "fixture_id": "express.sliding-expiry-without-rotation",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["session"],
+  "expected_lifecycle_stages": ["store"],
+  "expected_findings": ["sliding_expiry_without_rotation_review"],
+  "notes": "Covers Express rolling session middleware that extends Max-Age on each request without visible session rotation evidence."
+}

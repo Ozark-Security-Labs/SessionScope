@@ -62,6 +62,12 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
             report,
             &evidence_by_id,
         ));
+        findings.extend(classify_sliding_expiry_without_rotation(
+            artifact,
+            path,
+            report,
+            &evidence_by_id,
+        ));
     }
 
     findings
@@ -706,6 +712,48 @@ fn classify_refresh_family_revocation_absent_on_logout(
     ))
 }
 
+fn classify_sliding_expiry_without_rotation(
+    artifact: &Artifact,
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Option<Finding> {
+    if !matches!(
+        artifact.artifact_type,
+        ArtifactType::SessionCookie
+            | ArtifactType::SignedCookie
+            | ArtifactType::SessionRecord
+            | ArtifactType::RefreshJwt
+            | ArtifactType::Unknown
+    ) || !has_sliding_expiry_evidence(path, evidence_by_id)
+        || has_linked_rotation_evidence(path, report, evidence_by_id)
+    {
+        return None;
+    }
+
+    let evidence_ids = sliding_expiry_ids(path, evidence_by_id);
+    let name = artifact.display_name.as_deref().unwrap_or("session");
+    Some(finding(
+        artifact,
+        path,
+        FindingSpec {
+            rule_id: "sliding_expiry_without_rotation_review",
+            category: FindingCategory::LifecycleGap,
+            severity: Severity::Low,
+            evidence_ids,
+            title: format!("Session `{name}` uses sliding expiry without linked rotation"),
+            description: "Sliding or rolling TTL/Max-Age evidence was detected, but no linked session regeneration, session-key cycling, refresh-token rotation, or reissue evidence was found for the same lifecycle path."
+                .to_string(),
+            suggested_fix:
+                "Pair sliding expiry with session or refresh-token rotation, or document the framework-managed rotation behavior for reviewer confirmation."
+                    .to_string(),
+            reviewer_question: format!(
+                "Where is `{name}` rotated when its idle/sliding expiry is extended?"
+            ),
+        },
+    ))
+}
+
 fn attribute_missing_or_mismatched(
     observation: &sessionscope_model::CookieAttributeObservation,
     attribute: &str,
@@ -964,6 +1012,85 @@ fn is_refresh_family_revoke_evidence(evidence: &Evidence) -> bool {
             .excerpt
             .as_ref()
             .is_some_and(|excerpt| contains_refresh_family_revoke_text(excerpt.as_str())))
+}
+
+fn has_sliding_expiry_evidence(
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    !sliding_expiry_ids(path, evidence_by_id).is_empty()
+}
+
+fn sliding_expiry_ids(
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Vec<EvidenceId> {
+    fallback_path_ids(path)
+        .into_iter()
+        .filter(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| is_sliding_expiry_evidence(evidence))
+        })
+        .collect()
+}
+
+fn is_sliding_expiry_evidence(evidence: &Evidence) -> bool {
+    matches!(
+        evidence.detector_id.as_str(),
+        "session.middleware" | "refresh.expire" | "refresh.store"
+    ) && evidence
+        .excerpt
+        .as_ref()
+        .is_some_and(|excerpt| contains_sliding_expiry_text(excerpt.as_str()))
+}
+
+fn contains_sliding_expiry_text(value: &str) -> bool {
+    let normalized = value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+        .collect::<String>()
+        .to_ascii_lowercase();
+    (normalized.contains("rolling")
+        || normalized.contains("sliding")
+        || normalized.contains("idle")
+        || normalized.contains("touch")
+        || normalized.contains("refreshsessionttl")
+        || normalized.contains("extend_session")
+        || normalized.contains("extendsession"))
+        && (normalized.contains("maxage")
+            || normalized.contains("ttl")
+            || normalized.contains("expires")
+            || normalized.contains("expiresat")
+            || normalized.contains("expire"))
+}
+
+fn has_linked_rotation_evidence(
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    evidence_ids_for_stage(path, LifecycleStage::Refresh)
+        .iter()
+        .any(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| is_rotation_evidence(evidence))
+        })
+        || report.evidence.iter().any(|evidence| {
+            is_rotation_evidence(evidence)
+                && evidence_linked_to_path_context(evidence, path, evidence_by_id)
+        })
+}
+
+fn is_rotation_evidence(evidence: &Evidence) -> bool {
+    matches!(
+        evidence.detector_id.as_str(),
+        "session.regenerate"
+            | "session.reissue"
+            | "session.framework_default_regenerate"
+            | "refresh.rotate"
+    )
 }
 
 fn contains_refresh_family_revoke_text(value: &str) -> bool {
@@ -2605,6 +2732,113 @@ mod tests {
             !findings
                 .iter()
                 .any(|finding| finding.title.contains("without family revocation")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn sliding_expiry_without_rotation_is_lifecycle_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_session",
+                ArtifactType::SessionRecord,
+                "session",
+                LifecycleEvidence {
+                    store: vec![EvidenceId("evidence_sliding".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![evidence_with_excerpt(
+                "evidence_sliding",
+                LifecycleStage::Store,
+                "session.middleware",
+                10,
+                "session({ rolling: true, cookie: { maxAge: 900000 } })",
+            )],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("sliding expiry"))
+            .expect("sliding expiry review finding");
+
+        assert_eq!(finding.category, FindingCategory::LifecycleGap);
+        assert_eq!(finding.severity, Severity::Low);
+        assert!(finding.reviewer_question.is_some());
+    }
+
+    #[test]
+    fn linked_session_rotation_prevents_sliding_expiry_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_session",
+                ArtifactType::SessionRecord,
+                "session",
+                LifecycleEvidence {
+                    store: vec![EvidenceId("evidence_sliding".to_string())],
+                    refresh: vec![EvidenceId("evidence_rotate".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence_with_excerpt(
+                    "evidence_sliding",
+                    LifecycleStage::Store,
+                    "session.middleware",
+                    10,
+                    "session({ rolling: true, cookie: { maxAge: 900000 } })",
+                ),
+                evidence_with_detector(
+                    "evidence_rotate",
+                    LifecycleStage::Refresh,
+                    "session.regenerate",
+                    20,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            !findings
+                .iter()
+                .any(|finding| finding.title.contains("sliding expiry")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn fixed_expiry_session_does_not_trigger_sliding_review() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_session",
+                ArtifactType::SessionRecord,
+                "session",
+                LifecycleEvidence {
+                    store: vec![EvidenceId("evidence_store".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![evidence_with_excerpt(
+                "evidence_store",
+                LifecycleStage::Store,
+                "session.middleware",
+                10,
+                "session({ cookie: { maxAge: 900000 } })",
+            )],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            !findings
+                .iter()
+                .any(|finding| finding.title.contains("sliding expiry")),
             "{findings:?}"
         );
     }
