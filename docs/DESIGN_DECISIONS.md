@@ -288,3 +288,73 @@ Rules:
   lifecycle management remain separate.
 - Missing or malformed baseline files are configuration errors whenever a
   baseline is explicitly supplied.
+
+## SS-DEC-011: v0.2 P1-P4 Check Category Consolidation
+
+The v0.2 edge-case hardening checks fit the existing five finding categories.
+No new finding category or SARIF rule ID is added in this round, and the scan
+report schema remains `0.5.0`.
+
+Explicit audit decisions:
+
+- **P2.3 `jwt_alg_confusion_signal`:** no new
+  `cryptographic_trust_violation` category. Literal mixed algorithm families
+  remain `high_confidence_misconfiguration`; key-family ambiguity remains
+  `dynamic_review_required`.
+- **P2.4 JWT header-trust checks:** no new `cryptographic_trust_violation`
+  category. Header-driven `jku`, `x5u`, and embedded-JWK trust remains
+  `dynamic_review_required` because source evidence cannot prove live URL,
+  certificate, JWKS, or provider allow-list behavior.
+- **P3.1 OAuth artifact type:** keep the dedicated `oauth_auth_code_flow`
+  artifact type. Reusing a token artifact would blur flow-construction evidence
+  with issued-token lifecycle evidence.
+
+Category mapping for new v0.2 checks:
+
+| Check ID | Category mapping |
+| --- | --- |
+| `cookie_host_prefix_path_violation` | `high_confidence_misconfiguration` for literal violations; `dynamic_review_required` for dynamic Path evidence |
+| `cookie_host_prefix_domain_violation` | `high_confidence_misconfiguration` for literal Domain evidence; `dynamic_review_required` for dynamic Domain evidence |
+| `cookie_host_prefix_secure_violation` | `high_confidence_misconfiguration` for missing/false literal Secure; `dynamic_review_required` for dynamic/default Secure evidence |
+| `cookie_secure_prefix_secure_violation` | `high_confidence_misconfiguration` for missing/false literal Secure; `dynamic_review_required` for dynamic/default Secure evidence |
+| `cookie_samesite_none_without_secure` | `high_confidence_misconfiguration` |
+| `cookie_samesite_none_dynamic_secure` | `dynamic_review_required` |
+| `cookie_samesite_none_default_secure` | `framework_default_assumed` |
+| `cookie_samesite_none_cross_site_review` | `dynamic_review_required` |
+| `cookie_partitioned_review` | `dynamic_review_required` |
+| `cookie_domain_leak_review` | `dynamic_review_required` |
+| `cookie_conflicting_writes_review` | `dynamic_review_required` |
+| `jwt_alg_none_accepted` | `high_confidence_misconfiguration` for literal `none`; `framework_default_assumed` for default-sensitive library behavior |
+| `jwt_alg_confusion_signal` | `high_confidence_misconfiguration` for deterministic mixed algorithm families; `dynamic_review_required` for key-family ambiguity |
+| `jwt_jku_header_trust` | `dynamic_review_required` |
+| `jwt_x5u_header_trust` | `dynamic_review_required` |
+| `jwt_embedded_jwk_trust` | `dynamic_review_required` |
+| `jwt_nbf_missing` | `missing_validation_evidence` |
+| `jwt_clock_skew_review` | `dynamic_review_required` |
+| `jwt_kid_unvalidated_review` | `missing_validation_evidence` |
+| `oauth_pkce_missing_review` | `dynamic_review_required` |
+| `oauth_state_missing` | `missing_validation_evidence` |
+| `oauth_state_static_review` | `dynamic_review_required` |
+| `oauth_state_unverified_review` | `missing_validation_evidence` |
+| `oidc_nonce_missing` | `missing_validation_evidence` |
+| `oidc_nonce_unverified_review` | `missing_validation_evidence` |
+| `oauth_redirect_uri_wildcard_review` | `dynamic_review_required` |
+| `token_in_local_storage` | `high_confidence_misconfiguration` |
+| `token_in_session_storage` | `high_confidence_misconfiguration` |
+| `token_in_url_path_or_fragment` | `high_confidence_misconfiguration` |
+| `client_secret_in_browser_code` | `dynamic_review_required` |
+| `jwt_denylist_absent_on_logout_review` | `lifecycle_gap` |
+| `refresh_family_revocation_absent_on_logout_review` | `lifecycle_gap` |
+| `sliding_expiry_without_rotation_review` | `lifecycle_gap` |
+| `password_change_global_revocation_absent_review` | `lifecycle_gap` |
+
+Rules:
+
+- Prefer existing category semantics over adding near-duplicate category names.
+- Keep cryptographic trust evidence in the category that describes the static
+  certainty: deterministic unsafe configuration, missing validation evidence, or
+  dynamic review.
+- Keep SARIF stable by mapping findings through the existing category rule IDs.
+- Revisit a dedicated cryptographic-trust category only if future checks cannot
+  be accurately expressed as deterministic misconfiguration, missing validation,
+  lifecycle gap, dynamic review, or framework default evidence.
