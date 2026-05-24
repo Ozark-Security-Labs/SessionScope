@@ -206,6 +206,48 @@ fn explain_known_finding_from_json_report() {
 }
 
 #[test]
+fn explain_sanitizes_deserialized_report_before_rendering() {
+    let temp = tempfile::tempdir().expect("tempdir should be created");
+    let report_path = temp.path().join("scan.json");
+    let mut finding = finding_json(
+        "finding_existing",
+        "Leaked api_key = PLACEHOLDER_SECRET_DO_NOT_USE",
+        "Description mentions Authorization: Bearer aaa.bbb.cccccccccccccccccccccc",
+        "evidence_existing",
+        7,
+    );
+    let finding_object = finding.as_object_mut().expect("finding should be object");
+    finding_object.insert(
+        "suggested_fix".to_string(),
+        serde_json::Value::String(
+            "Rotate client_secret = PLACEHOLDER_SECRET_DO_NOT_USE".to_string(),
+        ),
+    );
+    finding_object.insert(
+        "reviewer_question".to_string(),
+        serde_json::Value::String("Was token=PLACEHOLDER_SECRET_DO_NOT_USE revoked?".to_string()),
+    );
+    let mut report = scan_report_json(&[finding]);
+    report["evidence"][0]["excerpt"] = serde_json::Value::String(
+        "const accessToken = 'PLACEHOLDER_SECRET_DO_NOT_USE';".to_string(),
+    );
+    fs::write(&report_path, report.to_string()).expect("scan report should be written");
+
+    let output = run_sessionscope(&[
+        "explain",
+        "finding_existing",
+        "--report",
+        report_path.to_str().expect("report path should be UTF-8"),
+    ]);
+
+    assert!(output.status.success());
+    let stdout = str::from_utf8(&output.stdout).expect("stdout should be UTF-8");
+    assert!(stdout.contains("REDACTED"));
+    assert!(!stdout.contains("PLACEHOLDER_SECRET_DO_NOT_USE"));
+    assert!(!stdout.contains("aaa.bbb.cccccccccccccccccccccc"));
+}
+
+#[test]
 fn explain_unknown_finding_does_not_echo_supplied_id() {
     let temp = tempfile::tempdir().expect("tempdir should be created");
     let report_path = temp.path().join("scan.json");

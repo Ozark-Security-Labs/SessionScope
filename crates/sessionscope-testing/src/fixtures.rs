@@ -1341,6 +1341,42 @@ mod tests {
     }
 
     #[test]
+    fn password_change_current_session_only_fixture_still_produces_review_gap() {
+        let root = fixture_root()
+            .join("django")
+            .join("password-change-current-session-only");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("password-change current-session-only fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Revoke
+                && evidence.detector_id == "password_change.handler"
+        }));
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Refresh
+                && evidence.detector_id == "session.regenerate"
+        }));
+        assert!(
+            !report
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "password_change.global_revoke"),
+            "{:?}",
+            report.evidence
+        );
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("Password-change handler")
+                && finding.reviewer_question.is_some()
+        }));
+    }
+
+    #[test]
     fn password_validation_utility_fixture_does_not_emit_password_change_review() {
         let root = fixture_root()
             .join("generic-python")

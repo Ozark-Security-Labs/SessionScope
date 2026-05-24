@@ -1158,7 +1158,6 @@ fn has_linked_password_change_global_revoke(
 
 fn is_password_change_global_revoke_evidence(evidence: &Evidence) -> bool {
     evidence.detector_id == "password_change.global_revoke"
-        || evidence.detector_id == "logout.session_destroy"
         || is_refresh_family_revoke_evidence(evidence)
 }
 
@@ -2990,6 +2989,58 @@ mod tests {
 
         assert!(
             !findings
+                .iter()
+                .any(|finding| finding.title.contains("Password-change handler")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn current_session_rotation_does_not_prevent_password_change_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_password_change",
+                ArtifactType::Unknown,
+                "password_change",
+                LifecycleEvidence {
+                    revoke: vec![
+                        EvidenceId("evidence_handler".to_string()),
+                        EvidenceId("evidence_session_destroy".to_string()),
+                    ],
+                    refresh: vec![EvidenceId("evidence_session_regenerate".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence_with_detector(
+                    "evidence_handler",
+                    LifecycleStage::Revoke,
+                    "password_change.handler",
+                    10,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_session_destroy",
+                    LifecycleStage::Revoke,
+                    "logout.session_destroy",
+                    12,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_session_regenerate",
+                    LifecycleStage::Refresh,
+                    "session.regenerate",
+                    13,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            findings
                 .iter()
                 .any(|finding| finding.title.contains("Password-change handler")),
             "{findings:?}"

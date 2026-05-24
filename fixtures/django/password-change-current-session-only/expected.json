@@ -1,0 +1,9 @@
+{
+  "fixture_id": "django-password-change-current-session-only",
+  "framework": "django",
+  "source_files": ["views.py"],
+  "expected_artifacts": ["password_change", "session"],
+  "expected_lifecycle_stages": ["revoke", "refresh"],
+  "expected_findings": ["password_change_global_revocation_absent_review"],
+  "notes": "Password-change handlers that only rotate or destroy the current session still need review because global session invalidation, refresh-family revocation, or token-version bump evidence is absent."
+}
