@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: sessionscope
-        uses: Ozark-Security-Labs/SessionScope@v0.1.0
+        uses: Ozark-Security-Labs/SessionScope@v0.2.0
         with:
           mode: advisory
           path: .
@@ -200,13 +200,13 @@ Config precedence is:
 
 ## Project status
 
-- **Release target:** v0.1.0 first packaged release through GitHub Releases. Release packaging, versioning, and installation workflow are tracked in #28.
+- **Release target:** v0.2.0 packaged release through GitHub Releases.
 - **Complete:** v0.1 foundation plus the v0.2 depth-first edge-case hardening round for cookie rules, JWT crypto-trust, OAuth/OIDC flow integrity, client storage hygiene, lifecycle gaps, false-positive fixtures, JSON snapshots, and CLI exit-code tests.
 - **Deferred:** v0.3+ breadth expansion for new languages and frameworks; see [docs/ROADMAP.md](docs/ROADMAP.md).
 - **Schema:** JSON contract v0.5.0.
 - **Rust:** edition 2024. MSRV is 1.95.
 - **Platforms:** Linux, macOS, and Windows are covered by CI where workflow support exists.
-- **Versioning:** workspace `Cargo.toml` is `0.1.0`; release tags use `vMAJOR.MINOR.PATCH`.
+- **Versioning:** workspace `Cargo.toml` is `0.2.0`; release tags use `vMAJOR.MINOR.PATCH`.
 
 Phase plan and upcoming work are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
 
