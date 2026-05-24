@@ -436,7 +436,10 @@ mod tests {
                 "nonceabcdefghijklmnopqrstuvwxyzABCDEF0123456789",
                 "verifierabcdefghijklmnopqrstuvwxyzABCDEF0123456789",
             ] {
-                assert!(!output.contains(secret), "{format:?} leaked a sensitive value");
+                assert!(
+                    !output.contains(secret),
+                    "{format:?} leaked a sensitive value"
+                );
             }
         }
     }
