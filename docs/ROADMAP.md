@@ -74,3 +74,33 @@ cookies, claims, logout, and refresh while keeping findings evidence-bound.
 - Framework and provider coverage: #18 and #27 feed all four capability areas, with umbrella capability documentation completed in #40.
 - Focused command aliases: #39 exposes capability-oriented entry points while preserving the shared scan/config/reporting pipeline.
 - Stable CLI release: #28 tracks release packaging, versioning, installation workflow, and final readiness; #41 tracks this folded capability model without creating duplicate v1.1-v1.4 milestone tracks.
+
+## v0.2 edge-case hardening status
+
+The v0.2 depth-first edge-case hardening round is complete across all four
+phases:
+
+- **P1 cookie prefix/attribute rules:** `__Host-` / `__Secure-`,
+  `SameSite=None` + Secure, Partitioned cookie review, broad non-session
+  Domain review, and conflicting same-handler cookie writes.
+- **P2 JWT crypto-trust:** `alg:none`, algorithm-confusion signals,
+  `jku`/`x5u`/embedded-JWK header-trust review, missing `nbf`, broad
+  clock-skew review, and unvalidated `kid` review.
+- **P3 OAuth/OIDC and client storage:** PKCE, `state`, OIDC `nonce`, wildcard
+  redirect URI review, browser storage token findings, URL path/fragment token
+  findings, browser-path client secret review, and OAuth redaction expansion.
+- **P4 lifecycle and test hygiene:** JWT denylist-on-logout review,
+  refresh-family revocation-on-logout review, sliding-expiry-without-rotation
+  review, password-change global revocation review, clean-baseline
+  false-positive fixtures, JSON report snapshots, CLI exit-code matrix tests,
+  and the consolidated category audit.
+
+The consolidated category decision keeps the existing five finding categories
+and does not require a schema or SARIF rule bump.
+
+## Deferred to v0.3+
+
+New language and framework breadth is intentionally deferred. The next breadth
+round may consider Flask, Tornado, Sanic, Starlette, NestJS, Koa, Fastify, Hapi,
+Remix, Hono, SvelteKit, Go, Ruby/Rails, Java/Spring, .NET, PHP, python-jose,
+authlib JWT validation paths, and deeper runtime/provider policy integration.

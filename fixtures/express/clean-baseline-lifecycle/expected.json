@@ -1,0 +1,11 @@
+{
+  "fixture_id": "express.clean-baseline-lifecycle",
+  "framework": "express",
+  "source_files": [
+    "app.ts"
+  ],
+  "expected_artifacts": [],
+  "expected_lifecycle_stages": [],
+  "expected_findings": [],
+  "notes": "Clean Express baseline with no token/session lifecycle findings."
+}

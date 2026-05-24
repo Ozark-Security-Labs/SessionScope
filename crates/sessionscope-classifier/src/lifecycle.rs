@@ -25,6 +25,7 @@ pub fn link(report: &ScanReport) -> Vec<LifecyclePath> {
 
 pub fn classify(report: &ScanReport) -> Vec<Finding> {
     let mut findings = Vec::new();
+    let evidence_by_id = evidence_by_id(report);
 
     for path in &report.lifecycle_paths {
         let Some(artifact) = artifact_for_path(report, path) else {
@@ -32,7 +33,6 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
         };
 
         findings.extend(classify_issue_without_validate(artifact, path));
-        let evidence_by_id = evidence_by_id(report);
         findings.extend(classify_refresh_without_revoke(
             artifact,
             path,
@@ -48,6 +48,30 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
         findings.extend(classify_cookie_clear_attribute_mismatch(
             artifact,
             path,
+            &evidence_by_id,
+        ));
+        findings.extend(classify_jwt_denylist_absent_on_logout(
+            artifact,
+            path,
+            report,
+            &evidence_by_id,
+        ));
+        findings.extend(classify_refresh_family_revocation_absent_on_logout(
+            artifact,
+            path,
+            report,
+            &evidence_by_id,
+        ));
+        findings.extend(classify_sliding_expiry_without_rotation(
+            artifact,
+            path,
+            report,
+            &evidence_by_id,
+        ));
+        findings.extend(classify_password_change_global_revocation_absent(
+            artifact,
+            path,
+            report,
             &evidence_by_id,
         ));
     }
@@ -592,6 +616,188 @@ fn classify_cookie_clear_attribute_mismatch(
     ))
 }
 
+fn classify_jwt_denylist_absent_on_logout(
+    artifact: &Artifact,
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Option<Finding> {
+    if artifact.artifact_type != ArtifactType::AccessJwt
+        || !(has_stage(path, LifecycleStage::Issue) || has_stage(path, LifecycleStage::Validate))
+    {
+        return None;
+    }
+
+    let logout_ids = linked_logout_handler_ids(path, report, evidence_by_id);
+    if logout_ids.is_empty() || has_linked_jwt_denylist_or_revoke(path, report, evidence_by_id) {
+        return None;
+    }
+
+    let mut evidence_ids = logout_ids;
+    evidence_ids.extend(evidence_ids_for_stage(path, LifecycleStage::Issue));
+    if evidence_ids.len() == 1 {
+        evidence_ids.extend(evidence_ids_for_stage(path, LifecycleStage::Validate));
+    }
+    evidence_ids.sort();
+    evidence_ids.dedup();
+
+    let name = artifact.display_name.as_deref().unwrap_or("access_jwt");
+    Some(finding(
+        artifact,
+        path,
+        FindingSpec {
+            rule_id: "jwt_denylist_absent_on_logout_review",
+            category: FindingCategory::LifecycleGap,
+            severity: Severity::Medium,
+            evidence_ids,
+            title: format!("JWT `{name}` has logout evidence without linked denylist evidence"),
+            description: "A logout handler and access-JWT lifecycle evidence were detected in linked source context, but no source-bound denylist, blocklist, or token revocation-store insertion evidence was linked for the same logout flow."
+                .to_string(),
+            suggested_fix:
+                "Insert the JWT identifier into a denylist/blocklist or revoke-store on logout, or document the intentional short-TTL stateless model for reviewer confirmation."
+                    .to_string(),
+            reviewer_question: format!(
+                "Where does logout revoke or denylist outstanding `{name}` tokens?"
+            ),
+        },
+    ))
+}
+
+fn classify_refresh_family_revocation_absent_on_logout(
+    artifact: &Artifact,
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Option<Finding> {
+    if !is_refresh_artifact(artifact)
+        || !(has_stage(path, LifecycleStage::Issue)
+            || has_stage(path, LifecycleStage::Store)
+            || has_stage(path, LifecycleStage::Refresh)
+            || has_stage(path, LifecycleStage::Validate))
+    {
+        return None;
+    }
+
+    let logout_ids = linked_logout_handler_ids(path, report, evidence_by_id);
+    if logout_ids.is_empty() || has_linked_refresh_family_revoke(path, report, evidence_by_id) {
+        return None;
+    }
+
+    let mut evidence_ids = logout_ids;
+    evidence_ids.extend(evidence_ids_for_stage(path, LifecycleStage::Refresh));
+    if evidence_ids.len() == 1 {
+        evidence_ids.extend(evidence_ids_for_stage(path, LifecycleStage::Store));
+    }
+    if evidence_ids.len() == 1 {
+        evidence_ids.extend(evidence_ids_for_stage(path, LifecycleStage::Issue));
+    }
+    evidence_ids.sort();
+    evidence_ids.dedup();
+
+    let name = artifact.display_name.as_deref().unwrap_or("refresh_token");
+    Some(finding(
+        artifact,
+        path,
+        FindingSpec {
+            rule_id: "refresh_family_revocation_absent_on_logout_review",
+            category: FindingCategory::LifecycleGap,
+            severity: Severity::Medium,
+            evidence_ids,
+            title: format!(
+                "Refresh token `{name}` has logout evidence without family revocation"
+            ),
+            description: "Logout and refresh-token lifecycle evidence were detected in linked source context, but no source-bound user-scoped or refresh-family revocation evidence was linked for the logout flow."
+                .to_string(),
+            suggested_fix:
+                "Revoke the user's refresh-token family, delete user-scoped refresh-token records, or remove the refresh-family cache key during logout."
+                    .to_string(),
+            reviewer_question: format!(
+                "Where does logout revoke every refresh token in the `{name}` family or for the current user?"
+            ),
+        },
+    ))
+}
+
+fn classify_sliding_expiry_without_rotation(
+    artifact: &Artifact,
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Option<Finding> {
+    if !matches!(
+        artifact.artifact_type,
+        ArtifactType::SessionCookie
+            | ArtifactType::SignedCookie
+            | ArtifactType::SessionRecord
+            | ArtifactType::RefreshJwt
+            | ArtifactType::Unknown
+    ) || !has_sliding_expiry_evidence(path, evidence_by_id)
+        || has_linked_rotation_evidence(path, report, evidence_by_id)
+    {
+        return None;
+    }
+
+    let evidence_ids = sliding_expiry_ids(path, evidence_by_id);
+    let name = artifact.display_name.as_deref().unwrap_or("session");
+    Some(finding(
+        artifact,
+        path,
+        FindingSpec {
+            rule_id: "sliding_expiry_without_rotation_review",
+            category: FindingCategory::LifecycleGap,
+            severity: Severity::Low,
+            evidence_ids,
+            title: format!("Session `{name}` uses sliding expiry without linked rotation"),
+            description: "Sliding or rolling TTL/Max-Age evidence was detected, but no linked session regeneration, session-key cycling, refresh-token rotation, or reissue evidence was found for the same lifecycle path."
+                .to_string(),
+            suggested_fix:
+                "Pair sliding expiry with session or refresh-token rotation, or document the framework-managed rotation behavior for reviewer confirmation."
+                    .to_string(),
+            reviewer_question: format!(
+                "Where is `{name}` rotated when its idle/sliding expiry is extended?"
+            ),
+        },
+    ))
+}
+
+fn classify_password_change_global_revocation_absent(
+    artifact: &Artifact,
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Option<Finding> {
+    let handler_ids = password_change_handler_ids(path, evidence_by_id);
+    if handler_ids.is_empty()
+        || has_linked_password_change_global_revoke(path, report, evidence_by_id)
+    {
+        return None;
+    }
+
+    let mut evidence_ids = handler_ids;
+    evidence_ids.sort();
+    evidence_ids.dedup();
+
+    Some(finding(
+        artifact,
+        path,
+        FindingSpec {
+            rule_id: "password_change_global_revocation_absent_review",
+            category: FindingCategory::LifecycleGap,
+            severity: Severity::Medium,
+            evidence_ids,
+            title: "Password-change handler lacks linked global session revocation".to_string(),
+            description: "A password-change handler was detected, but no linked global session invalidation, refresh-family revocation, or token-version bump evidence was found in the same source scope."
+                .to_string(),
+            suggested_fix:
+                "After password changes, revoke all active sessions/refresh-token families or bump a token/session version checked during authentication."
+                    .to_string(),
+            reviewer_question:
+                "Where are existing sessions and refresh-token families invalidated after this password change?"
+                    .to_string(),
+        },
+    ))
+}
+
 fn attribute_missing_or_mismatched(
     observation: &sessionscope_model::CookieAttributeObservation,
     attribute: &str,
@@ -776,6 +982,268 @@ fn has_dynamic_or_provider_refresh(
                     evidence.dynamic || evidence.detector_id == "refresh.provider"
                 })
         })
+}
+
+fn linked_logout_handler_ids(
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Vec<EvidenceId> {
+    let direct_ids = evidence_ids_for_stage(path, LifecycleStage::Revoke)
+        .into_iter()
+        .filter(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| evidence.detector_id == "logout.handler")
+        })
+        .collect::<Vec<_>>();
+    if !direct_ids.is_empty() {
+        return direct_ids;
+    }
+
+    report
+        .evidence
+        .iter()
+        .filter(|evidence| evidence.detector_id == "logout.handler")
+        .filter(|evidence| evidence_linked_to_path_context(evidence, path, evidence_by_id))
+        .map(|evidence| evidence.id.clone())
+        .collect()
+}
+
+fn has_linked_jwt_denylist_or_revoke(
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    evidence_ids_for_stage(path, LifecycleStage::Revoke)
+        .iter()
+        .any(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| is_jwt_denylist_or_revoke_evidence(evidence))
+        })
+        || report.evidence.iter().any(|evidence| {
+            is_jwt_denylist_or_revoke_evidence(evidence)
+                && evidence_linked_to_path_context(evidence, path, evidence_by_id)
+        })
+}
+
+fn has_linked_refresh_family_revoke(
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    evidence_ids_for_stage(path, LifecycleStage::Revoke)
+        .iter()
+        .any(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| is_refresh_family_revoke_evidence(evidence))
+        })
+        || report.evidence.iter().any(|evidence| {
+            is_refresh_family_revoke_evidence(evidence)
+                && evidence_linked_to_path_context(evidence, path, evidence_by_id)
+        })
+}
+
+fn is_refresh_family_revoke_evidence(evidence: &Evidence) -> bool {
+    (evidence.detector_id == "refresh.reuse_detection"
+        && evidence.lifecycle_stage == LifecycleStage::Revoke)
+        || (matches!(
+            evidence.detector_id.as_str(),
+            "refresh.revoke" | "refresh.rotate" | "logout.token_revoke" | "logout.provider_revoke"
+        ) && evidence
+            .excerpt
+            .as_ref()
+            .is_some_and(|excerpt| contains_refresh_family_revoke_text(excerpt.as_str())))
+}
+
+fn has_sliding_expiry_evidence(
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    !sliding_expiry_ids(path, evidence_by_id).is_empty()
+}
+
+fn sliding_expiry_ids(
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Vec<EvidenceId> {
+    fallback_path_ids(path)
+        .into_iter()
+        .filter(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| is_sliding_expiry_evidence(evidence))
+        })
+        .collect()
+}
+
+fn is_sliding_expiry_evidence(evidence: &Evidence) -> bool {
+    matches!(
+        evidence.detector_id.as_str(),
+        "session.middleware" | "refresh.expire" | "refresh.store"
+    ) && evidence
+        .excerpt
+        .as_ref()
+        .is_some_and(|excerpt| contains_sliding_expiry_text(excerpt.as_str()))
+}
+
+fn contains_sliding_expiry_text(value: &str) -> bool {
+    let normalized = value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+        .collect::<String>()
+        .to_ascii_lowercase();
+    (normalized.contains("rolling")
+        || normalized.contains("sliding")
+        || normalized.contains("idle")
+        || normalized.contains("touch")
+        || normalized.contains("refreshsessionttl")
+        || normalized.contains("extend_session")
+        || normalized.contains("extendsession"))
+        && (normalized.contains("maxage")
+            || normalized.contains("ttl")
+            || normalized.contains("expires")
+            || normalized.contains("expiresat")
+            || normalized.contains("expire"))
+}
+
+fn has_linked_rotation_evidence(
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    evidence_ids_for_stage(path, LifecycleStage::Refresh)
+        .iter()
+        .any(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| is_rotation_evidence(evidence))
+        })
+        || report.evidence.iter().any(|evidence| {
+            is_rotation_evidence(evidence)
+                && evidence_linked_to_path_context(evidence, path, evidence_by_id)
+        })
+}
+
+fn password_change_handler_ids(
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Vec<EvidenceId> {
+    fallback_path_ids(path)
+        .into_iter()
+        .filter(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| evidence.detector_id == "password_change.handler")
+        })
+        .collect()
+}
+
+fn has_linked_password_change_global_revoke(
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    fallback_path_ids(path).iter().any(|evidence_id| {
+        evidence_by_id
+            .get(evidence_id.0.as_str())
+            .is_some_and(|evidence| is_password_change_global_revoke_evidence(evidence))
+    }) || report.evidence.iter().any(|evidence| {
+        is_password_change_global_revoke_evidence(evidence)
+            && evidence_linked_to_path_context(evidence, path, evidence_by_id)
+    })
+}
+
+fn is_password_change_global_revoke_evidence(evidence: &Evidence) -> bool {
+    evidence.detector_id == "password_change.global_revoke"
+        || is_refresh_family_revoke_evidence(evidence)
+}
+
+fn is_rotation_evidence(evidence: &Evidence) -> bool {
+    matches!(
+        evidence.detector_id.as_str(),
+        "session.regenerate"
+            | "session.reissue"
+            | "session.framework_default_regenerate"
+            | "refresh.rotate"
+    )
+}
+
+fn contains_refresh_family_revoke_text(value: &str) -> bool {
+    let normalized = value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+        .collect::<String>()
+        .to_ascii_lowercase();
+    normalized.contains("refresh")
+        && (normalized.contains("family")
+            || normalized.contains("userid")
+            || normalized.contains("user_id")
+            || normalized.contains("usersessions")
+            || normalized.contains("allsessions")
+            || normalized.contains("allrefresh")
+            || normalized.contains("tokenfamily")
+            || normalized.contains("token_family")
+            || normalized.contains("familyid")
+            || normalized.contains("family_id"))
+        && (normalized.contains("revoke")
+            || normalized.contains("delete")
+            || normalized.contains("del")
+            || normalized.contains("invalidate")
+            || normalized.contains("destroy")
+            || normalized.contains("blacklist")
+            || normalized.contains("denylist"))
+}
+
+fn is_jwt_denylist_or_revoke_evidence(evidence: &Evidence) -> bool {
+    evidence
+        .excerpt
+        .as_ref()
+        .is_some_and(|excerpt| contains_jwt_denylist_text(excerpt.as_str()))
+}
+
+fn contains_jwt_denylist_text(value: &str) -> bool {
+    let normalized = value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+        .collect::<String>()
+        .to_ascii_lowercase();
+    let has_revoke_action = normalized.contains("denylist")
+        || normalized.contains("blocklist")
+        || normalized.contains("blacklist")
+        || normalized.contains("revokedtokens")
+        || normalized.contains("revokedtoken")
+        || normalized.contains("revoketoken")
+        || normalized.contains("addtoblocklist")
+        || normalized.contains("revoke");
+    let has_access_token_context = normalized.contains("jwt")
+        || normalized.contains("jti")
+        || normalized.contains("access")
+        || (normalized.contains("token") && !normalized.contains("refresh"));
+
+    has_revoke_action && has_access_token_context
+}
+
+fn evidence_linked_to_path_context(
+    evidence: &Evidence,
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    path_evidence_locations(path, evidence_by_id)
+        .iter()
+        .any(|location| locations_are_linkable(&evidence.location, location))
+}
+
+fn locations_are_linkable(left: &SourceLocation, right: &SourceLocation) -> bool {
+    left.path == right.path
+        && left.line.is_some()
+        && right.line.is_some()
+        && left
+            .line
+            .zip(right.line)
+            .is_some_and(|(left, right)| left.abs_diff(right) <= REFRESH_LINK_MAX_LINE_DISTANCE)
 }
 
 fn client_cookie_clear_ids(
@@ -1193,8 +1661,8 @@ fn artifact_type_part(artifact_type: ArtifactType) -> &'static str {
 #[cfg(test)]
 mod tests {
     use sessionscope_model::{
-        ArtifactId, CookieAttributeObservation, LifecyclePathId, SCHEMA_VERSION, ScanSummary,
-        SourceLocation,
+        ArtifactId, CookieAttributeObservation, LifecyclePathId, SCHEMA_VERSION, SanitizedExcerpt,
+        ScanSummary, SourceLocation,
     };
 
     use super::*;
@@ -2166,6 +2634,465 @@ mod tests {
 
         assert_eq!(finding.category, FindingCategory::DynamicReviewRequired);
         assert!(finding.title.contains("dynamic refresh behavior"));
+    }
+
+    #[test]
+    fn jwt_logout_without_denylist_is_lifecycle_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_access",
+                ArtifactType::AccessJwt,
+                "access_token",
+                LifecycleEvidence {
+                    issue: vec![EvidenceId("evidence_issue".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence("evidence_issue", LifecycleStage::Issue, 10, false),
+                evidence_with_detector(
+                    "evidence_logout",
+                    LifecycleStage::Revoke,
+                    "logout.handler",
+                    20,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("without linked denylist"))
+            .expect("JWT logout denylist review finding");
+
+        assert_eq!(finding.category, FindingCategory::LifecycleGap);
+        assert_eq!(finding.severity, Severity::Medium);
+        assert!(finding.reviewer_question.is_some());
+        assert!(
+            finding
+                .evidence_ids
+                .contains(&EvidenceId("evidence_issue".to_string()))
+        );
+        assert!(
+            finding
+                .evidence_ids
+                .contains(&EvidenceId("evidence_logout".to_string()))
+        );
+    }
+
+    #[test]
+    fn linked_jwt_revoke_prevents_logout_denylist_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_access",
+                ArtifactType::AccessJwt,
+                "access_token",
+                LifecycleEvidence {
+                    issue: vec![EvidenceId("evidence_issue".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence("evidence_issue", LifecycleStage::Issue, 10, false),
+                evidence_with_detector(
+                    "evidence_logout",
+                    LifecycleStage::Revoke,
+                    "logout.handler",
+                    20,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_revoke",
+                    LifecycleStage::Revoke,
+                    "logout.token_revoke",
+                    21,
+                    false,
+                ),
+            ],
+        );
+        report.evidence[2].excerpt = Some(SanitizedExcerpt::from_sanitized(
+            "revokeAccessToken(accessToken)".to_string(),
+        ));
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            !findings
+                .iter()
+                .any(|finding| finding.title.contains("without linked denylist")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn refresh_revoke_does_not_prevent_jwt_logout_denylist_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_access",
+                ArtifactType::AccessJwt,
+                "access_token",
+                LifecycleEvidence {
+                    issue: vec![EvidenceId("evidence_issue".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence("evidence_issue", LifecycleStage::Issue, 10, false),
+                evidence_with_detector(
+                    "evidence_logout",
+                    LifecycleStage::Revoke,
+                    "logout.handler",
+                    20,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_refresh_revoke",
+                    LifecycleStage::Revoke,
+                    "logout.token_revoke",
+                    21,
+                    false,
+                ),
+            ],
+        );
+        report.evidence[2].excerpt = Some(SanitizedExcerpt::from_sanitized(
+            "revokeRefreshToken(refreshToken)".to_string(),
+        ));
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.title.contains("without linked denylist")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn refresh_logout_without_family_revoke_is_lifecycle_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_refresh",
+                ArtifactType::RefreshJwt,
+                "refresh_token",
+                LifecycleEvidence {
+                    refresh: vec![EvidenceId("evidence_refresh".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence_with_detector(
+                    "evidence_refresh",
+                    LifecycleStage::Refresh,
+                    "refresh.handler",
+                    10,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_logout",
+                    LifecycleStage::Revoke,
+                    "logout.handler",
+                    20,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("without family revocation"))
+            .expect("refresh family revocation review finding");
+
+        assert_eq!(finding.category, FindingCategory::LifecycleGap);
+        assert_eq!(finding.severity, Severity::Medium);
+        assert!(finding.reviewer_question.is_some());
+    }
+
+    #[test]
+    fn linked_refresh_family_revoke_prevents_logout_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_refresh",
+                ArtifactType::RefreshJwt,
+                "refresh_token",
+                LifecycleEvidence {
+                    refresh: vec![EvidenceId("evidence_refresh".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence_with_detector(
+                    "evidence_refresh",
+                    LifecycleStage::Refresh,
+                    "refresh.handler",
+                    10,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_logout",
+                    LifecycleStage::Revoke,
+                    "logout.handler",
+                    20,
+                    false,
+                ),
+                evidence_with_excerpt(
+                    "evidence_family_revoke",
+                    LifecycleStage::Revoke,
+                    "refresh.revoke",
+                    21,
+                    "revokeRefreshFamily(user.id)",
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            !findings
+                .iter()
+                .any(|finding| finding.title.contains("without family revocation")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn sliding_expiry_without_rotation_is_lifecycle_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_session",
+                ArtifactType::SessionRecord,
+                "session",
+                LifecycleEvidence {
+                    store: vec![EvidenceId("evidence_sliding".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![evidence_with_excerpt(
+                "evidence_sliding",
+                LifecycleStage::Store,
+                "session.middleware",
+                10,
+                "session({ rolling: true, cookie: { maxAge: 900000 } })",
+            )],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("sliding expiry"))
+            .expect("sliding expiry review finding");
+
+        assert_eq!(finding.category, FindingCategory::LifecycleGap);
+        assert_eq!(finding.severity, Severity::Low);
+        assert!(finding.reviewer_question.is_some());
+    }
+
+    #[test]
+    fn linked_session_rotation_prevents_sliding_expiry_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_session",
+                ArtifactType::SessionRecord,
+                "session",
+                LifecycleEvidence {
+                    store: vec![EvidenceId("evidence_sliding".to_string())],
+                    refresh: vec![EvidenceId("evidence_rotate".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence_with_excerpt(
+                    "evidence_sliding",
+                    LifecycleStage::Store,
+                    "session.middleware",
+                    10,
+                    "session({ rolling: true, cookie: { maxAge: 900000 } })",
+                ),
+                evidence_with_detector(
+                    "evidence_rotate",
+                    LifecycleStage::Refresh,
+                    "session.regenerate",
+                    20,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            !findings
+                .iter()
+                .any(|finding| finding.title.contains("sliding expiry")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn fixed_expiry_session_does_not_trigger_sliding_review() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_session",
+                ArtifactType::SessionRecord,
+                "session",
+                LifecycleEvidence {
+                    store: vec![EvidenceId("evidence_store".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![evidence_with_excerpt(
+                "evidence_store",
+                LifecycleStage::Store,
+                "session.middleware",
+                10,
+                "session({ cookie: { maxAge: 900000 } })",
+            )],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            !findings
+                .iter()
+                .any(|finding| finding.title.contains("sliding expiry")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn password_change_without_global_revoke_is_lifecycle_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_password_change",
+                ArtifactType::Unknown,
+                "password_change",
+                LifecycleEvidence {
+                    revoke: vec![EvidenceId("evidence_handler".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![evidence_with_detector(
+                "evidence_handler",
+                LifecycleStage::Revoke,
+                "password_change.handler",
+                10,
+                false,
+            )],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("Password-change handler"))
+            .expect("password-change global revocation review finding");
+
+        assert_eq!(finding.category, FindingCategory::LifecycleGap);
+        assert_eq!(finding.severity, Severity::Medium);
+        assert!(finding.reviewer_question.is_some());
+    }
+
+    #[test]
+    fn linked_global_revoke_prevents_password_change_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_password_change",
+                ArtifactType::Unknown,
+                "password_change",
+                LifecycleEvidence {
+                    revoke: vec![EvidenceId("evidence_handler".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence_with_detector(
+                    "evidence_handler",
+                    LifecycleStage::Revoke,
+                    "password_change.handler",
+                    10,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_global_revoke",
+                    LifecycleStage::Revoke,
+                    "password_change.global_revoke",
+                    12,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            !findings
+                .iter()
+                .any(|finding| finding.title.contains("Password-change handler")),
+            "{findings:?}"
+        );
+    }
+
+    #[test]
+    fn current_session_rotation_does_not_prevent_password_change_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_password_change",
+                ArtifactType::Unknown,
+                "password_change",
+                LifecycleEvidence {
+                    revoke: vec![
+                        EvidenceId("evidence_handler".to_string()),
+                        EvidenceId("evidence_session_destroy".to_string()),
+                    ],
+                    refresh: vec![EvidenceId("evidence_session_regenerate".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence_with_detector(
+                    "evidence_handler",
+                    LifecycleStage::Revoke,
+                    "password_change.handler",
+                    10,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_session_destroy",
+                    LifecycleStage::Revoke,
+                    "logout.session_destroy",
+                    12,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_session_regenerate",
+                    LifecycleStage::Refresh,
+                    "session.regenerate",
+                    13,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.title.contains("Password-change handler")),
+            "{findings:?}"
+        );
     }
 
     #[test]

@@ -1,0 +1,2903 @@
+{
+  "schema_version": "0.5.0",
+  "summary": {
+    "files_discovered": 2,
+    "files_scanned": 2,
+    "files_skipped": 0,
+    "diagnostics": [],
+    "worker_panic_count": 0
+  },
+  "files": [
+    {
+      "path": "expected.json",
+      "language": "json",
+      "artifacts": [],
+      "evidence": [],
+      "diagnostics": [],
+      "skipped_reason": null
+    },
+    {
+      "path": "route.ts",
+      "language": "type_script",
+      "artifacts": [
+        {
+          "id": "artifact_c561c5272914ef33",
+          "artifact_type": "access_jwt",
+          "display_name": "access_jwt",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 9,
+              "column": 27
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [
+              "evidence_1ae3c2d8c685d023",
+              "evidence_4f85e5391e615c12",
+              "evidence_84d8e843a7543cf6",
+              "evidence_a5a7973d4a01f4ee",
+              "evidence_cb0dbdb2c29a56f3",
+              "evidence_f8838d112e6014ed"
+            ],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_6466ba2341dbc9e0"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "jose"
+          ],
+          "jwt_attributes": {
+            "operation": {
+              "state": "present",
+              "value": "issue",
+              "evidence_ids": [
+                "evidence_f8838d112e6014ed"
+              ],
+              "confidence": "high"
+            },
+            "algorithm": {
+              "state": "present",
+              "value": "[literal]",
+              "evidence_ids": [
+                "evidence_84d8e843a7543cf6"
+              ],
+              "confidence": "high"
+            },
+            "key_reference": {
+              "state": "present",
+              "value": "secret",
+              "evidence_ids": [
+                "evidence_4f85e5391e615c12"
+              ],
+              "confidence": "high"
+            },
+            "issuer": {
+              "state": "present",
+              "value": "issuer",
+              "evidence_ids": [
+                "evidence_a5a7973d4a01f4ee"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "present",
+              "value": "audience",
+              "evidence_ids": [
+                "evidence_cb0dbdb2c29a56f3"
+              ],
+              "confidence": "high"
+            },
+            "expiration": {
+              "state": "present",
+              "value": "[literal]",
+              "evidence_ids": [
+                "evidence_6466ba2341dbc9e0"
+              ],
+              "confidence": "high"
+            },
+            "signature_verification": {
+              "state": "unknown",
+              "evidence_ids": [],
+              "confidence": "low"
+            },
+            "expiry_enforcement": {
+              "state": "unknown",
+              "evidence_ids": [],
+              "confidence": "low"
+            },
+            "identity_claims": {
+              "subject": {
+                "state": "present",
+                "value": "[literal]",
+                "evidence_ids": [
+                  "evidence_1ae3c2d8c685d023"
+                ],
+                "confidence": "high"
+              },
+              "user_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "tenant_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "org_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "workspace_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "roles": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "scopes": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "groups": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "email": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "email_verified": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "auth_method": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "auth_class": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              }
+            }
+          },
+          "token_boundary_attributes": {
+            "issuer": {
+              "state": "present",
+              "value": "issuer",
+              "evidence_ids": [
+                "evidence_a5a7973d4a01f4ee"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "present",
+              "value": "audience",
+              "evidence_ids": [
+                "evidence_cb0dbdb2c29a56f3"
+              ],
+              "confidence": "high"
+            },
+            "trust_boundary": {
+              "state": "present",
+              "value": "audience",
+              "evidence_ids": [
+                "evidence_cb0dbdb2c29a56f3"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_2b583bc212a31cbe",
+          "artifact_type": "unknown",
+          "display_name": "access",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 16,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_2b583bc212a31cbe",
+              "evidence_4ab137a7f2af45a3",
+              "evidence_b4b9c525de641b2f"
+            ],
+            "transmit": [
+              "evidence_3400b316c2e50e96",
+              "evidence_5a4a39e105614f12",
+              "evidence_84f5450bf03616bb",
+              "evidence_a3a5795ce43fb0cc"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_2423accf73d7423d",
+              "evidence_8c77344dc14fc373"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs"
+          ],
+          "cookie_attributes": {
+            "http_only": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_b4b9c525de641b2f"
+              ],
+              "confidence": "high"
+            },
+            "secure": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_5a4a39e105614f12"
+              ],
+              "confidence": "high"
+            },
+            "same_site": {
+              "state": "present",
+              "value": "lax",
+              "evidence_ids": [
+                "evidence_3400b316c2e50e96"
+              ],
+              "confidence": "high"
+            },
+            "max_age": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_2423accf73d7423d"
+              ],
+              "confidence": "high"
+            },
+            "expires": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_8c77344dc14fc373"
+              ],
+              "confidence": "high"
+            },
+            "path": {
+              "state": "framework_default",
+              "value": "/",
+              "evidence_ids": [
+                "evidence_a3a5795ce43fb0cc"
+              ],
+              "confidence": "low"
+            },
+            "domain": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_84f5450bf03616bb"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_ac9b16b63e4ddaff",
+          "artifact_type": "unknown_token",
+          "display_name": "unknown_token",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 26,
+              "column": 9
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [
+              "evidence_ed8bc77a05bef8d8"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "javascript"
+          ]
+        },
+        {
+          "id": "artifact_25ceae69a975e8d7",
+          "artifact_type": "opaque_bearer_token",
+          "display_name": "authorization_bearer",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 26,
+              "column": 17
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [
+              "evidence_1b8f65a6befb2a09"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "javascript"
+          ]
+        },
+        {
+          "id": "artifact_8fe7fee7047a739e",
+          "artifact_type": "unknown",
+          "display_name": null,
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 31,
+              "column": 9
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [
+              "evidence_07678534faf82472",
+              "evidence_2013faf58dccfe53",
+              "evidence_293c767a927400d0",
+              "evidence_9de57872b188a699",
+              "evidence_cd1e3db180eb769e",
+              "evidence_e72ec5fd2af8b8d8",
+              "evidence_e91b8a1a43174135",
+              "evidence_f542f7654997dc33"
+            ],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "jose"
+          ],
+          "jwt_attributes": {
+            "operation": {
+              "state": "present",
+              "value": "validate",
+              "evidence_ids": [
+                "evidence_f542f7654997dc33"
+              ],
+              "confidence": "high"
+            },
+            "algorithm": {
+              "state": "unknown",
+              "evidence_ids": [],
+              "confidence": "low"
+            },
+            "key_reference": {
+              "state": "present",
+              "value": "secret",
+              "evidence_ids": [
+                "evidence_e72ec5fd2af8b8d8"
+              ],
+              "confidence": "high"
+            },
+            "issuer": {
+              "state": "present",
+              "value": "issuer",
+              "evidence_ids": [
+                "evidence_293c767a927400d0"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "present",
+              "value": "audience",
+              "evidence_ids": [
+                "evidence_cd1e3db180eb769e"
+              ],
+              "confidence": "high"
+            },
+            "expiration": {
+              "state": "unknown",
+              "evidence_ids": [],
+              "confidence": "low"
+            },
+            "signature_verification": {
+              "state": "present",
+              "value": "verified",
+              "evidence_ids": [
+                "evidence_07678534faf82472"
+              ],
+              "confidence": "high"
+            },
+            "expiry_enforcement": {
+              "state": "framework_default",
+              "value": "jose.jwtVerify default",
+              "evidence_ids": [
+                "evidence_e91b8a1a43174135"
+              ],
+              "confidence": "low"
+            }
+          },
+          "token_boundary_attributes": {
+            "issuer": {
+              "state": "present",
+              "value": "issuer",
+              "evidence_ids": [
+                "evidence_293c767a927400d0"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "present",
+              "value": "audience",
+              "evidence_ids": [
+                "evidence_cd1e3db180eb769e"
+              ],
+              "confidence": "high"
+            },
+            "trust_boundary": {
+              "state": "present",
+              "value": "audience",
+              "evidence_ids": [
+                "evidence_cd1e3db180eb769e"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_ca5f4ce9912eb5a8",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 39,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_3b945e587d0c4aa3"
+            ],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "nextjs"
+          ]
+        },
+        {
+          "id": "artifact_dba70235c9632644",
+          "artifact_type": "unknown",
+          "display_name": "refresh",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 40,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_55c92f0ee774b087",
+              "evidence_994e0b098effac25",
+              "evidence_dba70235c9632644"
+            ],
+            "transmit": [
+              "evidence_21d525f460bad55a",
+              "evidence_3c94a8d36f45549f",
+              "evidence_6a38024f599f1b26",
+              "evidence_a2d82c226f347fe6"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_274c001f3d27af39",
+              "evidence_6ea79ef075fc6f97"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs"
+          ],
+          "cookie_attributes": {
+            "http_only": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_994e0b098effac25"
+              ],
+              "confidence": "high"
+            },
+            "secure": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_6a38024f599f1b26"
+              ],
+              "confidence": "high"
+            },
+            "same_site": {
+              "state": "present",
+              "value": "strict",
+              "evidence_ids": [
+                "evidence_a2d82c226f347fe6"
+              ],
+              "confidence": "high"
+            },
+            "max_age": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_274c001f3d27af39"
+              ],
+              "confidence": "high"
+            },
+            "expires": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_6ea79ef075fc6f97"
+              ],
+              "confidence": "high"
+            },
+            "path": {
+              "state": "framework_default",
+              "value": "/",
+              "evidence_ids": [
+                "evidence_21d525f460bad55a"
+              ],
+              "confidence": "low"
+            },
+            "domain": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_3c94a8d36f45549f"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_905c4aeebdc48a72",
+          "artifact_type": "unknown",
+          "display_name": "logout",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 48,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_49305a6c8f4a13e2"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "nextjs"
+          ]
+        },
+        {
+          "id": "artifact_aff5b3708155b98d",
+          "artifact_type": "unknown",
+          "display_name": "logout",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 48,
+              "column": 8
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_4117a704272b083d"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "javascript"
+          ]
+        },
+        {
+          "id": "artifact_51b218b779323fcd",
+          "artifact_type": "unknown",
+          "display_name": "access",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 49,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_de2617515f383fb9"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs"
+          ]
+        },
+        {
+          "id": "artifact_a82d1ab486d9dd80",
+          "artifact_type": "unknown",
+          "display_name": "refresh",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 50,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_272e8be9bb923e24"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence_84d8e843a7543cf6",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "route.ts",
+            "line": 9,
+            "column": 27
+          },
+          "detector_id": "jwt.attribute.algorithm",
+          "confidence": "high",
+          "excerpt": ".setProtectedHeader({ alg: \"HS256\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_cb0dbdb2c29a56f3",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "route.ts",
+            "line": 9,
+            "column": 27
+          },
+          "detector_id": "jwt.attribute.audience",
+          "confidence": "high",
+          "excerpt": ".setAudience(audience",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_a5a7973d4a01f4ee",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "route.ts",
+            "line": 9,
+            "column": 27
+          },
+          "detector_id": "jwt.attribute.issuer",
+          "confidence": "high",
+          "excerpt": ".setIssuer(issuer",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_4f85e5391e615c12",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "route.ts",
+            "line": 9,
+            "column": 27
+          },
+          "detector_id": "jwt.attribute.key_reference",
+          "confidence": "high",
+          "excerpt": "JWT key reference is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_1ae3c2d8c685d023",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "route.ts",
+            "line": 9,
+            "column": 27
+          },
+          "detector_id": "jwt.attribute.subject",
+          "confidence": "high",
+          "excerpt": "subject claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_f8838d112e6014ed",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "route.ts",
+            "line": 9,
+            "column": 27
+          },
+          "detector_id": "jwt.issue",
+          "confidence": "high",
+          "excerpt": "jose.SignJWT.sign issue call detected with token and key arguments redacted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_6466ba2341dbc9e0",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "route.ts",
+            "line": 9,
+            "column": 27
+          },
+          "detector_id": "jwt.attribute.expiration",
+          "confidence": "high",
+          "excerpt": ".setExpirationTime(\"15m\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_4ab137a7f2af45a3",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 16,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.name_prefix",
+          "confidence": "high",
+          "excerpt": "Cookie name prefix: none",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2b583bc212a31cbe",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 16,
+            "column": 3
+          },
+          "detector_id": "cookie.set",
+          "confidence": "high",
+          "excerpt": "\n  cookies().set(\"access\", [REDACTED], {\n    httpOnly: true,",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_84f5450bf03616bb",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 16,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.domain",
+          "confidence": "high",
+          "excerpt": "Domain is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_a3a5795ce43fb0cc",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 16,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.path",
+          "confidence": "low",
+          "excerpt": "Path defaults to / for nextjs",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_8c77344dc14fc373",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "route.ts",
+            "line": 16,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.expires",
+          "confidence": "high",
+          "excerpt": "Expires is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2423accf73d7423d",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "route.ts",
+            "line": 16,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.max_age",
+          "confidence": "high",
+          "excerpt": "Max-Age is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_b4b9c525de641b2f",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 17,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.http_only",
+          "confidence": "high",
+          "excerpt": "HttpOnly: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_5a4a39e105614f12",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 18,
+            "column": 13
+          },
+          "detector_id": "cookie.attribute.secure",
+          "confidence": "high",
+          "excerpt": "Secure: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_3400b316c2e50e96",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 19,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.same_site",
+          "confidence": "high",
+          "excerpt": "SameSite: \"lax\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_ed8bc77a05bef8d8",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 26,
+            "column": 9
+          },
+          "detector_id": "bearer.transmit",
+          "confidence": "high",
+          "excerpt": "token = request.headers.get(\"[REDACTED]\")?.replace(\"[REDACTED]\", \"[REDACTED]\")",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_1b8f65a6befb2a09",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 26,
+            "column": 17
+          },
+          "detector_id": "bearer.read.inbound",
+          "confidence": "high",
+          "excerpt": "request.headers.get(\"[REDACTED]\")?.replace(\"[REDACTED]\", \"[REDACTED]\")",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_e91b8a1a43174135",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "route.ts",
+            "line": 31,
+            "column": 9
+          },
+          "detector_id": "jwt.attribute.expiry_enforcement",
+          "confidence": "low",
+          "excerpt": "jose.jwtVerify enforces exp by library default",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_07678534faf82472",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "route.ts",
+            "line": 31,
+            "column": 9
+          },
+          "detector_id": "jwt.attribute.signature_verification",
+          "confidence": "high",
+          "excerpt": "jose.jwtVerify verifies JWT signatures",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_f542f7654997dc33",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "route.ts",
+            "line": 31,
+            "column": 9
+          },
+          "detector_id": "jwt.validate",
+          "confidence": "medium",
+          "excerpt": "jose.jwtVerify validate call detected with token and key arguments redacted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_e72ec5fd2af8b8d8",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "route.ts",
+            "line": 31,
+            "column": 26
+          },
+          "detector_id": "jwt.attribute.key_reference",
+          "confidence": "high",
+          "excerpt": "JWT key reference is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_293c767a927400d0",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "route.ts",
+            "line": 32,
+            "column": 5
+          },
+          "detector_id": "jwt.attribute.issuer",
+          "confidence": "high",
+          "excerpt": "issuer",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2013faf58dccfe53",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "route.ts",
+            "line": 32,
+            "column": 5
+          },
+          "detector_id": "jwt.option.issuer",
+          "confidence": "high",
+          "excerpt": "JWT issuer option is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_cd1e3db180eb769e",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "route.ts",
+            "line": 33,
+            "column": 5
+          },
+          "detector_id": "jwt.attribute.audience",
+          "confidence": "high",
+          "excerpt": "audience",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_9de57872b188a699",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "route.ts",
+            "line": 33,
+            "column": 5
+          },
+          "detector_id": "jwt.option.audience",
+          "confidence": "high",
+          "excerpt": "JWT audience option is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_3b945e587d0c4aa3",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "route.ts",
+            "line": 39,
+            "column": 1
+          },
+          "detector_id": "refresh.handler",
+          "confidence": "medium",
+          "excerpt": "export async function PATCH() {\n  cookies().set(\"[REDACTED]\", \"[REDACTED]\", {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n  return Response.json({ refreshed: true });\n}",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_55c92f0ee774b087",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 40,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.name_prefix",
+          "confidence": "high",
+          "excerpt": "Cookie name prefix: none",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_dba70235c9632644",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 40,
+            "column": 3
+          },
+          "detector_id": "cookie.set",
+          "confidence": "high",
+          "excerpt": "export async function PATCH() {\n  cookies().set(\"refresh\", [REDACTED], {\n    httpOnly: true,",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_3c94a8d36f45549f",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 40,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.domain",
+          "confidence": "high",
+          "excerpt": "Domain is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_21d525f460bad55a",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 40,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.path",
+          "confidence": "low",
+          "excerpt": "Path defaults to / for nextjs",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_6ea79ef075fc6f97",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "route.ts",
+            "line": 40,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.expires",
+          "confidence": "high",
+          "excerpt": "Expires is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_274c001f3d27af39",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "route.ts",
+            "line": 40,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.max_age",
+          "confidence": "high",
+          "excerpt": "Max-Age is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_994e0b098effac25",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 41,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.http_only",
+          "confidence": "high",
+          "excerpt": "HttpOnly: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_6a38024f599f1b26",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 42,
+            "column": 13
+          },
+          "detector_id": "cookie.attribute.secure",
+          "confidence": "high",
+          "excerpt": "Secure: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_a2d82c226f347fe6",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 43,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.same_site",
+          "confidence": "high",
+          "excerpt": "SameSite: \"strict\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_49305a6c8f4a13e2",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "route.ts",
+            "line": 48,
+            "column": 1
+          },
+          "detector_id": "logout.handler",
+          "confidence": "medium",
+          "excerpt": "export async function DELETE() {\n  cookies().delete(\"[REDACTED]\");\n  cookies().delete(\"[REDACTED]\");\n  return new Response(null, { status: 204 });\n}",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_4117a704272b083d",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "route.ts",
+            "line": 48,
+            "column": 8
+          },
+          "detector_id": "logout.handler",
+          "confidence": "medium",
+          "excerpt": "async function DELETE() {\n  cookies().delete(\"[REDACTED]\");\n  cookies().delete(\"[REDACTED]\");\n  return new Response(null, { status: 204 });\n}",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_de2617515f383fb9",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "route.ts",
+            "line": 49,
+            "column": 3
+          },
+          "detector_id": "logout.cookie_clear",
+          "confidence": "high",
+          "excerpt": "cookies().delete(\"access\")",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_272e8be9bb923e24",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "route.ts",
+            "line": 50,
+            "column": 3
+          },
+          "detector_id": "logout.cookie_clear",
+          "confidence": "high",
+          "excerpt": "cookies().delete(\"[REDACTED]\")",
+          "dynamic": false,
+          "framework_default": false
+        }
+      ],
+      "diagnostics": [],
+      "skipped_reason": null
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "artifact_c561c5272914ef33",
+      "artifact_type": "access_jwt",
+      "display_name": "access_jwt",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 9,
+          "column": 27
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [
+          "evidence_1ae3c2d8c685d023",
+          "evidence_4f85e5391e615c12",
+          "evidence_84d8e843a7543cf6",
+          "evidence_a5a7973d4a01f4ee",
+          "evidence_cb0dbdb2c29a56f3",
+          "evidence_f8838d112e6014ed"
+        ],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_6466ba2341dbc9e0"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "jose"
+      ],
+      "jwt_attributes": {
+        "operation": {
+          "state": "present",
+          "value": "issue",
+          "evidence_ids": [
+            "evidence_f8838d112e6014ed"
+          ],
+          "confidence": "high"
+        },
+        "algorithm": {
+          "state": "present",
+          "value": "[literal]",
+          "evidence_ids": [
+            "evidence_84d8e843a7543cf6"
+          ],
+          "confidence": "high"
+        },
+        "key_reference": {
+          "state": "present",
+          "value": "secret",
+          "evidence_ids": [
+            "evidence_4f85e5391e615c12"
+          ],
+          "confidence": "high"
+        },
+        "issuer": {
+          "state": "present",
+          "value": "issuer",
+          "evidence_ids": [
+            "evidence_a5a7973d4a01f4ee"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "present",
+          "value": "audience",
+          "evidence_ids": [
+            "evidence_cb0dbdb2c29a56f3"
+          ],
+          "confidence": "high"
+        },
+        "expiration": {
+          "state": "present",
+          "value": "[literal]",
+          "evidence_ids": [
+            "evidence_6466ba2341dbc9e0"
+          ],
+          "confidence": "high"
+        },
+        "signature_verification": {
+          "state": "unknown",
+          "evidence_ids": [],
+          "confidence": "low"
+        },
+        "expiry_enforcement": {
+          "state": "unknown",
+          "evidence_ids": [],
+          "confidence": "low"
+        },
+        "identity_claims": {
+          "subject": {
+            "state": "present",
+            "value": "[literal]",
+            "evidence_ids": [
+              "evidence_1ae3c2d8c685d023"
+            ],
+            "confidence": "high"
+          },
+          "user_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "tenant_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "org_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "workspace_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "roles": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "scopes": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "groups": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "email": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "email_verified": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "auth_method": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "auth_class": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          }
+        }
+      },
+      "token_boundary_attributes": {
+        "issuer": {
+          "state": "present",
+          "value": "issuer",
+          "evidence_ids": [
+            "evidence_a5a7973d4a01f4ee"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "present",
+          "value": "audience",
+          "evidence_ids": [
+            "evidence_cb0dbdb2c29a56f3"
+          ],
+          "confidence": "high"
+        },
+        "trust_boundary": {
+          "state": "present",
+          "value": "audience",
+          "evidence_ids": [
+            "evidence_cb0dbdb2c29a56f3"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_2b583bc212a31cbe",
+      "artifact_type": "unknown",
+      "display_name": "access",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 16,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_2b583bc212a31cbe",
+          "evidence_4ab137a7f2af45a3",
+          "evidence_b4b9c525de641b2f"
+        ],
+        "transmit": [
+          "evidence_3400b316c2e50e96",
+          "evidence_5a4a39e105614f12",
+          "evidence_84f5450bf03616bb",
+          "evidence_a3a5795ce43fb0cc"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_2423accf73d7423d",
+          "evidence_8c77344dc14fc373"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs"
+      ],
+      "cookie_attributes": {
+        "http_only": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_b4b9c525de641b2f"
+          ],
+          "confidence": "high"
+        },
+        "secure": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_5a4a39e105614f12"
+          ],
+          "confidence": "high"
+        },
+        "same_site": {
+          "state": "present",
+          "value": "lax",
+          "evidence_ids": [
+            "evidence_3400b316c2e50e96"
+          ],
+          "confidence": "high"
+        },
+        "max_age": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_2423accf73d7423d"
+          ],
+          "confidence": "high"
+        },
+        "expires": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_8c77344dc14fc373"
+          ],
+          "confidence": "high"
+        },
+        "path": {
+          "state": "framework_default",
+          "value": "/",
+          "evidence_ids": [
+            "evidence_a3a5795ce43fb0cc"
+          ],
+          "confidence": "low"
+        },
+        "domain": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_84f5450bf03616bb"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_ac9b16b63e4ddaff",
+      "artifact_type": "unknown_token",
+      "display_name": "unknown_token",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 26,
+          "column": 9
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [
+          "evidence_ed8bc77a05bef8d8"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "javascript"
+      ]
+    },
+    {
+      "id": "artifact_25ceae69a975e8d7",
+      "artifact_type": "opaque_bearer_token",
+      "display_name": "authorization_bearer",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 26,
+          "column": 17
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [
+          "evidence_1b8f65a6befb2a09"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "javascript"
+      ]
+    },
+    {
+      "id": "artifact_8fe7fee7047a739e",
+      "artifact_type": "unknown",
+      "display_name": null,
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 31,
+          "column": 9
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [
+          "evidence_07678534faf82472",
+          "evidence_2013faf58dccfe53",
+          "evidence_293c767a927400d0",
+          "evidence_9de57872b188a699",
+          "evidence_cd1e3db180eb769e",
+          "evidence_e72ec5fd2af8b8d8",
+          "evidence_e91b8a1a43174135",
+          "evidence_f542f7654997dc33"
+        ],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "jose"
+      ],
+      "jwt_attributes": {
+        "operation": {
+          "state": "present",
+          "value": "validate",
+          "evidence_ids": [
+            "evidence_f542f7654997dc33"
+          ],
+          "confidence": "high"
+        },
+        "algorithm": {
+          "state": "unknown",
+          "evidence_ids": [],
+          "confidence": "low"
+        },
+        "key_reference": {
+          "state": "present",
+          "value": "secret",
+          "evidence_ids": [
+            "evidence_e72ec5fd2af8b8d8"
+          ],
+          "confidence": "high"
+        },
+        "issuer": {
+          "state": "present",
+          "value": "issuer",
+          "evidence_ids": [
+            "evidence_293c767a927400d0"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "present",
+          "value": "audience",
+          "evidence_ids": [
+            "evidence_cd1e3db180eb769e"
+          ],
+          "confidence": "high"
+        },
+        "expiration": {
+          "state": "unknown",
+          "evidence_ids": [],
+          "confidence": "low"
+        },
+        "signature_verification": {
+          "state": "present",
+          "value": "verified",
+          "evidence_ids": [
+            "evidence_07678534faf82472"
+          ],
+          "confidence": "high"
+        },
+        "expiry_enforcement": {
+          "state": "framework_default",
+          "value": "jose.jwtVerify default",
+          "evidence_ids": [
+            "evidence_e91b8a1a43174135"
+          ],
+          "confidence": "low"
+        }
+      },
+      "token_boundary_attributes": {
+        "issuer": {
+          "state": "present",
+          "value": "issuer",
+          "evidence_ids": [
+            "evidence_293c767a927400d0"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "present",
+          "value": "audience",
+          "evidence_ids": [
+            "evidence_cd1e3db180eb769e"
+          ],
+          "confidence": "high"
+        },
+        "trust_boundary": {
+          "state": "present",
+          "value": "audience",
+          "evidence_ids": [
+            "evidence_cd1e3db180eb769e"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_ca5f4ce9912eb5a8",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 39,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_3b945e587d0c4aa3"
+        ],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "nextjs"
+      ]
+    },
+    {
+      "id": "artifact_dba70235c9632644",
+      "artifact_type": "unknown",
+      "display_name": "refresh",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 40,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_55c92f0ee774b087",
+          "evidence_994e0b098effac25",
+          "evidence_dba70235c9632644"
+        ],
+        "transmit": [
+          "evidence_21d525f460bad55a",
+          "evidence_3c94a8d36f45549f",
+          "evidence_6a38024f599f1b26",
+          "evidence_a2d82c226f347fe6"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_274c001f3d27af39",
+          "evidence_6ea79ef075fc6f97"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs"
+      ],
+      "cookie_attributes": {
+        "http_only": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_994e0b098effac25"
+          ],
+          "confidence": "high"
+        },
+        "secure": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_6a38024f599f1b26"
+          ],
+          "confidence": "high"
+        },
+        "same_site": {
+          "state": "present",
+          "value": "strict",
+          "evidence_ids": [
+            "evidence_a2d82c226f347fe6"
+          ],
+          "confidence": "high"
+        },
+        "max_age": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_274c001f3d27af39"
+          ],
+          "confidence": "high"
+        },
+        "expires": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_6ea79ef075fc6f97"
+          ],
+          "confidence": "high"
+        },
+        "path": {
+          "state": "framework_default",
+          "value": "/",
+          "evidence_ids": [
+            "evidence_21d525f460bad55a"
+          ],
+          "confidence": "low"
+        },
+        "domain": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_3c94a8d36f45549f"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_905c4aeebdc48a72",
+      "artifact_type": "unknown",
+      "display_name": "logout",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 48,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_49305a6c8f4a13e2"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "nextjs"
+      ]
+    },
+    {
+      "id": "artifact_aff5b3708155b98d",
+      "artifact_type": "unknown",
+      "display_name": "logout",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 48,
+          "column": 8
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_4117a704272b083d"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "javascript"
+      ]
+    },
+    {
+      "id": "artifact_51b218b779323fcd",
+      "artifact_type": "unknown",
+      "display_name": "access",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 49,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_de2617515f383fb9"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs"
+      ]
+    },
+    {
+      "id": "artifact_a82d1ab486d9dd80",
+      "artifact_type": "unknown",
+      "display_name": "refresh",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 50,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_272e8be9bb923e24"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evidence_84d8e843a7543cf6",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "route.ts",
+        "line": 9,
+        "column": 27
+      },
+      "detector_id": "jwt.attribute.algorithm",
+      "confidence": "high",
+      "excerpt": ".setProtectedHeader({ alg: \"HS256\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_cb0dbdb2c29a56f3",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "route.ts",
+        "line": 9,
+        "column": 27
+      },
+      "detector_id": "jwt.attribute.audience",
+      "confidence": "high",
+      "excerpt": ".setAudience(audience",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_a5a7973d4a01f4ee",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "route.ts",
+        "line": 9,
+        "column": 27
+      },
+      "detector_id": "jwt.attribute.issuer",
+      "confidence": "high",
+      "excerpt": ".setIssuer(issuer",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_4f85e5391e615c12",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "route.ts",
+        "line": 9,
+        "column": 27
+      },
+      "detector_id": "jwt.attribute.key_reference",
+      "confidence": "high",
+      "excerpt": "JWT key reference is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_1ae3c2d8c685d023",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "route.ts",
+        "line": 9,
+        "column": 27
+      },
+      "detector_id": "jwt.attribute.subject",
+      "confidence": "high",
+      "excerpt": "subject claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_f8838d112e6014ed",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "route.ts",
+        "line": 9,
+        "column": 27
+      },
+      "detector_id": "jwt.issue",
+      "confidence": "high",
+      "excerpt": "jose.SignJWT.sign issue call detected with token and key arguments redacted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_6466ba2341dbc9e0",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "route.ts",
+        "line": 9,
+        "column": 27
+      },
+      "detector_id": "jwt.attribute.expiration",
+      "confidence": "high",
+      "excerpt": ".setExpirationTime(\"15m\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_4ab137a7f2af45a3",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 16,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.name_prefix",
+      "confidence": "high",
+      "excerpt": "Cookie name prefix: none",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2b583bc212a31cbe",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 16,
+        "column": 3
+      },
+      "detector_id": "cookie.set",
+      "confidence": "high",
+      "excerpt": "\n  cookies().set(\"access\", [REDACTED], {\n    httpOnly: true,",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_84f5450bf03616bb",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 16,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.domain",
+      "confidence": "high",
+      "excerpt": "Domain is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_a3a5795ce43fb0cc",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 16,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.path",
+      "confidence": "low",
+      "excerpt": "Path defaults to / for nextjs",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_8c77344dc14fc373",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "route.ts",
+        "line": 16,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.expires",
+      "confidence": "high",
+      "excerpt": "Expires is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2423accf73d7423d",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "route.ts",
+        "line": 16,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.max_age",
+      "confidence": "high",
+      "excerpt": "Max-Age is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_b4b9c525de641b2f",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 17,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.http_only",
+      "confidence": "high",
+      "excerpt": "HttpOnly: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_5a4a39e105614f12",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 18,
+        "column": 13
+      },
+      "detector_id": "cookie.attribute.secure",
+      "confidence": "high",
+      "excerpt": "Secure: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_3400b316c2e50e96",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 19,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.same_site",
+      "confidence": "high",
+      "excerpt": "SameSite: \"lax\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_ed8bc77a05bef8d8",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 26,
+        "column": 9
+      },
+      "detector_id": "bearer.transmit",
+      "confidence": "high",
+      "excerpt": "token = request.headers.get(\"[REDACTED]\")?.replace(\"[REDACTED]\", \"[REDACTED]\")",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_1b8f65a6befb2a09",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 26,
+        "column": 17
+      },
+      "detector_id": "bearer.read.inbound",
+      "confidence": "high",
+      "excerpt": "request.headers.get(\"[REDACTED]\")?.replace(\"[REDACTED]\", \"[REDACTED]\")",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_e91b8a1a43174135",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "route.ts",
+        "line": 31,
+        "column": 9
+      },
+      "detector_id": "jwt.attribute.expiry_enforcement",
+      "confidence": "low",
+      "excerpt": "jose.jwtVerify enforces exp by library default",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_07678534faf82472",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "route.ts",
+        "line": 31,
+        "column": 9
+      },
+      "detector_id": "jwt.attribute.signature_verification",
+      "confidence": "high",
+      "excerpt": "jose.jwtVerify verifies JWT signatures",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_f542f7654997dc33",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "route.ts",
+        "line": 31,
+        "column": 9
+      },
+      "detector_id": "jwt.validate",
+      "confidence": "medium",
+      "excerpt": "jose.jwtVerify validate call detected with token and key arguments redacted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_e72ec5fd2af8b8d8",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "route.ts",
+        "line": 31,
+        "column": 26
+      },
+      "detector_id": "jwt.attribute.key_reference",
+      "confidence": "high",
+      "excerpt": "JWT key reference is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_293c767a927400d0",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "route.ts",
+        "line": 32,
+        "column": 5
+      },
+      "detector_id": "jwt.attribute.issuer",
+      "confidence": "high",
+      "excerpt": "issuer",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2013faf58dccfe53",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "route.ts",
+        "line": 32,
+        "column": 5
+      },
+      "detector_id": "jwt.option.issuer",
+      "confidence": "high",
+      "excerpt": "JWT issuer option is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_cd1e3db180eb769e",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "route.ts",
+        "line": 33,
+        "column": 5
+      },
+      "detector_id": "jwt.attribute.audience",
+      "confidence": "high",
+      "excerpt": "audience",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_9de57872b188a699",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "route.ts",
+        "line": 33,
+        "column": 5
+      },
+      "detector_id": "jwt.option.audience",
+      "confidence": "high",
+      "excerpt": "JWT audience option is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_3b945e587d0c4aa3",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "route.ts",
+        "line": 39,
+        "column": 1
+      },
+      "detector_id": "refresh.handler",
+      "confidence": "medium",
+      "excerpt": "export async function PATCH() {\n  cookies().set(\"[REDACTED]\", \"[REDACTED]\", {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n  return Response.json({ refreshed: true });\n}",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_55c92f0ee774b087",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 40,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.name_prefix",
+      "confidence": "high",
+      "excerpt": "Cookie name prefix: none",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_dba70235c9632644",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 40,
+        "column": 3
+      },
+      "detector_id": "cookie.set",
+      "confidence": "high",
+      "excerpt": "export async function PATCH() {\n  cookies().set(\"refresh\", [REDACTED], {\n    httpOnly: true,",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_3c94a8d36f45549f",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 40,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.domain",
+      "confidence": "high",
+      "excerpt": "Domain is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_21d525f460bad55a",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 40,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.path",
+      "confidence": "low",
+      "excerpt": "Path defaults to / for nextjs",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_6ea79ef075fc6f97",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "route.ts",
+        "line": 40,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.expires",
+      "confidence": "high",
+      "excerpt": "Expires is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_274c001f3d27af39",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "route.ts",
+        "line": 40,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.max_age",
+      "confidence": "high",
+      "excerpt": "Max-Age is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_994e0b098effac25",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 41,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.http_only",
+      "confidence": "high",
+      "excerpt": "HttpOnly: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_6a38024f599f1b26",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 42,
+        "column": 13
+      },
+      "detector_id": "cookie.attribute.secure",
+      "confidence": "high",
+      "excerpt": "Secure: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_a2d82c226f347fe6",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 43,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.same_site",
+      "confidence": "high",
+      "excerpt": "SameSite: \"strict\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_49305a6c8f4a13e2",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "route.ts",
+        "line": 48,
+        "column": 1
+      },
+      "detector_id": "logout.handler",
+      "confidence": "medium",
+      "excerpt": "export async function DELETE() {\n  cookies().delete(\"[REDACTED]\");\n  cookies().delete(\"[REDACTED]\");\n  return new Response(null, { status: 204 });\n}",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_4117a704272b083d",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "route.ts",
+        "line": 48,
+        "column": 8
+      },
+      "detector_id": "logout.handler",
+      "confidence": "medium",
+      "excerpt": "async function DELETE() {\n  cookies().delete(\"[REDACTED]\");\n  cookies().delete(\"[REDACTED]\");\n  return new Response(null, { status: 204 });\n}",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_de2617515f383fb9",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "route.ts",
+        "line": 49,
+        "column": 3
+      },
+      "detector_id": "logout.cookie_clear",
+      "confidence": "high",
+      "excerpt": "cookies().delete(\"access\")",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_272e8be9bb923e24",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "route.ts",
+        "line": 50,
+        "column": 3
+      },
+      "detector_id": "logout.cookie_clear",
+      "confidence": "high",
+      "excerpt": "cookies().delete(\"[REDACTED]\")",
+      "dynamic": false,
+      "framework_default": false
+    }
+  ],
+  "lifecycle_paths": [
+    {
+      "id": "lifecycle_path_c72f7ffb255f10ab",
+      "artifact_ids": [
+        "artifact_25ceae69a975e8d7"
+      ],
+      "stages": [
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_1b8f65a6befb2a09"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_7e0e973b70bff3b6",
+      "artifact_ids": [
+        "artifact_2b583bc212a31cbe",
+        "artifact_51b218b779323fcd"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_2b583bc212a31cbe",
+            "evidence_4ab137a7f2af45a3",
+            "evidence_b4b9c525de641b2f"
+          ]
+        },
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_3400b316c2e50e96",
+            "evidence_5a4a39e105614f12",
+            "evidence_84f5450bf03616bb",
+            "evidence_a3a5795ce43fb0cc"
+          ]
+        },
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_de2617515f383fb9"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_2423accf73d7423d",
+            "evidence_8c77344dc14fc373"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": false,
+      "reviewer_question": "Which framework version and deployment settings determine lifecycle behavior for `access`?"
+    },
+    {
+      "id": "lifecycle_path_aedffd4a2335eeae",
+      "artifact_ids": [
+        "artifact_8fe7fee7047a739e"
+      ],
+      "stages": [
+        {
+          "stage": "validate",
+          "evidence_ids": [
+            "evidence_07678534faf82472",
+            "evidence_2013faf58dccfe53",
+            "evidence_293c767a927400d0",
+            "evidence_9de57872b188a699",
+            "evidence_cd1e3db180eb769e",
+            "evidence_e72ec5fd2af8b8d8",
+            "evidence_e91b8a1a43174135",
+            "evidence_f542f7654997dc33"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": false,
+      "reviewer_question": "Which framework version and deployment settings determine lifecycle behavior for `this artifact`?"
+    },
+    {
+      "id": "lifecycle_path_be40a5c3f5bfce4b",
+      "artifact_ids": [
+        "artifact_905c4aeebdc48a72",
+        "artifact_aff5b3708155b98d"
+      ],
+      "stages": [
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_4117a704272b083d",
+            "evidence_49305a6c8f4a13e2"
+          ]
+        }
+      ],
+      "confidence": "medium",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `logout`?"
+    },
+    {
+      "id": "lifecycle_path_a63cfe46a8dbbfc4",
+      "artifact_ids": [
+        "artifact_a82d1ab486d9dd80",
+        "artifact_ca5f4ce9912eb5a8",
+        "artifact_dba70235c9632644"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_55c92f0ee774b087",
+            "evidence_994e0b098effac25",
+            "evidence_dba70235c9632644"
+          ]
+        },
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_21d525f460bad55a",
+            "evidence_3c94a8d36f45549f",
+            "evidence_6a38024f599f1b26",
+            "evidence_a2d82c226f347fe6"
+          ]
+        },
+        {
+          "stage": "refresh",
+          "evidence_ids": [
+            "evidence_3b945e587d0c4aa3"
+          ]
+        },
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_272e8be9bb923e24"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_274c001f3d27af39",
+            "evidence_6ea79ef075fc6f97"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `refresh_token`?"
+    },
+    {
+      "id": "lifecycle_path_5f83f744675da556",
+      "artifact_ids": [
+        "artifact_ac9b16b63e4ddaff"
+      ],
+      "stages": [
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_ed8bc77a05bef8d8"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_83c27d68e25040bc",
+      "artifact_ids": [
+        "artifact_c561c5272914ef33"
+      ],
+      "stages": [
+        {
+          "stage": "issue",
+          "evidence_ids": [
+            "evidence_1ae3c2d8c685d023",
+            "evidence_4f85e5391e615c12",
+            "evidence_84d8e843a7543cf6",
+            "evidence_a5a7973d4a01f4ee",
+            "evidence_cb0dbdb2c29a56f3",
+            "evidence_f8838d112e6014ed"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_6466ba2341dbc9e0"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    }
+  ],
+  "findings": [
+    {
+      "id": "finding_5c8cd00bb6e07a71",
+      "category": "missing_validation_evidence",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_25ceae69a975e8d7"
+      ],
+      "evidence_ids": [
+        "evidence_1b8f65a6befb2a09"
+      ],
+      "title": "Inbound token `authorization_bearer` is read without linked validation evidence",
+      "description": "Inbound bearer/API-key evidence was detected, but no local validation, lookup, or compare evidence was linked for the same token artifact.",
+      "suggested_fix": "Add or identify source-bound validation evidence before the token is trusted.",
+      "reviewer_question": "Where is this inbound token checked before it authorizes access?"
+    },
+    {
+      "id": "finding_b8bc1e32e1309f2e",
+      "category": "lifecycle_gap",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_c561c5272914ef33"
+      ],
+      "evidence_ids": [
+        "evidence_1ae3c2d8c685d023",
+        "evidence_4117a704272b083d",
+        "evidence_49305a6c8f4a13e2",
+        "evidence_4f85e5391e615c12",
+        "evidence_84d8e843a7543cf6",
+        "evidence_a5a7973d4a01f4ee",
+        "evidence_cb0dbdb2c29a56f3",
+        "evidence_f8838d112e6014ed"
+      ],
+      "title": "JWT `access_jwt` has logout evidence without linked denylist evidence",
+      "description": "A logout handler and access-JWT lifecycle evidence were detected in linked source context, but no source-bound denylist, blocklist, or token revocation-store insertion evidence was linked for the same logout flow.",
+      "suggested_fix": "Insert the JWT identifier into a denylist/blocklist or revoke-store on logout, or document the intentional short-TTL stateless model for reviewer confirmation.",
+      "reviewer_question": "Where does logout revoke or denylist outstanding `access_jwt` tokens?"
+    },
+    {
+      "id": "finding_46da9e746d8d6c2c",
+      "category": "lifecycle_gap",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_c561c5272914ef33"
+      ],
+      "evidence_ids": [
+        "evidence_1ae3c2d8c685d023",
+        "evidence_4f85e5391e615c12",
+        "evidence_84d8e843a7543cf6",
+        "evidence_a5a7973d4a01f4ee",
+        "evidence_cb0dbdb2c29a56f3",
+        "evidence_f8838d112e6014ed"
+      ],
+      "title": "JWT `access_jwt` is issued without linked validation evidence",
+      "description": "JWT issue evidence was linked into a lifecycle path, but no validation evidence was linked for the same artifact.",
+      "suggested_fix": "Add or identify verification evidence that validates this token before claims are trusted.",
+      "reviewer_question": "Where is this issued JWT validated before use?"
+    },
+    {
+      "id": "finding_ffb71adf93936615",
+      "category": "lifecycle_gap",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_ca5f4ce9912eb5a8"
+      ],
+      "evidence_ids": [
+        "evidence_3b945e587d0c4aa3",
+        "evidence_4117a704272b083d",
+        "evidence_49305a6c8f4a13e2"
+      ],
+      "title": "Refresh token `refresh_token` has logout evidence without family revocation",
+      "description": "Logout and refresh-token lifecycle evidence were detected in linked source context, but no source-bound user-scoped or refresh-family revocation evidence was linked for the logout flow.",
+      "suggested_fix": "Revoke the user's refresh-token family, delete user-scoped refresh-token records, or remove the refresh-family cache key during logout.",
+      "reviewer_question": "Where does logout revoke every refresh token in the `refresh_token` family or for the current user?"
+    },
+    {
+      "id": "finding_2a692dcbf3a18ab6",
+      "category": "missing_validation_evidence",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_8fe7fee7047a739e"
+      ],
+      "evidence_ids": [
+        "evidence_f542f7654997dc33",
+        "evidence_e72ec5fd2af8b8d8",
+        "evidence_293c767a927400d0",
+        "evidence_cd1e3db180eb769e",
+        "evidence_07678534faf82472",
+        "evidence_e91b8a1a43174135",
+        "evidence_9de57872b188a699",
+        "evidence_2013faf58dccfe53"
+      ],
+      "title": "JWT `unknown_jwt` verification has no not-before validation evidence",
+      "description": "JWT verification evidence does not show `nbf` / not-before claim enforcement.",
+      "suggested_fix": "Require or enforce `nbf` validation where issuer policy uses not-before claims.",
+      "reviewer_question": "Do issued tokens for this path use `nbf`, and is it enforced in production?"
+    },
+    {
+      "id": "finding_a328bbb5ff785088",
+      "category": "lifecycle_gap",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_2b583bc212a31cbe"
+      ],
+      "evidence_ids": [
+        "evidence_de2617515f383fb9"
+      ],
+      "title": "Cookie `access` is cleared on logout without linked server-side revocation",
+      "description": "Logout evidence clears a client-side cookie, but no linked server-side session, token, or provider revocation evidence was found for the same lifecycle path.",
+      "suggested_fix": "Invalidate the server-side session or refresh token in addition to deleting the browser cookie.",
+      "reviewer_question": "Where is the server-side session or token behind `access` revoked during logout?"
+    },
+    {
+      "id": "finding_2673ca01a7369322",
+      "category": "lifecycle_gap",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_ca5f4ce9912eb5a8"
+      ],
+      "evidence_ids": [
+        "evidence_272e8be9bb923e24"
+      ],
+      "title": "Cookie `refresh_token` is cleared on logout without linked server-side revocation",
+      "description": "Logout evidence clears a client-side cookie, but no linked server-side session, token, or provider revocation evidence was found for the same lifecycle path.",
+      "suggested_fix": "Invalidate the server-side session or refresh token in addition to deleting the browser cookie.",
+      "reviewer_question": "Where is the server-side session or token behind `refresh_token` revoked during logout?"
+    },
+    {
+      "id": "finding_b6da82e39f1b36e8",
+      "category": "dynamic_review_required",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_ac9b16b63e4ddaff"
+      ],
+      "evidence_ids": [
+        "evidence_ed8bc77a05bef8d8"
+      ],
+      "title": "Token `unknown_token` has provider-managed or dynamic handling",
+      "description": "Bearer/API-key behavior appears dynamic, provider-managed, config-driven, or server-to-server only, so the static evidence should be reviewed before treating lifecycle controls as deterministic.",
+      "suggested_fix": "Document the provider, wrapper, or server-side policy for issuance, storage, validation, scope, expiry, rotation, and revocation.",
+      "reviewer_question": "Which runtime configuration or provider settings govern this token lifecycle?"
+    },
+    {
+      "id": "finding_b7a7e921d36f9cf5",
+      "category": "dynamic_review_required",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_ca5f4ce9912eb5a8"
+      ],
+      "evidence_ids": [
+        "evidence_3b945e587d0c4aa3"
+      ],
+      "title": "Token `refresh_token` has dynamic refresh behavior without linked revocation evidence",
+      "description": "Refresh lifecycle evidence appears provider-managed or dynamic, and no deterministic source-bound revoke or rotation evidence was linked for the same artifact.",
+      "suggested_fix": "Confirm the provider or runtime refresh policy rotates or revokes previous refresh tokens.",
+      "reviewer_question": "Which provider setting or runtime path revokes previous refresh tokens for `refresh_token`?"
+    },
+    {
+      "id": "finding_a2856514b9437d76",
+      "category": "framework_default_assumed",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_8fe7fee7047a739e"
+      ],
+      "evidence_ids": [
+        "evidence_e91b8a1a43174135"
+      ],
+      "title": "JWT `unknown_jwt` expiry enforcement relies on library defaults",
+      "description": "JWT validation appears to rely on the library default for expiration enforcement.",
+      "suggested_fix": "Make expiration enforcement explicit or document the library version and default.",
+      "reviewer_question": "Which JWT library version and settings determine expiration enforcement here?"
+    }
+  ]
+}

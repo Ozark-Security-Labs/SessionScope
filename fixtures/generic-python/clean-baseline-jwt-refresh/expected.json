@@ -1,0 +1,11 @@
+{
+  "fixture_id": "generic-python.clean-baseline-jwt-refresh",
+  "framework": "generic-python",
+  "source_files": [
+    "app.py"
+  ],
+  "expected_artifacts": [],
+  "expected_lifecycle_stages": [],
+  "expected_findings": [],
+  "notes": "Clean Python baseline with no JWT, refresh, or password-change findings."
+}

@@ -1,0 +1,2357 @@
+{
+  "schema_version": "0.5.0",
+  "summary": {
+    "files_discovered": 2,
+    "files_scanned": 2,
+    "files_skipped": 0,
+    "diagnostics": [],
+    "worker_panic_count": 0
+  },
+  "files": [
+    {
+      "path": "app.py",
+      "language": "python",
+      "artifacts": [
+        {
+          "id": "artifact_1f6194ee35663737",
+          "artifact_type": "access_jwt",
+          "display_name": "access_jwt",
+          "locations": [
+            {
+              "path": "app.py",
+              "line": 14,
+              "column": 12
+            },
+            {
+              "path": "app.py",
+              "line": 29,
+              "column": 12
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [
+              "evidence_04e27dc796edd948",
+              "evidence_1d120b1c0c19e112",
+              "evidence_485ff7f12a7a83f8",
+              "evidence_67ba10e56375217d",
+              "evidence_98eb78b1628dff5a",
+              "evidence_b1e065af58c3925c"
+            ],
+            "store": [],
+            "transmit": [],
+            "validate": [
+              "evidence_0430950bd7d6b709",
+              "evidence_1a96e0988bbbf340",
+              "evidence_400f7ea0d2ddb252",
+              "evidence_67f9caad64bf13a6",
+              "evidence_6b8e2bb85b4a5c59",
+              "evidence_751429b89c10824f",
+              "evidence_8251d59500cb750b",
+              "evidence_879be86c887ffc25",
+              "evidence_9ec068fd376b7d89",
+              "evidence_b61b525c331695f4"
+            ],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_dd7490cd811b1d0c"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "pyjwt"
+          ],
+          "jwt_attributes": {
+            "operation": {
+              "state": "present",
+              "value": "issue, validate",
+              "evidence_ids": [
+                "evidence_67ba10e56375217d",
+                "evidence_b61b525c331695f4"
+              ],
+              "confidence": "high"
+            },
+            "algorithm": {
+              "state": "present",
+              "value": "[literal]",
+              "evidence_ids": [
+                "evidence_04e27dc796edd948",
+                "evidence_9ec068fd376b7d89"
+              ],
+              "confidence": "high"
+            },
+            "key_reference": {
+              "state": "present",
+              "value": "JWT_SECRET",
+              "evidence_ids": [
+                "evidence_879be86c887ffc25",
+                "evidence_98eb78b1628dff5a"
+              ],
+              "confidence": "high"
+            },
+            "issuer": {
+              "state": "present",
+              "value": "ISSUER",
+              "evidence_ids": [
+                "evidence_0430950bd7d6b709",
+                "evidence_485ff7f12a7a83f8"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "present",
+              "value": "AUDIENCE",
+              "evidence_ids": [
+                "evidence_751429b89c10824f",
+                "evidence_b1e065af58c3925c"
+              ],
+              "confidence": "high"
+            },
+            "expiration": {
+              "state": "present",
+              "value": "expires_at",
+              "evidence_ids": [
+                "evidence_dd7490cd811b1d0c"
+              ],
+              "confidence": "high"
+            },
+            "signature_verification": {
+              "state": "present",
+              "value": "verified",
+              "evidence_ids": [
+                "evidence_6b8e2bb85b4a5c59"
+              ],
+              "confidence": "high"
+            },
+            "expiry_enforcement": {
+              "state": "framework_default",
+              "value": "PyJWT decode default",
+              "evidence_ids": [
+                "evidence_400f7ea0d2ddb252"
+              ],
+              "confidence": "low"
+            },
+            "identity_claims": {
+              "subject": {
+                "state": "present",
+                "value": "user_id",
+                "evidence_ids": [
+                  "evidence_1d120b1c0c19e112"
+                ],
+                "confidence": "high"
+              },
+              "user_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "tenant_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "org_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "workspace_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "roles": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "scopes": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "groups": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "email": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "email_verified": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "auth_method": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "auth_class": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              }
+            }
+          },
+          "token_boundary_attributes": {
+            "issuer": {
+              "state": "present",
+              "value": "ISSUER",
+              "evidence_ids": [
+                "evidence_0430950bd7d6b709",
+                "evidence_485ff7f12a7a83f8"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "present",
+              "value": "AUDIENCE",
+              "evidence_ids": [
+                "evidence_751429b89c10824f",
+                "evidence_b1e065af58c3925c"
+              ],
+              "confidence": "high"
+            },
+            "trust_boundary": {
+              "state": "present",
+              "value": "AUDIENCE",
+              "evidence_ids": [
+                "evidence_751429b89c10824f",
+                "evidence_b1e065af58c3925c"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_6fe7bd9aa9441210",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "app.py",
+              "line": 39,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [
+              "evidence_bab2541ae5986d41"
+            ],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "fastapi",
+            "scope:898"
+          ]
+        },
+        {
+          "id": "artifact_6662c62fe10196d2",
+          "artifact_type": "opaque_bearer_token",
+          "display_name": "access_token",
+          "locations": [
+            {
+              "path": "app.py",
+              "line": 40,
+              "column": 5
+            },
+            {
+              "path": "app.py",
+              "line": 40,
+              "column": 13
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_0277e4a57e2be5d0"
+            ],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": [
+              "evidence_8f65a9c03ac6856e",
+              "evidence_d40d72776f6ad953"
+            ]
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "python"
+          ],
+          "token_boundary_attributes": {
+            "issuer": {
+              "state": "present",
+              "evidence_ids": [
+                "evidence_8f65a9c03ac6856e",
+                "evidence_d40d72776f6ad953"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_12991725538e196c",
+          "artifact_type": "session_cookie",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "app.py",
+              "line": 41,
+              "column": 5
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_12991725538e196c",
+              "evidence_2e869cc62fb447f5",
+              "evidence_ee55e24a0d65191a"
+            ],
+            "transmit": [
+              "evidence_063c471d6ac166fc",
+              "evidence_427e3aca09f2a901",
+              "evidence_4b35d34e5e07ffc4",
+              "evidence_61c3d2780025a546"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_51e68c6ad8120fd6",
+              "evidence_a7c8930136f027d4"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "python"
+          ],
+          "cookie_attributes": {
+            "http_only": {
+              "state": "present",
+              "value": "True",
+              "evidence_ids": [
+                "evidence_2e869cc62fb447f5"
+              ],
+              "confidence": "high"
+            },
+            "secure": {
+              "state": "present",
+              "value": "True",
+              "evidence_ids": [
+                "evidence_61c3d2780025a546"
+              ],
+              "confidence": "high"
+            },
+            "same_site": {
+              "state": "present",
+              "value": "lax",
+              "evidence_ids": [
+                "evidence_4b35d34e5e07ffc4"
+              ],
+              "confidence": "high"
+            },
+            "max_age": {
+              "state": "present",
+              "value": "900",
+              "evidence_ids": [
+                "evidence_51e68c6ad8120fd6"
+              ],
+              "confidence": "high"
+            },
+            "expires": {
+              "state": "framework_default",
+              "value": "none",
+              "evidence_ids": [
+                "evidence_a7c8930136f027d4"
+              ],
+              "confidence": "low"
+            },
+            "path": {
+              "state": "framework_default",
+              "value": "/",
+              "evidence_ids": [
+                "evidence_427e3aca09f2a901"
+              ],
+              "confidence": "low"
+            },
+            "domain": {
+              "state": "framework_default",
+              "value": "none",
+              "evidence_ids": [
+                "evidence_063c471d6ac166fc"
+              ],
+              "confidence": "low"
+            }
+          }
+        },
+        {
+          "id": "artifact_35be80ef8141f7cb",
+          "artifact_type": "unknown_token",
+          "display_name": "unknown_token",
+          "locations": [
+            {
+              "path": "app.py",
+              "line": 55,
+              "column": 5
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_7e0f8ab5f17e8838"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "python"
+          ]
+        },
+        {
+          "id": "artifact_9dd7f790adcb8674",
+          "artifact_type": "unknown",
+          "display_name": "logout",
+          "locations": [
+            {
+              "path": "app.py",
+              "line": 60,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_43dfb90d25264dc4"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "fastapi"
+          ]
+        },
+        {
+          "id": "artifact_9a37039751082f3f",
+          "artifact_type": "unknown",
+          "display_name": "security_dependency",
+          "locations": [
+            {
+              "path": "app.py",
+              "line": 60,
+              "column": 37
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [
+              "evidence_c5dd88fd06c26093"
+            ],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "fastapi"
+          ]
+        },
+        {
+          "id": "artifact_345218b3714d0c8a",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "app.py",
+              "line": 61,
+              "column": 5
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_c0a93958834374e4"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "python"
+          ]
+        },
+        {
+          "id": "artifact_26239a282b5467e3",
+          "artifact_type": "session_cookie",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "app.py",
+              "line": 62,
+              "column": 5
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_41eb635462b4ba20"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "python"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence_67ba10e56375217d",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "app.py",
+            "line": 14,
+            "column": 12
+          },
+          "detector_id": "jwt.issue",
+          "confidence": "high",
+          "excerpt": "pyjwt.encode issue call detected with token and key arguments redacted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_1d120b1c0c19e112",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "app.py",
+            "line": 16,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.subject",
+          "confidence": "high",
+          "excerpt": "subject claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_485ff7f12a7a83f8",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "app.py",
+            "line": 17,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.issuer",
+          "confidence": "high",
+          "excerpt": "ISSUER",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_b1e065af58c3925c",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "app.py",
+            "line": 18,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.audience",
+          "confidence": "high",
+          "excerpt": "AUDIENCE",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_dd7490cd811b1d0c",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.py",
+            "line": 19,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.expiration",
+          "confidence": "high",
+          "excerpt": "expires_at",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_98eb78b1628dff5a",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "app.py",
+            "line": 21,
+            "column": 9
+          },
+          "detector_id": "jwt.attribute.key_reference",
+          "confidence": "high",
+          "excerpt": "JWT key reference is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_04e27dc796edd948",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "app.py",
+            "line": 22,
+            "column": 19
+          },
+          "detector_id": "jwt.attribute.algorithm",
+          "confidence": "high",
+          "excerpt": "\"HS256\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_400f7ea0d2ddb252",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.py",
+            "line": 29,
+            "column": 12
+          },
+          "detector_id": "jwt.attribute.expiry_enforcement",
+          "confidence": "low",
+          "excerpt": "PyJWT decode enforces exp by library default",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_6b8e2bb85b4a5c59",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.py",
+            "line": 29,
+            "column": 12
+          },
+          "detector_id": "jwt.attribute.signature_verification",
+          "confidence": "high",
+          "excerpt": "PyJWT decode verifies signatures when a key is supplied",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_b61b525c331695f4",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.py",
+            "line": 29,
+            "column": 12
+          },
+          "detector_id": "jwt.validate",
+          "confidence": "high",
+          "excerpt": "pyjwt.decode validate call detected with token and key arguments redacted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_879be86c887ffc25",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.py",
+            "line": 31,
+            "column": 9
+          },
+          "detector_id": "jwt.attribute.key_reference",
+          "confidence": "high",
+          "excerpt": "JWT key reference is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_9ec068fd376b7d89",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.py",
+            "line": 32,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.algorithm",
+          "confidence": "high",
+          "excerpt": "[\"HS256\"]",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_8251d59500cb750b",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.py",
+            "line": 32,
+            "column": 20
+          },
+          "detector_id": "jwt.option.algorithms",
+          "confidence": "high",
+          "excerpt": "[\"HS256\"]",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_0430950bd7d6b709",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.py",
+            "line": 33,
+            "column": 16
+          },
+          "detector_id": "jwt.attribute.issuer",
+          "confidence": "high",
+          "excerpt": "ISSUER",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_67f9caad64bf13a6",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.py",
+            "line": 33,
+            "column": 16
+          },
+          "detector_id": "jwt.option.issuer",
+          "confidence": "high",
+          "excerpt": "JWT issuer option is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_751429b89c10824f",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.py",
+            "line": 34,
+            "column": 18
+          },
+          "detector_id": "jwt.attribute.audience",
+          "confidence": "high",
+          "excerpt": "AUDIENCE",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_1a96e0988bbbf340",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.py",
+            "line": 34,
+            "column": 18
+          },
+          "detector_id": "jwt.option.audience",
+          "confidence": "high",
+          "excerpt": "JWT audience option is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_bab2541ae5986d41",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "app.py",
+            "line": 39,
+            "column": 1
+          },
+          "detector_id": "session.auth_transition",
+          "confidence": "high",
+          "excerpt": "def login(response: Response):\n    token = issue_access_token(\"[REDACTED]\")\n    response.set_cookie(\n        \"[REDACTED]\",\n        token,\n        httponly=True,\n        secure=True,\n        samesite=\"[REDACTED]\",\n        max_age=900,\n    )\n    return {\"[REDACTED]\": True}",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_0277e4a57e2be5d0",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.py",
+            "line": 40,
+            "column": 5
+          },
+          "detector_id": "bearer.store.config",
+          "confidence": "high",
+          "excerpt": "token = issue_access_token(\"[REDACTED]\")",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_8f65a9c03ac6856e",
+          "lifecycle_stage": "introspect",
+          "location": {
+            "path": "app.py",
+            "line": 40,
+            "column": 5
+          },
+          "detector_id": "bearer.boundary.issuer",
+          "confidence": "high",
+          "excerpt": "token = issue_access_token(\"[REDACTED]\")",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_d40d72776f6ad953",
+          "lifecycle_stage": "introspect",
+          "location": {
+            "path": "app.py",
+            "line": 40,
+            "column": 13
+          },
+          "detector_id": "bearer.boundary.issuer",
+          "confidence": "high",
+          "excerpt": "issue_access_token(\"[REDACTED]\")",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_ee55e24a0d65191a",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.py",
+            "line": 41,
+            "column": 5
+          },
+          "detector_id": "cookie.attribute.name_prefix",
+          "confidence": "high",
+          "excerpt": "Cookie name prefix: none",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_12991725538e196c",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.py",
+            "line": 41,
+            "column": 5
+          },
+          "detector_id": "cookie.set",
+          "confidence": "high",
+          "excerpt": "    [REDACTED] = issue_access_[REDACTED](\"placeholder-user\")\n    response.set_cookie(\n        \"session\",",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_063c471d6ac166fc",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.py",
+            "line": 41,
+            "column": 5
+          },
+          "detector_id": "cookie.attribute.domain",
+          "confidence": "low",
+          "excerpt": "Domain defaults to none for python",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_427e3aca09f2a901",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.py",
+            "line": 41,
+            "column": 5
+          },
+          "detector_id": "cookie.attribute.path",
+          "confidence": "low",
+          "excerpt": "Path defaults to / for python",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_a7c8930136f027d4",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.py",
+            "line": 41,
+            "column": 5
+          },
+          "detector_id": "cookie.attribute.expires",
+          "confidence": "low",
+          "excerpt": "Expires defaults to none for python",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_2e869cc62fb447f5",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.py",
+            "line": 44,
+            "column": 18
+          },
+          "detector_id": "cookie.attribute.http_only",
+          "confidence": "high",
+          "excerpt": "HttpOnly: True",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_61c3d2780025a546",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.py",
+            "line": 45,
+            "column": 16
+          },
+          "detector_id": "cookie.attribute.secure",
+          "confidence": "high",
+          "excerpt": "Secure: True",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_4b35d34e5e07ffc4",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.py",
+            "line": 46,
+            "column": 18
+          },
+          "detector_id": "cookie.attribute.same_site",
+          "confidence": "high",
+          "excerpt": "SameSite: \"lax\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_51e68c6ad8120fd6",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.py",
+            "line": 47,
+            "column": 17
+          },
+          "detector_id": "cookie.attribute.max_age",
+          "confidence": "high",
+          "excerpt": "Max-Age: 900",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_7e0f8ab5f17e8838",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.py",
+            "line": 55,
+            "column": 5
+          },
+          "detector_id": "bearer.expire",
+          "confidence": "high",
+          "excerpt": "store_reset_token(\"[REDACTED]\", \"[REDACTED]\", expires_at)",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_43dfb90d25264dc4",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.py",
+            "line": 60,
+            "column": 1
+          },
+          "detector_id": "logout.handler",
+          "confidence": "high",
+          "excerpt": "def logout(response: Response, user=Depends(current_user)):\n    revoke_session(user[\"[REDACTED]\"])\n    response.delete_cookie(\"[REDACTED]\")\n    return Response(status_code=204)",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c5dd88fd06c26093",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.py",
+            "line": 60,
+            "column": 37
+          },
+          "detector_id": "fastapi.security_dependency",
+          "confidence": "medium",
+          "excerpt": "Depends(current_user)",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c0a93958834374e4",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.py",
+            "line": 61,
+            "column": 5
+          },
+          "detector_id": "logout.session_destroy",
+          "confidence": "high",
+          "excerpt": "revoke_session(user[\"[REDACTED]\"])",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_41eb635462b4ba20",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.py",
+            "line": 62,
+            "column": 5
+          },
+          "detector_id": "logout.cookie_clear",
+          "confidence": "high",
+          "excerpt": "response.delete_cookie(\"session\")",
+          "dynamic": false,
+          "framework_default": false
+        }
+      ],
+      "diagnostics": [],
+      "skipped_reason": null
+    },
+    {
+      "path": "expected.json",
+      "language": "json",
+      "artifacts": [],
+      "evidence": [],
+      "diagnostics": [],
+      "skipped_reason": null
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "artifact_1f6194ee35663737",
+      "artifact_type": "access_jwt",
+      "display_name": "access_jwt",
+      "locations": [
+        {
+          "path": "app.py",
+          "line": 14,
+          "column": 12
+        },
+        {
+          "path": "app.py",
+          "line": 29,
+          "column": 12
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [
+          "evidence_04e27dc796edd948",
+          "evidence_1d120b1c0c19e112",
+          "evidence_485ff7f12a7a83f8",
+          "evidence_67ba10e56375217d",
+          "evidence_98eb78b1628dff5a",
+          "evidence_b1e065af58c3925c"
+        ],
+        "store": [],
+        "transmit": [],
+        "validate": [
+          "evidence_0430950bd7d6b709",
+          "evidence_1a96e0988bbbf340",
+          "evidence_400f7ea0d2ddb252",
+          "evidence_67f9caad64bf13a6",
+          "evidence_6b8e2bb85b4a5c59",
+          "evidence_751429b89c10824f",
+          "evidence_8251d59500cb750b",
+          "evidence_879be86c887ffc25",
+          "evidence_9ec068fd376b7d89",
+          "evidence_b61b525c331695f4"
+        ],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_dd7490cd811b1d0c"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "pyjwt"
+      ],
+      "jwt_attributes": {
+        "operation": {
+          "state": "present",
+          "value": "issue, validate",
+          "evidence_ids": [
+            "evidence_67ba10e56375217d",
+            "evidence_b61b525c331695f4"
+          ],
+          "confidence": "high"
+        },
+        "algorithm": {
+          "state": "present",
+          "value": "[literal]",
+          "evidence_ids": [
+            "evidence_04e27dc796edd948",
+            "evidence_9ec068fd376b7d89"
+          ],
+          "confidence": "high"
+        },
+        "key_reference": {
+          "state": "present",
+          "value": "JWT_SECRET",
+          "evidence_ids": [
+            "evidence_879be86c887ffc25",
+            "evidence_98eb78b1628dff5a"
+          ],
+          "confidence": "high"
+        },
+        "issuer": {
+          "state": "present",
+          "value": "ISSUER",
+          "evidence_ids": [
+            "evidence_0430950bd7d6b709",
+            "evidence_485ff7f12a7a83f8"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "present",
+          "value": "AUDIENCE",
+          "evidence_ids": [
+            "evidence_751429b89c10824f",
+            "evidence_b1e065af58c3925c"
+          ],
+          "confidence": "high"
+        },
+        "expiration": {
+          "state": "present",
+          "value": "expires_at",
+          "evidence_ids": [
+            "evidence_dd7490cd811b1d0c"
+          ],
+          "confidence": "high"
+        },
+        "signature_verification": {
+          "state": "present",
+          "value": "verified",
+          "evidence_ids": [
+            "evidence_6b8e2bb85b4a5c59"
+          ],
+          "confidence": "high"
+        },
+        "expiry_enforcement": {
+          "state": "framework_default",
+          "value": "PyJWT decode default",
+          "evidence_ids": [
+            "evidence_400f7ea0d2ddb252"
+          ],
+          "confidence": "low"
+        },
+        "identity_claims": {
+          "subject": {
+            "state": "present",
+            "value": "user_id",
+            "evidence_ids": [
+              "evidence_1d120b1c0c19e112"
+            ],
+            "confidence": "high"
+          },
+          "user_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "tenant_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "org_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "workspace_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "roles": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "scopes": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "groups": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "email": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "email_verified": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "auth_method": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "auth_class": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          }
+        }
+      },
+      "token_boundary_attributes": {
+        "issuer": {
+          "state": "present",
+          "value": "ISSUER",
+          "evidence_ids": [
+            "evidence_0430950bd7d6b709",
+            "evidence_485ff7f12a7a83f8"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "present",
+          "value": "AUDIENCE",
+          "evidence_ids": [
+            "evidence_751429b89c10824f",
+            "evidence_b1e065af58c3925c"
+          ],
+          "confidence": "high"
+        },
+        "trust_boundary": {
+          "state": "present",
+          "value": "AUDIENCE",
+          "evidence_ids": [
+            "evidence_751429b89c10824f",
+            "evidence_b1e065af58c3925c"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_6fe7bd9aa9441210",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "app.py",
+          "line": 39,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [
+          "evidence_bab2541ae5986d41"
+        ],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "fastapi",
+        "scope:898"
+      ]
+    },
+    {
+      "id": "artifact_6662c62fe10196d2",
+      "artifact_type": "opaque_bearer_token",
+      "display_name": "access_token",
+      "locations": [
+        {
+          "path": "app.py",
+          "line": 40,
+          "column": 5
+        },
+        {
+          "path": "app.py",
+          "line": 40,
+          "column": 13
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_0277e4a57e2be5d0"
+        ],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": [
+          "evidence_8f65a9c03ac6856e",
+          "evidence_d40d72776f6ad953"
+        ]
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "python"
+      ],
+      "token_boundary_attributes": {
+        "issuer": {
+          "state": "present",
+          "evidence_ids": [
+            "evidence_8f65a9c03ac6856e",
+            "evidence_d40d72776f6ad953"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_12991725538e196c",
+      "artifact_type": "session_cookie",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "app.py",
+          "line": 41,
+          "column": 5
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_12991725538e196c",
+          "evidence_2e869cc62fb447f5",
+          "evidence_ee55e24a0d65191a"
+        ],
+        "transmit": [
+          "evidence_063c471d6ac166fc",
+          "evidence_427e3aca09f2a901",
+          "evidence_4b35d34e5e07ffc4",
+          "evidence_61c3d2780025a546"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_51e68c6ad8120fd6",
+          "evidence_a7c8930136f027d4"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "python"
+      ],
+      "cookie_attributes": {
+        "http_only": {
+          "state": "present",
+          "value": "True",
+          "evidence_ids": [
+            "evidence_2e869cc62fb447f5"
+          ],
+          "confidence": "high"
+        },
+        "secure": {
+          "state": "present",
+          "value": "True",
+          "evidence_ids": [
+            "evidence_61c3d2780025a546"
+          ],
+          "confidence": "high"
+        },
+        "same_site": {
+          "state": "present",
+          "value": "lax",
+          "evidence_ids": [
+            "evidence_4b35d34e5e07ffc4"
+          ],
+          "confidence": "high"
+        },
+        "max_age": {
+          "state": "present",
+          "value": "900",
+          "evidence_ids": [
+            "evidence_51e68c6ad8120fd6"
+          ],
+          "confidence": "high"
+        },
+        "expires": {
+          "state": "framework_default",
+          "value": "none",
+          "evidence_ids": [
+            "evidence_a7c8930136f027d4"
+          ],
+          "confidence": "low"
+        },
+        "path": {
+          "state": "framework_default",
+          "value": "/",
+          "evidence_ids": [
+            "evidence_427e3aca09f2a901"
+          ],
+          "confidence": "low"
+        },
+        "domain": {
+          "state": "framework_default",
+          "value": "none",
+          "evidence_ids": [
+            "evidence_063c471d6ac166fc"
+          ],
+          "confidence": "low"
+        }
+      }
+    },
+    {
+      "id": "artifact_35be80ef8141f7cb",
+      "artifact_type": "unknown_token",
+      "display_name": "unknown_token",
+      "locations": [
+        {
+          "path": "app.py",
+          "line": 55,
+          "column": 5
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_7e0f8ab5f17e8838"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "python"
+      ]
+    },
+    {
+      "id": "artifact_9dd7f790adcb8674",
+      "artifact_type": "unknown",
+      "display_name": "logout",
+      "locations": [
+        {
+          "path": "app.py",
+          "line": 60,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_43dfb90d25264dc4"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "fastapi"
+      ]
+    },
+    {
+      "id": "artifact_9a37039751082f3f",
+      "artifact_type": "unknown",
+      "display_name": "security_dependency",
+      "locations": [
+        {
+          "path": "app.py",
+          "line": 60,
+          "column": 37
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [
+          "evidence_c5dd88fd06c26093"
+        ],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "fastapi"
+      ]
+    },
+    {
+      "id": "artifact_345218b3714d0c8a",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "app.py",
+          "line": 61,
+          "column": 5
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_c0a93958834374e4"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "python"
+      ]
+    },
+    {
+      "id": "artifact_26239a282b5467e3",
+      "artifact_type": "session_cookie",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "app.py",
+          "line": 62,
+          "column": 5
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_41eb635462b4ba20"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "python"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evidence_67ba10e56375217d",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "app.py",
+        "line": 14,
+        "column": 12
+      },
+      "detector_id": "jwt.issue",
+      "confidence": "high",
+      "excerpt": "pyjwt.encode issue call detected with token and key arguments redacted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_1d120b1c0c19e112",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "app.py",
+        "line": 16,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.subject",
+      "confidence": "high",
+      "excerpt": "subject claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_485ff7f12a7a83f8",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "app.py",
+        "line": 17,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.issuer",
+      "confidence": "high",
+      "excerpt": "ISSUER",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_b1e065af58c3925c",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "app.py",
+        "line": 18,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.audience",
+      "confidence": "high",
+      "excerpt": "AUDIENCE",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_dd7490cd811b1d0c",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.py",
+        "line": 19,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.expiration",
+      "confidence": "high",
+      "excerpt": "expires_at",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_98eb78b1628dff5a",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "app.py",
+        "line": 21,
+        "column": 9
+      },
+      "detector_id": "jwt.attribute.key_reference",
+      "confidence": "high",
+      "excerpt": "JWT key reference is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_04e27dc796edd948",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "app.py",
+        "line": 22,
+        "column": 19
+      },
+      "detector_id": "jwt.attribute.algorithm",
+      "confidence": "high",
+      "excerpt": "\"HS256\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_400f7ea0d2ddb252",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.py",
+        "line": 29,
+        "column": 12
+      },
+      "detector_id": "jwt.attribute.expiry_enforcement",
+      "confidence": "low",
+      "excerpt": "PyJWT decode enforces exp by library default",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_6b8e2bb85b4a5c59",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.py",
+        "line": 29,
+        "column": 12
+      },
+      "detector_id": "jwt.attribute.signature_verification",
+      "confidence": "high",
+      "excerpt": "PyJWT decode verifies signatures when a key is supplied",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_b61b525c331695f4",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.py",
+        "line": 29,
+        "column": 12
+      },
+      "detector_id": "jwt.validate",
+      "confidence": "high",
+      "excerpt": "pyjwt.decode validate call detected with token and key arguments redacted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_879be86c887ffc25",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.py",
+        "line": 31,
+        "column": 9
+      },
+      "detector_id": "jwt.attribute.key_reference",
+      "confidence": "high",
+      "excerpt": "JWT key reference is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_9ec068fd376b7d89",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.py",
+        "line": 32,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.algorithm",
+      "confidence": "high",
+      "excerpt": "[\"HS256\"]",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_8251d59500cb750b",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.py",
+        "line": 32,
+        "column": 20
+      },
+      "detector_id": "jwt.option.algorithms",
+      "confidence": "high",
+      "excerpt": "[\"HS256\"]",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_0430950bd7d6b709",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.py",
+        "line": 33,
+        "column": 16
+      },
+      "detector_id": "jwt.attribute.issuer",
+      "confidence": "high",
+      "excerpt": "ISSUER",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_67f9caad64bf13a6",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.py",
+        "line": 33,
+        "column": 16
+      },
+      "detector_id": "jwt.option.issuer",
+      "confidence": "high",
+      "excerpt": "JWT issuer option is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_751429b89c10824f",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.py",
+        "line": 34,
+        "column": 18
+      },
+      "detector_id": "jwt.attribute.audience",
+      "confidence": "high",
+      "excerpt": "AUDIENCE",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_1a96e0988bbbf340",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.py",
+        "line": 34,
+        "column": 18
+      },
+      "detector_id": "jwt.option.audience",
+      "confidence": "high",
+      "excerpt": "JWT audience option is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_bab2541ae5986d41",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "app.py",
+        "line": 39,
+        "column": 1
+      },
+      "detector_id": "session.auth_transition",
+      "confidence": "high",
+      "excerpt": "def login(response: Response):\n    token = issue_access_token(\"[REDACTED]\")\n    response.set_cookie(\n        \"[REDACTED]\",\n        token,\n        httponly=True,\n        secure=True,\n        samesite=\"[REDACTED]\",\n        max_age=900,\n    )\n    return {\"[REDACTED]\": True}",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_0277e4a57e2be5d0",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.py",
+        "line": 40,
+        "column": 5
+      },
+      "detector_id": "bearer.store.config",
+      "confidence": "high",
+      "excerpt": "token = issue_access_token(\"[REDACTED]\")",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_8f65a9c03ac6856e",
+      "lifecycle_stage": "introspect",
+      "location": {
+        "path": "app.py",
+        "line": 40,
+        "column": 5
+      },
+      "detector_id": "bearer.boundary.issuer",
+      "confidence": "high",
+      "excerpt": "token = issue_access_token(\"[REDACTED]\")",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_d40d72776f6ad953",
+      "lifecycle_stage": "introspect",
+      "location": {
+        "path": "app.py",
+        "line": 40,
+        "column": 13
+      },
+      "detector_id": "bearer.boundary.issuer",
+      "confidence": "high",
+      "excerpt": "issue_access_token(\"[REDACTED]\")",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_ee55e24a0d65191a",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.py",
+        "line": 41,
+        "column": 5
+      },
+      "detector_id": "cookie.attribute.name_prefix",
+      "confidence": "high",
+      "excerpt": "Cookie name prefix: none",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_12991725538e196c",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.py",
+        "line": 41,
+        "column": 5
+      },
+      "detector_id": "cookie.set",
+      "confidence": "high",
+      "excerpt": "    [REDACTED] = issue_access_[REDACTED](\"placeholder-user\")\n    response.set_cookie(\n        \"session\",",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_063c471d6ac166fc",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.py",
+        "line": 41,
+        "column": 5
+      },
+      "detector_id": "cookie.attribute.domain",
+      "confidence": "low",
+      "excerpt": "Domain defaults to none for python",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_427e3aca09f2a901",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.py",
+        "line": 41,
+        "column": 5
+      },
+      "detector_id": "cookie.attribute.path",
+      "confidence": "low",
+      "excerpt": "Path defaults to / for python",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_a7c8930136f027d4",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.py",
+        "line": 41,
+        "column": 5
+      },
+      "detector_id": "cookie.attribute.expires",
+      "confidence": "low",
+      "excerpt": "Expires defaults to none for python",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_2e869cc62fb447f5",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.py",
+        "line": 44,
+        "column": 18
+      },
+      "detector_id": "cookie.attribute.http_only",
+      "confidence": "high",
+      "excerpt": "HttpOnly: True",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_61c3d2780025a546",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.py",
+        "line": 45,
+        "column": 16
+      },
+      "detector_id": "cookie.attribute.secure",
+      "confidence": "high",
+      "excerpt": "Secure: True",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_4b35d34e5e07ffc4",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.py",
+        "line": 46,
+        "column": 18
+      },
+      "detector_id": "cookie.attribute.same_site",
+      "confidence": "high",
+      "excerpt": "SameSite: \"lax\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_51e68c6ad8120fd6",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.py",
+        "line": 47,
+        "column": 17
+      },
+      "detector_id": "cookie.attribute.max_age",
+      "confidence": "high",
+      "excerpt": "Max-Age: 900",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_7e0f8ab5f17e8838",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.py",
+        "line": 55,
+        "column": 5
+      },
+      "detector_id": "bearer.expire",
+      "confidence": "high",
+      "excerpt": "store_reset_token(\"[REDACTED]\", \"[REDACTED]\", expires_at)",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_43dfb90d25264dc4",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.py",
+        "line": 60,
+        "column": 1
+      },
+      "detector_id": "logout.handler",
+      "confidence": "high",
+      "excerpt": "def logout(response: Response, user=Depends(current_user)):\n    revoke_session(user[\"[REDACTED]\"])\n    response.delete_cookie(\"[REDACTED]\")\n    return Response(status_code=204)",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c5dd88fd06c26093",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.py",
+        "line": 60,
+        "column": 37
+      },
+      "detector_id": "fastapi.security_dependency",
+      "confidence": "medium",
+      "excerpt": "Depends(current_user)",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c0a93958834374e4",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.py",
+        "line": 61,
+        "column": 5
+      },
+      "detector_id": "logout.session_destroy",
+      "confidence": "high",
+      "excerpt": "revoke_session(user[\"[REDACTED]\"])",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_41eb635462b4ba20",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.py",
+        "line": 62,
+        "column": 5
+      },
+      "detector_id": "logout.cookie_clear",
+      "confidence": "high",
+      "excerpt": "response.delete_cookie(\"session\")",
+      "dynamic": false,
+      "framework_default": false
+    }
+  ],
+  "lifecycle_paths": [
+    {
+      "id": "lifecycle_path_f8d48d8053a90bb6",
+      "artifact_ids": [
+        "artifact_12991725538e196c",
+        "artifact_26239a282b5467e3",
+        "artifact_345218b3714d0c8a"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_12991725538e196c",
+            "evidence_2e869cc62fb447f5",
+            "evidence_ee55e24a0d65191a"
+          ]
+        },
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_063c471d6ac166fc",
+            "evidence_427e3aca09f2a901",
+            "evidence_4b35d34e5e07ffc4",
+            "evidence_61c3d2780025a546"
+          ]
+        },
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_41eb635462b4ba20",
+            "evidence_c0a93958834374e4"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_51e68c6ad8120fd6",
+            "evidence_a7c8930136f027d4"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": false,
+      "reviewer_question": "Which framework version and deployment settings determine lifecycle behavior for `session`?"
+    },
+    {
+      "id": "lifecycle_path_7245767eb9cf69d6",
+      "artifact_ids": [
+        "artifact_1f6194ee35663737"
+      ],
+      "stages": [
+        {
+          "stage": "issue",
+          "evidence_ids": [
+            "evidence_04e27dc796edd948",
+            "evidence_1d120b1c0c19e112",
+            "evidence_485ff7f12a7a83f8",
+            "evidence_67ba10e56375217d",
+            "evidence_98eb78b1628dff5a",
+            "evidence_b1e065af58c3925c"
+          ]
+        },
+        {
+          "stage": "validate",
+          "evidence_ids": [
+            "evidence_0430950bd7d6b709",
+            "evidence_1a96e0988bbbf340",
+            "evidence_400f7ea0d2ddb252",
+            "evidence_67f9caad64bf13a6",
+            "evidence_6b8e2bb85b4a5c59",
+            "evidence_751429b89c10824f",
+            "evidence_8251d59500cb750b",
+            "evidence_879be86c887ffc25",
+            "evidence_9ec068fd376b7d89",
+            "evidence_b61b525c331695f4"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_dd7490cd811b1d0c"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": false,
+      "reviewer_question": "Which framework version and deployment settings determine lifecycle behavior for `access_jwt`?"
+    },
+    {
+      "id": "lifecycle_path_9bd8d97cc0befed7",
+      "artifact_ids": [
+        "artifact_35be80ef8141f7cb"
+      ],
+      "stages": [
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_7e0f8ab5f17e8838"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_d31556a0b43c2904",
+      "artifact_ids": [
+        "artifact_6662c62fe10196d2"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_0277e4a57e2be5d0"
+          ]
+        },
+        {
+          "stage": "introspect",
+          "evidence_ids": [
+            "evidence_8f65a9c03ac6856e",
+            "evidence_d40d72776f6ad953"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_16d22fa8a59e37e3",
+      "artifact_ids": [
+        "artifact_6fe7bd9aa9441210"
+      ],
+      "stages": [
+        {
+          "stage": "issue",
+          "evidence_ids": [
+            "evidence_bab2541ae5986d41"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_29d30d2dc0b5cd9c",
+      "artifact_ids": [
+        "artifact_9a37039751082f3f"
+      ],
+      "stages": [
+        {
+          "stage": "validate",
+          "evidence_ids": [
+            "evidence_c5dd88fd06c26093"
+          ]
+        }
+      ],
+      "confidence": "medium",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `security_dependency`?"
+    },
+    {
+      "id": "lifecycle_path_c9b761a2e59e2fbd",
+      "artifact_ids": [
+        "artifact_9dd7f790adcb8674"
+      ],
+      "stages": [
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_43dfb90d25264dc4"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    }
+  ],
+  "findings": [
+    {
+      "id": "finding_123f9760ef48ff07",
+      "category": "lifecycle_gap",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_1f6194ee35663737"
+      ],
+      "evidence_ids": [
+        "evidence_04e27dc796edd948",
+        "evidence_1d120b1c0c19e112",
+        "evidence_43dfb90d25264dc4",
+        "evidence_485ff7f12a7a83f8",
+        "evidence_67ba10e56375217d",
+        "evidence_98eb78b1628dff5a",
+        "evidence_b1e065af58c3925c"
+      ],
+      "title": "JWT `access_jwt` has logout evidence without linked denylist evidence",
+      "description": "A logout handler and access-JWT lifecycle evidence were detected in linked source context, but no source-bound denylist, blocklist, or token revocation-store insertion evidence was linked for the same logout flow.",
+      "suggested_fix": "Insert the JWT identifier into a denylist/blocklist or revoke-store on logout, or document the intentional short-TTL stateless model for reviewer confirmation.",
+      "reviewer_question": "Where does logout revoke or denylist outstanding `access_jwt` tokens?"
+    },
+    {
+      "id": "finding_579fa11bcc87ed34",
+      "category": "dynamic_review_required",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_6fe7bd9aa9441210"
+      ],
+      "evidence_ids": [
+        "evidence_bab2541ae5986d41"
+      ],
+      "title": "Session regeneration evidence was not found near login",
+      "description": "An authentication transition was detected, but nearby static evidence did not show an explicit session regeneration, cookie reissue, or recognized framework-default rotation point.",
+      "suggested_fix": "Identify the framework's session rotation primitive and call it during authentication and privilege transitions.",
+      "reviewer_question": "Where is the session identifier rotated after this authentication transition?"
+    },
+    {
+      "id": "finding_c13478d416e9902b",
+      "category": "missing_validation_evidence",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_1f6194ee35663737"
+      ],
+      "evidence_ids": [
+        "evidence_b61b525c331695f4",
+        "evidence_9ec068fd376b7d89",
+        "evidence_879be86c887ffc25",
+        "evidence_0430950bd7d6b709",
+        "evidence_751429b89c10824f",
+        "evidence_6b8e2bb85b4a5c59",
+        "evidence_400f7ea0d2ddb252",
+        "evidence_8251d59500cb750b",
+        "evidence_1a96e0988bbbf340",
+        "evidence_67f9caad64bf13a6"
+      ],
+      "title": "JWT `access_jwt` verification has no not-before validation evidence",
+      "description": "JWT verification evidence does not show `nbf` / not-before claim enforcement.",
+      "suggested_fix": "Require or enforce `nbf` validation where issuer policy uses not-before claims.",
+      "reviewer_question": "Do issued tokens for this path use `nbf`, and is it enforced in production?"
+    },
+    {
+      "id": "finding_570c03dd66d92170",
+      "category": "dynamic_review_required",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_6662c62fe10196d2"
+      ],
+      "evidence_ids": [
+        "evidence_0277e4a57e2be5d0"
+      ],
+      "title": "Token `access_token` has provider-managed or dynamic handling",
+      "description": "Bearer/API-key behavior appears dynamic, provider-managed, config-driven, or server-to-server only, so the static evidence should be reviewed before treating lifecycle controls as deterministic.",
+      "suggested_fix": "Document the provider, wrapper, or server-side policy for issuance, storage, validation, scope, expiry, rotation, and revocation.",
+      "reviewer_question": "Which runtime configuration or provider settings govern this token lifecycle?"
+    },
+    {
+      "id": "finding_07dfd3c55c8e74d9",
+      "category": "dynamic_review_required",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_6662c62fe10196d2"
+      ],
+      "evidence_ids": [
+        "evidence_8f65a9c03ac6856e",
+        "evidence_d40d72776f6ad953"
+      ],
+      "title": "Token `access_token` has boundary metadata without visible constraints",
+      "description": "Issuer, provider, or trust-boundary context was detected without nearby audience, service, tenant, or scope constraint evidence.",
+      "suggested_fix": "Document or expose the concrete audience, service, tenant, or scope policy that constrains this token.",
+      "reviewer_question": "Which local or provider policy prevents this token from being reused outside the intended boundary?"
+    },
+    {
+      "id": "finding_51328750744a1db3",
+      "category": "framework_default_assumed",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_1f6194ee35663737"
+      ],
+      "evidence_ids": [
+        "evidence_400f7ea0d2ddb252"
+      ],
+      "title": "JWT `access_jwt` expiry enforcement relies on library defaults",
+      "description": "JWT validation appears to rely on the library default for expiration enforcement.",
+      "suggested_fix": "Make expiration enforcement explicit or document the library version and default.",
+      "reviewer_question": "Which JWT library version and settings determine expiration enforcement here?"
+    }
+  ]
+}

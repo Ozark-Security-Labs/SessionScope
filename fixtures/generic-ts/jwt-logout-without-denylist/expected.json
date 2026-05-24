@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-ts.jwt-logout-without-denylist",
+  "framework": "generic-typescript",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["access_jwt", "session"],
+  "expected_lifecycle_stages": ["issue", "revoke", "expire"],
+  "expected_findings": ["jwt_denylist_absent_on_logout_review"],
+  "notes": "Covers an access-JWT issuing app with logout evidence but no linked denylist, blocklist, or token revocation-store insertion."
+}

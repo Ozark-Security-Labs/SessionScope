@@ -39,6 +39,12 @@ cargo check --workspace
 cargo test --workspace --all-targets
 ```
 
+Regenerate committed JSON report snapshots after intentional output changes:
+
+```bash
+SESSIONSCOPE_UPDATE_JSON_SNAPSHOTS=1 cargo test -p sessionscope-testing --test json_snapshots
+```
+
 Run the CLI during development:
 
 ```bash

@@ -1,0 +1,11 @@
+{
+  "fixture_id": "generic-ts.clean-baseline-jwt-oauth",
+  "framework": "generic-typescript",
+  "source_files": [
+    "app.ts"
+  ],
+  "expected_artifacts": [],
+  "expected_lifecycle_stages": [],
+  "expected_findings": [],
+  "notes": "Clean TypeScript baseline with no JWT, OAuth, or lifecycle findings."
+}

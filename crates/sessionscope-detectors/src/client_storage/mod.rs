@@ -24,8 +24,9 @@ static STORAGE_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
 static DOCUMENT_COOKIE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)document\s*\.\s*cookie\s*="#).expect("document cookie regex should compile")
 });
-static COOKIE_KEY_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(["'])([^="';]+)="#).expect("cookie key regex should compile"));
+static COOKIE_KEY_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(["'`])([^="';`]+)="#).expect("cookie key regex should compile")
+});
 static URL_PATH_FRAGMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)(#(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|session)\s*=|/(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer)(?:=|/)(?:\$\{|[A-Za-z0-9._~+%-]))"#)
         .expect("url path/fragment regex should compile")
@@ -345,6 +346,7 @@ mod tests {
 localStorage.setItem('access_token', token)
 sessionStorage.setItem('refresh_token', refresh)
 document.cookie = "session=" + sessionId
+document.cookie = `access_token=${accessToken}`
 const url = `/callback#id_token=${idToken}`
 const clientSecret = 'PLACEHOLDER_SECRET_DO_NOT_USE'
 "#,

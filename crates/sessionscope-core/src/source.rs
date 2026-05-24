@@ -93,7 +93,16 @@ fn read_source_checked(
     }
 
     String::from_utf8(bytes)
+        .map(normalize_line_endings)
         .map_err(|_| SkippedReason::ReadError(format!("{}", io::ErrorKind::InvalidData)))
+}
+
+fn normalize_line_endings(source: String) -> String {
+    if source.contains('\r') {
+        source.replace("\r\n", "\n").replace('\r', "\n")
+    } else {
+        source
+    }
 }
 
 fn validate_source_path(path: &Path, canonical_root: Option<&Path>) -> Result<(), SkippedReason> {
@@ -197,6 +206,17 @@ mod tests {
         let result = read_source(&path, 1_000).expect("file inside cap should read");
 
         assert_eq!(result, contents);
+    }
+
+    #[test]
+    fn normalizes_windows_line_endings_for_deterministic_scans() {
+        let temp = tempdir().expect("tempdir should be created");
+        let path = temp.path().join("windows.ts");
+        fs::write(&path, "const a = 1;\r\nconst b = 2;\r\n").expect("file should be written");
+
+        let result = read_source(&path, 1_000).expect("file inside cap should read");
+
+        assert_eq!(result, "const a = 1;\nconst b = 2;\n");
     }
 
     /// Simulates a file that grows on disk between the metadata size check and

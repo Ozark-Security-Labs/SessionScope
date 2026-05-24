@@ -14,6 +14,15 @@ and SessionScope uses semantic versioning as described in
 - Added v0.2 P1 cookie hardening coverage for `__Host-` / `__Secure-` prefix rules, `Partitioned` cookie review, broad non-session Domain review, and same-handler conflicting cookie writes across existing JS/TS/Python cookie detectors.
 - Added v0.2 P2 JWT crypto-trust coverage for `alg:none`, HMAC/asymmetric algorithm-confusion signals, `jku`/`x5u`/embedded-JWK header trust review, missing `nbf` validation, broad clock-skew review, and unvalidated `kid` header review across existing `jsonwebtoken`, `jose`, and PyJWT detector surfaces.
 - Added v0.2 P3 OAuth/OIDC flow integrity coverage for PKCE, `state`, OIDC `nonce`, broad redirect URI review, and client storage hygiene checks for localStorage, sessionStorage, URL path/fragment token exposure, and browser-path client secrets.
+- Added `jwt_denylist_absent_on_logout_review` lifecycle coverage for access-JWT logout flows that lack linked denylist, blocklist, or token revocation-store evidence.
+- Added `refresh_family_revocation_absent_on_logout_review` lifecycle coverage for refresh-token logout flows that lack linked family/user-scoped revocation evidence.
+- Added `sliding_expiry_without_rotation_review` lifecycle coverage for rolling/sliding session expiry that lacks linked session or refresh-token rotation evidence.
+- Added `password_change_global_revocation_absent_review` lifecycle coverage for password-change handlers that lack linked global session invalidation, refresh-family revocation, or token-version bump evidence.
+- Added clean-baseline false-positive fixtures across Express, Next.js, FastAPI, Django, generic JS/TS, and generic Python to guard every v0.2 P1-P4 check ID.
+- Added hand-rolled JSON report snapshot tests for representative Express, Next.js, FastAPI, Django, generic JS, generic TS, and generic Python fixtures.
+- Added Rust integration-test coverage for the documented CLI advisory/enforce exit-code policy matrix.
+- Documented the consolidated v0.2 category audit decision: all P1-P4 checks map to existing finding categories, with no schema or SARIF rule change.
+- Completed the v0.2 edge-case hardening documentation pass across the changelog, README status, roadmap, and coverage matrix.
 - Extended report redaction for OAuth/OIDC `state`, `nonce`, `code_verifier`, and `code_challenge` values in assignments, object keys, and URL parameters.
 
 ### Pre-release remediation (v0.1.0 readiness)

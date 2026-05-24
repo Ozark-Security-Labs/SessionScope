@@ -1,0 +1,9 @@
+{
+  "fixture_id": "django.password-change-without-global-revoke",
+  "framework": "django",
+  "source_files": ["views.py"],
+  "expected_artifacts": ["password_change"],
+  "expected_lifecycle_stages": ["revoke"],
+  "expected_findings": ["password_change_global_revocation_absent_review"],
+  "notes": "Covers a password-change handler that updates the password hash without global session, refresh-family, or token-version revocation evidence."
+}

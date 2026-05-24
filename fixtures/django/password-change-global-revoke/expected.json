@@ -1,0 +1,9 @@
+{
+  "fixture_id": "django.password-change-global-revoke",
+  "framework": "django",
+  "source_files": ["views.py"],
+  "expected_artifacts": ["password_change", "session"],
+  "expected_lifecycle_stages": ["revoke"],
+  "expected_findings": ["password_change_global_revocation_evidence_present"],
+  "notes": "Covers a password-change handler with visible global session invalidation and token-version bump evidence."
+}

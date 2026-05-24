@@ -1,0 +1,1874 @@
+{
+  "schema_version": "0.5.0",
+  "summary": {
+    "files_discovered": 2,
+    "files_scanned": 2,
+    "files_skipped": 0,
+    "diagnostics": [],
+    "worker_panic_count": 0
+  },
+  "files": [
+    {
+      "path": "auth.ts",
+      "language": "type_script",
+      "artifacts": [
+        {
+          "id": "artifact_59b937e65bbea018",
+          "artifact_type": "access_jwt",
+          "display_name": "access_jwt",
+          "locations": [
+            {
+              "path": "auth.ts",
+              "line": 17,
+              "column": 10
+            },
+            {
+              "path": "auth.ts",
+              "line": 29,
+              "column": 10
+            },
+            {
+              "path": "auth.ts",
+              "line": 40,
+              "column": 10
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [
+              "evidence_08cd1591819587b4",
+              "evidence_0dcaee30a4dba499",
+              "evidence_0f5a9f0d5b2b4dc0",
+              "evidence_48517d1eba13bd74",
+              "evidence_5fe4ec412b8292a8",
+              "evidence_7e70705f466b78bd",
+              "evidence_7f684ad11256f8c0",
+              "evidence_a16bbcfe379030e8",
+              "evidence_e2260e9f2965c63f",
+              "evidence_f014933fd3dda9ba",
+              "evidence_fc13667fe57d80c7"
+            ],
+            "store": [],
+            "transmit": [],
+            "validate": [
+              "evidence_142607e448a7c55a",
+              "evidence_2c55d5235636e020",
+              "evidence_2f1f7bb096bf5b6b",
+              "evidence_5794655114427a01",
+              "evidence_5ff7f5334ab5b971",
+              "evidence_c8db640fa216830b",
+              "evidence_eb240a6458b51f7d",
+              "evidence_ef5a75f64cb806d4",
+              "evidence_f60f8290316ad4bb",
+              "evidence_ffb17cdf5e5e8b20"
+            ],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_7f761cb194aa88ef"
+            ],
+            "introspect": [
+              "evidence_1c994198cf6dc30c"
+            ]
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "jsonwebtoken"
+          ],
+          "jwt_attributes": {
+            "operation": {
+              "state": "present",
+              "value": "decode_without_verify, issue, validate",
+              "evidence_ids": [
+                "evidence_1c994198cf6dc30c",
+                "evidence_eb240a6458b51f7d",
+                "evidence_fc13667fe57d80c7"
+              ],
+              "confidence": "high"
+            },
+            "algorithm": {
+              "state": "unknown",
+              "evidence_ids": [],
+              "confidence": "low"
+            },
+            "key_reference": {
+              "state": "present",
+              "value": "JWT_SECRET",
+              "evidence_ids": [
+                "evidence_7f684ad11256f8c0",
+                "evidence_ffb17cdf5e5e8b20"
+              ],
+              "confidence": "high"
+            },
+            "issuer": {
+              "state": "present",
+              "value": "ISSUER",
+              "evidence_ids": [
+                "evidence_08cd1591819587b4",
+                "evidence_2c55d5235636e020"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "present",
+              "value": "AUDIENCE",
+              "evidence_ids": [
+                "evidence_142607e448a7c55a",
+                "evidence_5fe4ec412b8292a8"
+              ],
+              "confidence": "high"
+            },
+            "expiration": {
+              "state": "present",
+              "value": "[literal]",
+              "evidence_ids": [
+                "evidence_7f761cb194aa88ef"
+              ],
+              "confidence": "high"
+            },
+            "signature_verification": {
+              "state": "missing",
+              "value": "decode_without_verify, verified",
+              "evidence_ids": [
+                "evidence_ef5a75f64cb806d4",
+                "evidence_f60f8290316ad4bb"
+              ],
+              "confidence": "high"
+            },
+            "expiry_enforcement": {
+              "state": "missing",
+              "value": "decode_without_verify, jsonwebtoken.verify default",
+              "evidence_ids": [
+                "evidence_5794655114427a01",
+                "evidence_c8db640fa216830b"
+              ],
+              "confidence": "high"
+            },
+            "identity_claims": {
+              "subject": {
+                "state": "present",
+                "value": "userId",
+                "evidence_ids": [
+                  "evidence_0f5a9f0d5b2b4dc0"
+                ],
+                "confidence": "high"
+              },
+              "user_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "tenant_id": {
+                "state": "present",
+                "value": "[literal]",
+                "evidence_ids": [
+                  "evidence_a16bbcfe379030e8"
+                ],
+                "confidence": "high"
+              },
+              "org_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "workspace_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "roles": {
+                "state": "present",
+                "value": "[literal]",
+                "evidence_ids": [
+                  "evidence_48517d1eba13bd74"
+                ],
+                "confidence": "high"
+              },
+              "scopes": {
+                "state": "present",
+                "value": "[literal]",
+                "evidence_ids": [
+                  "evidence_0dcaee30a4dba499"
+                ],
+                "confidence": "high"
+              },
+              "groups": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "email": {
+                "state": "present",
+                "value": "[literal]",
+                "evidence_ids": [
+                  "evidence_e2260e9f2965c63f"
+                ],
+                "confidence": "high"
+              },
+              "email_verified": {
+                "state": "present",
+                "value": "true",
+                "evidence_ids": [
+                  "evidence_f014933fd3dda9ba"
+                ],
+                "confidence": "high"
+              },
+              "auth_method": {
+                "state": "present",
+                "value": "[literal]",
+                "evidence_ids": [
+                  "evidence_7e70705f466b78bd"
+                ],
+                "confidence": "high"
+              },
+              "auth_class": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              }
+            }
+          },
+          "token_boundary_attributes": {
+            "issuer": {
+              "state": "present",
+              "value": "ISSUER",
+              "evidence_ids": [
+                "evidence_08cd1591819587b4",
+                "evidence_2c55d5235636e020"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "present",
+              "value": "AUDIENCE",
+              "evidence_ids": [
+                "evidence_142607e448a7c55a",
+                "evidence_5fe4ec412b8292a8"
+              ],
+              "confidence": "high"
+            },
+            "tenant": {
+              "state": "present",
+              "value": "[literal]",
+              "evidence_ids": [
+                "evidence_a16bbcfe379030e8"
+              ],
+              "confidence": "high"
+            },
+            "scope": {
+              "state": "present",
+              "value": "[literal]",
+              "evidence_ids": [
+                "evidence_0dcaee30a4dba499"
+              ],
+              "confidence": "high"
+            },
+            "trust_boundary": {
+              "state": "present",
+              "value": "AUDIENCE",
+              "evidence_ids": [
+                "evidence_142607e448a7c55a",
+                "evidence_5fe4ec412b8292a8"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_e6e873017238673a",
+          "artifact_type": "access_jwt",
+          "display_name": "legacy_access_jwt",
+          "locations": [
+            {
+              "path": "auth.ts",
+              "line": 36,
+              "column": 10
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [
+              "evidence_34b40fb747ca2a6e",
+              "evidence_3544c272b486ee48",
+              "evidence_49fd2c2d6edf3ffa",
+              "evidence_5b152f496cd87501",
+              "evidence_7d0978c8a0dc497a",
+              "evidence_8f9a6b8553ad8d39",
+              "evidence_c262b6b3fe4e626d"
+            ],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "jsonwebtoken"
+          ],
+          "jwt_attributes": {
+            "operation": {
+              "state": "present",
+              "value": "validate",
+              "evidence_ids": [
+                "evidence_c262b6b3fe4e626d"
+              ],
+              "confidence": "high"
+            },
+            "algorithm": {
+              "state": "unknown",
+              "evidence_ids": [],
+              "confidence": "low"
+            },
+            "key_reference": {
+              "state": "present",
+              "value": "JWT_SECRET",
+              "evidence_ids": [
+                "evidence_34b40fb747ca2a6e"
+              ],
+              "confidence": "high"
+            },
+            "issuer": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_7d0978c8a0dc497a"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_8f9a6b8553ad8d39"
+              ],
+              "confidence": "high"
+            },
+            "expiration": {
+              "state": "unknown",
+              "evidence_ids": [],
+              "confidence": "low"
+            },
+            "signature_verification": {
+              "state": "present",
+              "value": "verified",
+              "evidence_ids": [
+                "evidence_49fd2c2d6edf3ffa"
+              ],
+              "confidence": "high"
+            },
+            "expiry_enforcement": {
+              "state": "missing",
+              "value": "ignoreExpiration: true",
+              "evidence_ids": [
+                "evidence_5b152f496cd87501"
+              ],
+              "confidence": "high"
+            }
+          },
+          "token_boundary_attributes": {
+            "issuer": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_7d0978c8a0dc497a"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_8f9a6b8553ad8d39"
+              ],
+              "confidence": "high"
+            },
+            "provider": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_7d0978c8a0dc497a"
+              ],
+              "confidence": "high"
+            }
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence_0f5a9f0d5b2b4dc0",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.ts",
+            "line": 9,
+            "column": 10
+          },
+          "detector_id": "jwt.attribute.subject",
+          "confidence": "high",
+          "excerpt": "subject claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_a16bbcfe379030e8",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.ts",
+            "line": 10,
+            "column": 16
+          },
+          "detector_id": "jwt.attribute.tenant_id",
+          "confidence": "high",
+          "excerpt": "tenant ID claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_48517d1eba13bd74",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.ts",
+            "line": 11,
+            "column": 12
+          },
+          "detector_id": "jwt.attribute.roles",
+          "confidence": "high",
+          "excerpt": "roles claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_0dcaee30a4dba499",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.ts",
+            "line": 12,
+            "column": 12
+          },
+          "detector_id": "jwt.attribute.scopes",
+          "confidence": "high",
+          "excerpt": "scopes claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_e2260e9f2965c63f",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.ts",
+            "line": 13,
+            "column": 12
+          },
+          "detector_id": "jwt.attribute.email",
+          "confidence": "high",
+          "excerpt": "email claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_f014933fd3dda9ba",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.ts",
+            "line": 14,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.email_verified",
+          "confidence": "high",
+          "excerpt": "email verified claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_7e70705f466b78bd",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.ts",
+            "line": 15,
+            "column": 10
+          },
+          "detector_id": "jwt.attribute.auth_method",
+          "confidence": "high",
+          "excerpt": "auth method claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_fc13667fe57d80c7",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.ts",
+            "line": 17,
+            "column": 10
+          },
+          "detector_id": "jwt.issue",
+          "confidence": "high",
+          "excerpt": "jsonwebtoken.sign issue call detected with token and key arguments redacted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_7f684ad11256f8c0",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.ts",
+            "line": 19,
+            "column": 5
+          },
+          "detector_id": "jwt.attribute.key_reference",
+          "confidence": "high",
+          "excerpt": "JWT key reference is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_08cd1591819587b4",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.ts",
+            "line": 21,
+            "column": 15
+          },
+          "detector_id": "jwt.attribute.issuer",
+          "confidence": "high",
+          "excerpt": "ISSUER",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_5fe4ec412b8292a8",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.ts",
+            "line": 22,
+            "column": 17
+          },
+          "detector_id": "jwt.attribute.audience",
+          "confidence": "high",
+          "excerpt": "AUDIENCE",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_7f761cb194aa88ef",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "auth.ts",
+            "line": 23,
+            "column": 18
+          },
+          "detector_id": "jwt.attribute.expiration",
+          "confidence": "high",
+          "excerpt": "\"15m\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c8db640fa216830b",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 29,
+            "column": 10
+          },
+          "detector_id": "jwt.attribute.expiry_enforcement",
+          "confidence": "low",
+          "excerpt": "jsonwebtoken.verify enforces exp by library default",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_ef5a75f64cb806d4",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 29,
+            "column": 10
+          },
+          "detector_id": "jwt.attribute.signature_verification",
+          "confidence": "high",
+          "excerpt": "jsonwebtoken.verify verifies JWT signatures",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_eb240a6458b51f7d",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 29,
+            "column": 10
+          },
+          "detector_id": "jwt.validate",
+          "confidence": "high",
+          "excerpt": "jsonwebtoken.verify validate call detected with token and key arguments redacted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_ffb17cdf5e5e8b20",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 29,
+            "column": 28
+          },
+          "detector_id": "jwt.attribute.key_reference",
+          "confidence": "high",
+          "excerpt": "JWT key reference is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2c55d5235636e020",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 30,
+            "column": 13
+          },
+          "detector_id": "jwt.attribute.issuer",
+          "confidence": "high",
+          "excerpt": "ISSUER",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2f1f7bb096bf5b6b",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 30,
+            "column": 13
+          },
+          "detector_id": "jwt.option.issuer",
+          "confidence": "high",
+          "excerpt": "JWT issuer option is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_142607e448a7c55a",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 31,
+            "column": 15
+          },
+          "detector_id": "jwt.attribute.audience",
+          "confidence": "high",
+          "excerpt": "AUDIENCE",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_5ff7f5334ab5b971",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 31,
+            "column": 15
+          },
+          "detector_id": "jwt.option.audience",
+          "confidence": "high",
+          "excerpt": "JWT audience option is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_8f9a6b8553ad8d39",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 36,
+            "column": 10
+          },
+          "detector_id": "jwt.attribute.audience",
+          "confidence": "high",
+          "excerpt": "audience is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_5b152f496cd87501",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 36,
+            "column": 10
+          },
+          "detector_id": "jwt.attribute.expiry_enforcement",
+          "confidence": "high",
+          "excerpt": "JWT expiry enforcement is disabled with ignoreExpiration: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_7d0978c8a0dc497a",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 36,
+            "column": 10
+          },
+          "detector_id": "jwt.attribute.issuer",
+          "confidence": "high",
+          "excerpt": "issuer is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_49fd2c2d6edf3ffa",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 36,
+            "column": 10
+          },
+          "detector_id": "jwt.attribute.signature_verification",
+          "confidence": "high",
+          "excerpt": "jsonwebtoken.verify verifies JWT signatures",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c262b6b3fe4e626d",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 36,
+            "column": 10
+          },
+          "detector_id": "jwt.validate",
+          "confidence": "high",
+          "excerpt": "jsonwebtoken.verify validate call detected with token and key arguments redacted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_34b40fb747ca2a6e",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 36,
+            "column": 28
+          },
+          "detector_id": "jwt.attribute.key_reference",
+          "confidence": "high",
+          "excerpt": "JWT key reference is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_3544c272b486ee48",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 36,
+            "column": 60
+          },
+          "detector_id": "jwt.option.ignore_expiration",
+          "confidence": "high",
+          "excerpt": "true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_5794655114427a01",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 40,
+            "column": 10
+          },
+          "detector_id": "jwt.attribute.expiry_enforcement",
+          "confidence": "high",
+          "excerpt": "jsonwebtoken.decode does not enforce JWT expiration",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_f60f8290316ad4bb",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.ts",
+            "line": 40,
+            "column": 10
+          },
+          "detector_id": "jwt.attribute.signature_verification",
+          "confidence": "high",
+          "excerpt": "jsonwebtoken.decode decodes JWTs without signature verification",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_1c994198cf6dc30c",
+          "lifecycle_stage": "introspect",
+          "location": {
+            "path": "auth.ts",
+            "line": 40,
+            "column": 10
+          },
+          "detector_id": "jwt.decode_without_verify",
+          "confidence": "high",
+          "excerpt": "jsonwebtoken.decode decode_without_verify call detected with token and key arguments redacted",
+          "dynamic": false,
+          "framework_default": false
+        }
+      ],
+      "diagnostics": [],
+      "skipped_reason": null
+    },
+    {
+      "path": "expected.json",
+      "language": "json",
+      "artifacts": [],
+      "evidence": [],
+      "diagnostics": [],
+      "skipped_reason": null
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "artifact_59b937e65bbea018",
+      "artifact_type": "access_jwt",
+      "display_name": "access_jwt",
+      "locations": [
+        {
+          "path": "auth.ts",
+          "line": 17,
+          "column": 10
+        },
+        {
+          "path": "auth.ts",
+          "line": 29,
+          "column": 10
+        },
+        {
+          "path": "auth.ts",
+          "line": 40,
+          "column": 10
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [
+          "evidence_08cd1591819587b4",
+          "evidence_0dcaee30a4dba499",
+          "evidence_0f5a9f0d5b2b4dc0",
+          "evidence_48517d1eba13bd74",
+          "evidence_5fe4ec412b8292a8",
+          "evidence_7e70705f466b78bd",
+          "evidence_7f684ad11256f8c0",
+          "evidence_a16bbcfe379030e8",
+          "evidence_e2260e9f2965c63f",
+          "evidence_f014933fd3dda9ba",
+          "evidence_fc13667fe57d80c7"
+        ],
+        "store": [],
+        "transmit": [],
+        "validate": [
+          "evidence_142607e448a7c55a",
+          "evidence_2c55d5235636e020",
+          "evidence_2f1f7bb096bf5b6b",
+          "evidence_5794655114427a01",
+          "evidence_5ff7f5334ab5b971",
+          "evidence_c8db640fa216830b",
+          "evidence_eb240a6458b51f7d",
+          "evidence_ef5a75f64cb806d4",
+          "evidence_f60f8290316ad4bb",
+          "evidence_ffb17cdf5e5e8b20"
+        ],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_7f761cb194aa88ef"
+        ],
+        "introspect": [
+          "evidence_1c994198cf6dc30c"
+        ]
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "jsonwebtoken"
+      ],
+      "jwt_attributes": {
+        "operation": {
+          "state": "present",
+          "value": "decode_without_verify, issue, validate",
+          "evidence_ids": [
+            "evidence_1c994198cf6dc30c",
+            "evidence_eb240a6458b51f7d",
+            "evidence_fc13667fe57d80c7"
+          ],
+          "confidence": "high"
+        },
+        "algorithm": {
+          "state": "unknown",
+          "evidence_ids": [],
+          "confidence": "low"
+        },
+        "key_reference": {
+          "state": "present",
+          "value": "JWT_SECRET",
+          "evidence_ids": [
+            "evidence_7f684ad11256f8c0",
+            "evidence_ffb17cdf5e5e8b20"
+          ],
+          "confidence": "high"
+        },
+        "issuer": {
+          "state": "present",
+          "value": "ISSUER",
+          "evidence_ids": [
+            "evidence_08cd1591819587b4",
+            "evidence_2c55d5235636e020"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "present",
+          "value": "AUDIENCE",
+          "evidence_ids": [
+            "evidence_142607e448a7c55a",
+            "evidence_5fe4ec412b8292a8"
+          ],
+          "confidence": "high"
+        },
+        "expiration": {
+          "state": "present",
+          "value": "[literal]",
+          "evidence_ids": [
+            "evidence_7f761cb194aa88ef"
+          ],
+          "confidence": "high"
+        },
+        "signature_verification": {
+          "state": "missing",
+          "value": "decode_without_verify, verified",
+          "evidence_ids": [
+            "evidence_ef5a75f64cb806d4",
+            "evidence_f60f8290316ad4bb"
+          ],
+          "confidence": "high"
+        },
+        "expiry_enforcement": {
+          "state": "missing",
+          "value": "decode_without_verify, jsonwebtoken.verify default",
+          "evidence_ids": [
+            "evidence_5794655114427a01",
+            "evidence_c8db640fa216830b"
+          ],
+          "confidence": "high"
+        },
+        "identity_claims": {
+          "subject": {
+            "state": "present",
+            "value": "userId",
+            "evidence_ids": [
+              "evidence_0f5a9f0d5b2b4dc0"
+            ],
+            "confidence": "high"
+          },
+          "user_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "tenant_id": {
+            "state": "present",
+            "value": "[literal]",
+            "evidence_ids": [
+              "evidence_a16bbcfe379030e8"
+            ],
+            "confidence": "high"
+          },
+          "org_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "workspace_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "roles": {
+            "state": "present",
+            "value": "[literal]",
+            "evidence_ids": [
+              "evidence_48517d1eba13bd74"
+            ],
+            "confidence": "high"
+          },
+          "scopes": {
+            "state": "present",
+            "value": "[literal]",
+            "evidence_ids": [
+              "evidence_0dcaee30a4dba499"
+            ],
+            "confidence": "high"
+          },
+          "groups": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "email": {
+            "state": "present",
+            "value": "[literal]",
+            "evidence_ids": [
+              "evidence_e2260e9f2965c63f"
+            ],
+            "confidence": "high"
+          },
+          "email_verified": {
+            "state": "present",
+            "value": "true",
+            "evidence_ids": [
+              "evidence_f014933fd3dda9ba"
+            ],
+            "confidence": "high"
+          },
+          "auth_method": {
+            "state": "present",
+            "value": "[literal]",
+            "evidence_ids": [
+              "evidence_7e70705f466b78bd"
+            ],
+            "confidence": "high"
+          },
+          "auth_class": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          }
+        }
+      },
+      "token_boundary_attributes": {
+        "issuer": {
+          "state": "present",
+          "value": "ISSUER",
+          "evidence_ids": [
+            "evidence_08cd1591819587b4",
+            "evidence_2c55d5235636e020"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "present",
+          "value": "AUDIENCE",
+          "evidence_ids": [
+            "evidence_142607e448a7c55a",
+            "evidence_5fe4ec412b8292a8"
+          ],
+          "confidence": "high"
+        },
+        "tenant": {
+          "state": "present",
+          "value": "[literal]",
+          "evidence_ids": [
+            "evidence_a16bbcfe379030e8"
+          ],
+          "confidence": "high"
+        },
+        "scope": {
+          "state": "present",
+          "value": "[literal]",
+          "evidence_ids": [
+            "evidence_0dcaee30a4dba499"
+          ],
+          "confidence": "high"
+        },
+        "trust_boundary": {
+          "state": "present",
+          "value": "AUDIENCE",
+          "evidence_ids": [
+            "evidence_142607e448a7c55a",
+            "evidence_5fe4ec412b8292a8"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_e6e873017238673a",
+      "artifact_type": "access_jwt",
+      "display_name": "legacy_access_jwt",
+      "locations": [
+        {
+          "path": "auth.ts",
+          "line": 36,
+          "column": 10
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [
+          "evidence_34b40fb747ca2a6e",
+          "evidence_3544c272b486ee48",
+          "evidence_49fd2c2d6edf3ffa",
+          "evidence_5b152f496cd87501",
+          "evidence_7d0978c8a0dc497a",
+          "evidence_8f9a6b8553ad8d39",
+          "evidence_c262b6b3fe4e626d"
+        ],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "jsonwebtoken"
+      ],
+      "jwt_attributes": {
+        "operation": {
+          "state": "present",
+          "value": "validate",
+          "evidence_ids": [
+            "evidence_c262b6b3fe4e626d"
+          ],
+          "confidence": "high"
+        },
+        "algorithm": {
+          "state": "unknown",
+          "evidence_ids": [],
+          "confidence": "low"
+        },
+        "key_reference": {
+          "state": "present",
+          "value": "JWT_SECRET",
+          "evidence_ids": [
+            "evidence_34b40fb747ca2a6e"
+          ],
+          "confidence": "high"
+        },
+        "issuer": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_7d0978c8a0dc497a"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_8f9a6b8553ad8d39"
+          ],
+          "confidence": "high"
+        },
+        "expiration": {
+          "state": "unknown",
+          "evidence_ids": [],
+          "confidence": "low"
+        },
+        "signature_verification": {
+          "state": "present",
+          "value": "verified",
+          "evidence_ids": [
+            "evidence_49fd2c2d6edf3ffa"
+          ],
+          "confidence": "high"
+        },
+        "expiry_enforcement": {
+          "state": "missing",
+          "value": "ignoreExpiration: true",
+          "evidence_ids": [
+            "evidence_5b152f496cd87501"
+          ],
+          "confidence": "high"
+        }
+      },
+      "token_boundary_attributes": {
+        "issuer": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_7d0978c8a0dc497a"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_8f9a6b8553ad8d39"
+          ],
+          "confidence": "high"
+        },
+        "provider": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_7d0978c8a0dc497a"
+          ],
+          "confidence": "high"
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evidence_0f5a9f0d5b2b4dc0",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.ts",
+        "line": 9,
+        "column": 10
+      },
+      "detector_id": "jwt.attribute.subject",
+      "confidence": "high",
+      "excerpt": "subject claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_a16bbcfe379030e8",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.ts",
+        "line": 10,
+        "column": 16
+      },
+      "detector_id": "jwt.attribute.tenant_id",
+      "confidence": "high",
+      "excerpt": "tenant ID claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_48517d1eba13bd74",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.ts",
+        "line": 11,
+        "column": 12
+      },
+      "detector_id": "jwt.attribute.roles",
+      "confidence": "high",
+      "excerpt": "roles claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_0dcaee30a4dba499",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.ts",
+        "line": 12,
+        "column": 12
+      },
+      "detector_id": "jwt.attribute.scopes",
+      "confidence": "high",
+      "excerpt": "scopes claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_e2260e9f2965c63f",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.ts",
+        "line": 13,
+        "column": 12
+      },
+      "detector_id": "jwt.attribute.email",
+      "confidence": "high",
+      "excerpt": "email claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_f014933fd3dda9ba",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.ts",
+        "line": 14,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.email_verified",
+      "confidence": "high",
+      "excerpt": "email verified claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_7e70705f466b78bd",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.ts",
+        "line": 15,
+        "column": 10
+      },
+      "detector_id": "jwt.attribute.auth_method",
+      "confidence": "high",
+      "excerpt": "auth method claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_fc13667fe57d80c7",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.ts",
+        "line": 17,
+        "column": 10
+      },
+      "detector_id": "jwt.issue",
+      "confidence": "high",
+      "excerpt": "jsonwebtoken.sign issue call detected with token and key arguments redacted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_7f684ad11256f8c0",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.ts",
+        "line": 19,
+        "column": 5
+      },
+      "detector_id": "jwt.attribute.key_reference",
+      "confidence": "high",
+      "excerpt": "JWT key reference is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_08cd1591819587b4",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.ts",
+        "line": 21,
+        "column": 15
+      },
+      "detector_id": "jwt.attribute.issuer",
+      "confidence": "high",
+      "excerpt": "ISSUER",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_5fe4ec412b8292a8",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.ts",
+        "line": 22,
+        "column": 17
+      },
+      "detector_id": "jwt.attribute.audience",
+      "confidence": "high",
+      "excerpt": "AUDIENCE",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_7f761cb194aa88ef",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "auth.ts",
+        "line": 23,
+        "column": 18
+      },
+      "detector_id": "jwt.attribute.expiration",
+      "confidence": "high",
+      "excerpt": "\"15m\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c8db640fa216830b",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 29,
+        "column": 10
+      },
+      "detector_id": "jwt.attribute.expiry_enforcement",
+      "confidence": "low",
+      "excerpt": "jsonwebtoken.verify enforces exp by library default",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_ef5a75f64cb806d4",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 29,
+        "column": 10
+      },
+      "detector_id": "jwt.attribute.signature_verification",
+      "confidence": "high",
+      "excerpt": "jsonwebtoken.verify verifies JWT signatures",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_eb240a6458b51f7d",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 29,
+        "column": 10
+      },
+      "detector_id": "jwt.validate",
+      "confidence": "high",
+      "excerpt": "jsonwebtoken.verify validate call detected with token and key arguments redacted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_ffb17cdf5e5e8b20",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 29,
+        "column": 28
+      },
+      "detector_id": "jwt.attribute.key_reference",
+      "confidence": "high",
+      "excerpt": "JWT key reference is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2c55d5235636e020",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 30,
+        "column": 13
+      },
+      "detector_id": "jwt.attribute.issuer",
+      "confidence": "high",
+      "excerpt": "ISSUER",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2f1f7bb096bf5b6b",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 30,
+        "column": 13
+      },
+      "detector_id": "jwt.option.issuer",
+      "confidence": "high",
+      "excerpt": "JWT issuer option is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_142607e448a7c55a",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 31,
+        "column": 15
+      },
+      "detector_id": "jwt.attribute.audience",
+      "confidence": "high",
+      "excerpt": "AUDIENCE",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_5ff7f5334ab5b971",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 31,
+        "column": 15
+      },
+      "detector_id": "jwt.option.audience",
+      "confidence": "high",
+      "excerpt": "JWT audience option is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_8f9a6b8553ad8d39",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 36,
+        "column": 10
+      },
+      "detector_id": "jwt.attribute.audience",
+      "confidence": "high",
+      "excerpt": "audience is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_5b152f496cd87501",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 36,
+        "column": 10
+      },
+      "detector_id": "jwt.attribute.expiry_enforcement",
+      "confidence": "high",
+      "excerpt": "JWT expiry enforcement is disabled with ignoreExpiration: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_7d0978c8a0dc497a",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 36,
+        "column": 10
+      },
+      "detector_id": "jwt.attribute.issuer",
+      "confidence": "high",
+      "excerpt": "issuer is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_49fd2c2d6edf3ffa",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 36,
+        "column": 10
+      },
+      "detector_id": "jwt.attribute.signature_verification",
+      "confidence": "high",
+      "excerpt": "jsonwebtoken.verify verifies JWT signatures",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c262b6b3fe4e626d",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 36,
+        "column": 10
+      },
+      "detector_id": "jwt.validate",
+      "confidence": "high",
+      "excerpt": "jsonwebtoken.verify validate call detected with token and key arguments redacted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_34b40fb747ca2a6e",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 36,
+        "column": 28
+      },
+      "detector_id": "jwt.attribute.key_reference",
+      "confidence": "high",
+      "excerpt": "JWT key reference is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_3544c272b486ee48",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 36,
+        "column": 60
+      },
+      "detector_id": "jwt.option.ignore_expiration",
+      "confidence": "high",
+      "excerpt": "true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_5794655114427a01",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 40,
+        "column": 10
+      },
+      "detector_id": "jwt.attribute.expiry_enforcement",
+      "confidence": "high",
+      "excerpt": "jsonwebtoken.decode does not enforce JWT expiration",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_f60f8290316ad4bb",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.ts",
+        "line": 40,
+        "column": 10
+      },
+      "detector_id": "jwt.attribute.signature_verification",
+      "confidence": "high",
+      "excerpt": "jsonwebtoken.decode decodes JWTs without signature verification",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_1c994198cf6dc30c",
+      "lifecycle_stage": "introspect",
+      "location": {
+        "path": "auth.ts",
+        "line": 40,
+        "column": 10
+      },
+      "detector_id": "jwt.decode_without_verify",
+      "confidence": "high",
+      "excerpt": "jsonwebtoken.decode decode_without_verify call detected with token and key arguments redacted",
+      "dynamic": false,
+      "framework_default": false
+    }
+  ],
+  "lifecycle_paths": [
+    {
+      "id": "lifecycle_path_8cc5c35588ac1ebf",
+      "artifact_ids": [
+        "artifact_59b937e65bbea018"
+      ],
+      "stages": [
+        {
+          "stage": "issue",
+          "evidence_ids": [
+            "evidence_08cd1591819587b4",
+            "evidence_0dcaee30a4dba499",
+            "evidence_0f5a9f0d5b2b4dc0",
+            "evidence_48517d1eba13bd74",
+            "evidence_5fe4ec412b8292a8",
+            "evidence_7e70705f466b78bd",
+            "evidence_7f684ad11256f8c0",
+            "evidence_a16bbcfe379030e8",
+            "evidence_e2260e9f2965c63f",
+            "evidence_f014933fd3dda9ba",
+            "evidence_fc13667fe57d80c7"
+          ]
+        },
+        {
+          "stage": "validate",
+          "evidence_ids": [
+            "evidence_142607e448a7c55a",
+            "evidence_2c55d5235636e020",
+            "evidence_2f1f7bb096bf5b6b",
+            "evidence_5794655114427a01",
+            "evidence_5ff7f5334ab5b971",
+            "evidence_c8db640fa216830b",
+            "evidence_eb240a6458b51f7d",
+            "evidence_ef5a75f64cb806d4",
+            "evidence_f60f8290316ad4bb",
+            "evidence_ffb17cdf5e5e8b20"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_7f761cb194aa88ef"
+          ]
+        },
+        {
+          "stage": "introspect",
+          "evidence_ids": [
+            "evidence_1c994198cf6dc30c"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": false,
+      "reviewer_question": "Which framework version and deployment settings determine lifecycle behavior for `access_jwt`?"
+    },
+    {
+      "id": "lifecycle_path_1ffd533199877bad",
+      "artifact_ids": [
+        "artifact_e6e873017238673a"
+      ],
+      "stages": [
+        {
+          "stage": "validate",
+          "evidence_ids": [
+            "evidence_34b40fb747ca2a6e",
+            "evidence_3544c272b486ee48",
+            "evidence_49fd2c2d6edf3ffa",
+            "evidence_5b152f496cd87501",
+            "evidence_7d0978c8a0dc497a",
+            "evidence_8f9a6b8553ad8d39",
+            "evidence_c262b6b3fe4e626d"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    }
+  ],
+  "findings": [
+    {
+      "id": "finding_f1fcf1961b0774db",
+      "category": "high_confidence_misconfiguration",
+      "severity": "high",
+      "artifact_ids": [
+        "artifact_59b937e65bbea018"
+      ],
+      "evidence_ids": [
+        "evidence_5794655114427a01",
+        "evidence_c8db640fa216830b"
+      ],
+      "title": "JWT `access_jwt` expiry enforcement is disabled or absent",
+      "description": "Evidence shows this JWT validation path does not enforce expiration.",
+      "suggested_fix": "Require expiration enforcement when validating JWTs.",
+      "reviewer_question": "Can expired tokens be accepted on this path?"
+    },
+    {
+      "id": "finding_ba3477b3bf615bdd",
+      "category": "high_confidence_misconfiguration",
+      "severity": "high",
+      "artifact_ids": [
+        "artifact_59b937e65bbea018"
+      ],
+      "evidence_ids": [
+        "evidence_ef5a75f64cb806d4",
+        "evidence_f60f8290316ad4bb"
+      ],
+      "title": "JWT `access_jwt` is decoded or parsed without signature verification",
+      "description": "Evidence shows this JWT path does not verify signatures before reading claims.",
+      "suggested_fix": "Use a verification API with the expected issuer, audience, and signing key before trusting claims.",
+      "reviewer_question": "Is this decoded JWT used only for non-security-sensitive introspection?"
+    },
+    {
+      "id": "finding_eb282b5477ced485",
+      "category": "high_confidence_misconfiguration",
+      "severity": "high",
+      "artifact_ids": [
+        "artifact_e6e873017238673a"
+      ],
+      "evidence_ids": [
+        "evidence_5b152f496cd87501"
+      ],
+      "title": "JWT `legacy_access_jwt` expiry enforcement is disabled or absent",
+      "description": "Evidence shows this JWT validation path does not enforce expiration.",
+      "suggested_fix": "Require expiration enforcement when validating JWTs.",
+      "reviewer_question": "Can expired tokens be accepted on this path?"
+    },
+    {
+      "id": "finding_83e5da31912ff3fb",
+      "category": "missing_validation_evidence",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_e6e873017238673a"
+      ],
+      "evidence_ids": [
+        "evidence_7d0978c8a0dc497a"
+      ],
+      "title": "JWT `legacy_access_jwt` verification has no issuer evidence",
+      "description": "JWT verification evidence does not include an expected issuer check.",
+      "suggested_fix": "Require an expected issuer when verifying JWTs.",
+      "reviewer_question": "Should this service reject tokens with an unexpected issuer?"
+    },
+    {
+      "id": "finding_90843c170feb8bb3",
+      "category": "missing_validation_evidence",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_e6e873017238673a"
+      ],
+      "evidence_ids": [
+        "evidence_8f9a6b8553ad8d39"
+      ],
+      "title": "JWT `legacy_access_jwt` verification has no audience evidence",
+      "description": "JWT verification evidence does not include an expected audience check.",
+      "suggested_fix": "Require an expected audience when verifying JWTs.",
+      "reviewer_question": "Should this service reject tokens with an unexpected audience?"
+    },
+    {
+      "id": "finding_8697abef77df826d",
+      "category": "framework_default_assumed",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_59b937e65bbea018"
+      ],
+      "evidence_ids": [
+        "evidence_eb240a6458b51f7d",
+        "evidence_ffb17cdf5e5e8b20",
+        "evidence_2c55d5235636e020",
+        "evidence_142607e448a7c55a",
+        "evidence_ef5a75f64cb806d4",
+        "evidence_c8db640fa216830b",
+        "evidence_5ff7f5334ab5b971",
+        "evidence_2f1f7bb096bf5b6b",
+        "evidence_f60f8290316ad4bb",
+        "evidence_5794655114427a01"
+      ],
+      "title": "JWT `access_jwt` validation relies on JWT algorithm defaults",
+      "description": "JWT verification evidence does not pin accepted algorithms for a library path with historically configuration-dependent `none` handling.",
+      "suggested_fix": "Pass an explicit safe algorithms allow-list when verifying JWTs.",
+      "reviewer_question": "Which library version and configuration define the accepted JWT algorithms here?"
+    },
+    {
+      "id": "finding_ac53ce93423700e5",
+      "category": "framework_default_assumed",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_e6e873017238673a"
+      ],
+      "evidence_ids": [
+        "evidence_c262b6b3fe4e626d",
+        "evidence_34b40fb747ca2a6e",
+        "evidence_7d0978c8a0dc497a",
+        "evidence_8f9a6b8553ad8d39",
+        "evidence_49fd2c2d6edf3ffa",
+        "evidence_5b152f496cd87501",
+        "evidence_3544c272b486ee48"
+      ],
+      "title": "JWT `legacy_access_jwt` validation relies on JWT algorithm defaults",
+      "description": "JWT verification evidence does not pin accepted algorithms for a library path with historically configuration-dependent `none` handling.",
+      "suggested_fix": "Pass an explicit safe algorithms allow-list when verifying JWTs.",
+      "reviewer_question": "Which library version and configuration define the accepted JWT algorithms here?"
+    },
+    {
+      "id": "finding_46679a7571b675df",
+      "category": "missing_validation_evidence",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_59b937e65bbea018"
+      ],
+      "evidence_ids": [
+        "evidence_eb240a6458b51f7d",
+        "evidence_ffb17cdf5e5e8b20",
+        "evidence_2c55d5235636e020",
+        "evidence_142607e448a7c55a",
+        "evidence_ef5a75f64cb806d4",
+        "evidence_c8db640fa216830b",
+        "evidence_5ff7f5334ab5b971",
+        "evidence_2f1f7bb096bf5b6b",
+        "evidence_f60f8290316ad4bb",
+        "evidence_5794655114427a01"
+      ],
+      "title": "JWT `access_jwt` verification has no not-before validation evidence",
+      "description": "JWT verification evidence does not show `nbf` / not-before claim enforcement.",
+      "suggested_fix": "Require or enforce `nbf` validation where issuer policy uses not-before claims.",
+      "reviewer_question": "Do issued tokens for this path use `nbf`, and is it enforced in production?"
+    },
+    {
+      "id": "finding_526caf8537b4fffb",
+      "category": "missing_validation_evidence",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_e6e873017238673a"
+      ],
+      "evidence_ids": [
+        "evidence_c262b6b3fe4e626d",
+        "evidence_34b40fb747ca2a6e",
+        "evidence_7d0978c8a0dc497a",
+        "evidence_8f9a6b8553ad8d39",
+        "evidence_49fd2c2d6edf3ffa",
+        "evidence_5b152f496cd87501",
+        "evidence_3544c272b486ee48"
+      ],
+      "title": "JWT `legacy_access_jwt` verification has no not-before validation evidence",
+      "description": "JWT verification evidence does not show `nbf` / not-before claim enforcement.",
+      "suggested_fix": "Require or enforce `nbf` validation where issuer policy uses not-before claims.",
+      "reviewer_question": "Do issued tokens for this path use `nbf`, and is it enforced in production?"
+    }
+  ]
+}

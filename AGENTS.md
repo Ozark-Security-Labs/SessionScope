@@ -67,6 +67,13 @@ cargo check --workspace
 cargo test -q
 ```
 
+Regenerate committed JSON report snapshots after intentional report-output
+changes:
+
+```bash
+SESSIONSCOPE_UPDATE_JSON_SNAPSHOTS=1 cargo test -p sessionscope-testing --test json_snapshots
+```
+
 For broader local validation:
 
 ```bash

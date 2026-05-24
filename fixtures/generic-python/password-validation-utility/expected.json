@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-python.password-validation-utility",
+  "framework": "generic-python",
+  "source_files": ["app.py"],
+  "expected_artifacts": [],
+  "expected_lifecycle_stages": [],
+  "expected_findings": ["password_validation_utility_no_password_change_review"],
+  "notes": "Covers a standalone password-validation helper that should not be treated as a password-change handler."
+}

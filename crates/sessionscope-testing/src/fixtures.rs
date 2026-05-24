@@ -132,13 +132,15 @@ mod tests {
             assert!(!case.expected.framework.is_empty());
             assert!(!case.expected.notes.is_empty());
             assert!(!case.expected.source_files.is_empty());
-            assert!(
-                !case.expected.expected_artifacts.is_empty()
-                    || !case.expected.expected_lifecycle_stages.is_empty()
-                    || !case.expected.expected_findings.is_empty(),
-                "{} should include at least one expectation",
-                case.expected.fixture_id
-            );
+            if !case.expected.fixture_id.contains("clean-baseline") {
+                assert!(
+                    !case.expected.expected_artifacts.is_empty()
+                        || !case.expected.expected_lifecycle_stages.is_empty()
+                        || !case.expected.expected_findings.is_empty(),
+                    "{} should include at least one expectation",
+                    case.expected.fixture_id
+                );
+            }
 
             for source_file in &case.expected.source_files {
                 assert!(
@@ -763,6 +765,87 @@ mod tests {
     }
 
     #[test]
+    fn clean_baseline_fixtures_have_no_findings() {
+        const NEW_P1_P4_CHECK_IDS: &[&str] = &[
+            "cookie_host_prefix_path_violation",
+            "cookie_host_prefix_domain_violation",
+            "cookie_host_prefix_secure_violation",
+            "cookie_secure_prefix_secure_violation",
+            "cookie_samesite_none_without_secure",
+            "cookie_partitioned_review",
+            "cookie_domain_leak_review",
+            "cookie_conflicting_writes_review",
+            "jwt_alg_none_accepted",
+            "jwt_alg_confusion_signal",
+            "jwt_jku_header_trust",
+            "jwt_x5u_header_trust",
+            "jwt_embedded_jwk_trust",
+            "jwt_nbf_missing",
+            "jwt_clock_skew_review",
+            "jwt_kid_unvalidated_review",
+            "oauth_pkce_missing_review",
+            "oauth_state_missing",
+            "oauth_state_static_review",
+            "oauth_state_unverified_review",
+            "oidc_nonce_missing",
+            "oidc_nonce_unverified_review",
+            "oauth_redirect_uri_wildcard_review",
+            "token_in_local_storage",
+            "token_in_session_storage",
+            "token_in_url_path_or_fragment",
+            "client_secret_in_browser_code",
+            "jwt_denylist_absent_on_logout_review",
+            "refresh_family_revocation_absent_on_logout_review",
+            "sliding_expiry_without_rotation_review",
+            "password_change_global_revocation_absent_review",
+        ];
+        let roots = [
+            fixture_root()
+                .join("express")
+                .join("clean-baseline-lifecycle"),
+            fixture_root()
+                .join("nextjs")
+                .join("clean-baseline-oauth-storage"),
+            fixture_root()
+                .join("fastapi")
+                .join("clean-baseline-lifecycle"),
+            fixture_root()
+                .join("django")
+                .join("clean-baseline-password-refresh"),
+            fixture_root().join("generic-js").join("clean-baseline-jwt"),
+            fixture_root()
+                .join("generic-ts")
+                .join("clean-baseline-jwt-oauth"),
+            fixture_root()
+                .join("generic-python")
+                .join("clean-baseline-jwt-refresh"),
+        ];
+
+        assert!(
+            NEW_P1_P4_CHECK_IDS.len() >= 31,
+            "new check inventory should stay explicit"
+        );
+
+        for root in roots {
+            let report = classify(
+                scan_path(
+                    ScanConfig::new(&root),
+                    Arc::new(DetectorRegistry::builtin()),
+                )
+                .unwrap_or_else(|error| panic!("{} should scan: {error}", root.display())),
+            );
+
+            assert!(
+                report.findings.is_empty(),
+                "{} should not produce any findings, including {:?}; got {:?}",
+                root.display(),
+                NEW_P1_P4_CHECK_IDS,
+                report.findings
+            );
+        }
+    }
+
+    #[test]
     fn logout_fixtures_emit_revoke_evidence() {
         let cases = [
             (
@@ -828,6 +911,53 @@ mod tests {
                 && finding.title.contains("cleared on logout")
                 && finding.reviewer_question.is_some()
         }));
+    }
+
+    #[test]
+    fn jwt_logout_without_denylist_fixture_produces_review_gap() {
+        let root = fixture_root()
+            .join("generic-ts")
+            .join("jwt-logout-without-denylist");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("jwt logout without denylist fixture should scan"),
+        );
+
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("without linked denylist")
+                && finding.reviewer_question.is_some()
+        }));
+    }
+
+    #[test]
+    fn jwt_logout_with_denylist_fixture_stays_clean_for_denylist_gap() {
+        let root = fixture_root()
+            .join("generic-ts")
+            .join("jwt-logout-with-denylist");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("jwt logout with denylist fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Revoke
+                && evidence.detector_id == "logout.token_revoke"
+        }));
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("without linked denylist")),
+            "{:?}",
+            report.findings
+        );
     }
 
     #[test]
@@ -1042,6 +1172,239 @@ mod tests {
             finding.category == FindingCategory::LifecycleGap
                 && finding.title.contains("refresh evidence")
         }));
+    }
+
+    #[test]
+    fn logout_refresh_family_missing_fixture_produces_review_gap() {
+        let root = fixture_root()
+            .join("express")
+            .join("logout-refresh-family-missing");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("logout refresh family missing fixture should scan"),
+        );
+
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("without family revocation")
+                && finding.reviewer_question.is_some()
+        }));
+    }
+
+    #[test]
+    fn logout_refresh_family_revoked_fixture_stays_clean_for_family_gap() {
+        let root = fixture_root()
+            .join("express")
+            .join("logout-refresh-family-revoked");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("logout refresh family revoked fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Revoke
+                && evidence.detector_id == "refresh.revoke"
+        }));
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("without family revocation")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn sliding_expiry_fixture_produces_rotation_review_gap() {
+        let root = fixture_root()
+            .join("express")
+            .join("sliding-expiry-without-rotation");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("sliding expiry fixture should scan"),
+        );
+
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("sliding expiry")
+                && finding.reviewer_question.is_some()
+        }));
+    }
+
+    #[test]
+    fn sliding_expiry_with_rotation_fixture_stays_clean_for_rotation_gap() {
+        let root = fixture_root()
+            .join("express")
+            .join("sliding-expiry-with-rotation");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("sliding expiry with rotation fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Refresh
+                && evidence.detector_id == "session.regenerate"
+        }));
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("sliding expiry")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn fixed_expiry_fixture_stays_clean_for_sliding_review() {
+        let root = fixture_root().join("express").join("fixed-expiry-session");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("fixed expiry fixture should scan"),
+        );
+
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("sliding expiry")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn password_change_without_global_revoke_fixture_produces_review_gap() {
+        let root = fixture_root()
+            .join("django")
+            .join("password-change-without-global-revoke");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("password-change without global revoke fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Revoke
+                && evidence.detector_id == "password_change.handler"
+        }));
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("Password-change handler")
+                && finding.reviewer_question.is_some()
+        }));
+    }
+
+    #[test]
+    fn password_change_global_revoke_fixture_stays_clean_for_global_gap() {
+        let root = fixture_root()
+            .join("django")
+            .join("password-change-global-revoke");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("password-change global revoke fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Revoke
+                && evidence.detector_id == "password_change.global_revoke"
+        }));
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("Password-change handler")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn password_change_current_session_only_fixture_still_produces_review_gap() {
+        let root = fixture_root()
+            .join("django")
+            .join("password-change-current-session-only");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("password-change current-session-only fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Revoke
+                && evidence.detector_id == "password_change.handler"
+        }));
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Refresh
+                && evidence.detector_id == "session.regenerate"
+        }));
+        assert!(
+            !report
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "password_change.global_revoke"),
+            "{:?}",
+            report.evidence
+        );
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("Password-change handler")
+                && finding.reviewer_question.is_some()
+        }));
+    }
+
+    #[test]
+    fn password_validation_utility_fixture_does_not_emit_password_change_review() {
+        let root = fixture_root()
+            .join("generic-python")
+            .join("password-validation-utility");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("password validation utility fixture should scan"),
+        );
+
+        assert!(
+            !report
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "password_change.handler"),
+            "{:?}",
+            report.evidence
+        );
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("Password-change handler")),
+            "{:?}",
+            report.findings
+        );
     }
 
     #[test]
