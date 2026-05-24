@@ -33,7 +33,7 @@ A parallel summary lives in [`SCHEMA.md` Version policy](SCHEMA.md#version-polic
 
 | Surface | Constant | Current | Governs |
 | ------- | -------- | ------- | ------- |
-| CLI release | `sessionscope` crate version (`Cargo.toml`) | `0.1.0` | CLI flags, command grammar, output paths, exit codes, `sessionscope.toml` keys, GitHub Action inputs |
+| CLI release | `sessionscope` crate version (`Cargo.toml`) | `0.2.0` | CLI flags, command grammar, output paths, exit codes, `sessionscope.toml` keys, GitHub Action inputs |
 | Scan report | `SCHEMA_VERSION` (`schema.rs`) | `0.5.0` | `ScanReport` JSON inventory and findings shape |
 | Baseline | `BASELINE_SCHEMA_VERSION` (`baseline.rs`) | `0.1.0` | Baseline JSON wire format |
 | Diff | `DIFF_SCHEMA_VERSION` (`baseline.rs`) | `0.1.0` | Diff JSON wire format |

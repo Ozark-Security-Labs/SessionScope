@@ -36,7 +36,7 @@ go install github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest
 ## Verify checksums
 
 ```sh
-TAG=v0.1.0
+TAG=v0.2.0
 HOST=x86_64-unknown-linux-gnu
 
 gh release download "$TAG" -R Ozark-Security-Labs/SessionScope \

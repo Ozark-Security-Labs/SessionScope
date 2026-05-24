@@ -176,7 +176,7 @@ gh run watch -R Ozark-Security-Labs/SessionScope
 After the release publishes, verify at least one binary archive:
 
 ```sh
-TAG=v0.1.0
+TAG=v0.2.0
 HOST=x86_64-unknown-linux-gnu
 gh release download "$TAG" -R Ozark-Security-Labs/SessionScope \
   -p '*.tar.gz' -p '*.zip' -p '*.sha256' -p '*.intoto.jsonl'
