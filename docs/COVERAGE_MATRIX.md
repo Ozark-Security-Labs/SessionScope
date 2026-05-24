@@ -1,6 +1,6 @@
 # Coverage Matrix
 
-This matrix is the per-check source of truth for what SessionScope can find on a scanned project. SessionScope is offline-only and evidence-bound: **supported** means deterministic source patterns are recognized, **review-required** means dynamic or framework-default behavior is surfaced for reviewer confirmation, and **not covered** means the stack or pattern is intentionally out of scope for this release round.
+This matrix is the per-check source of truth for what SessionScope can find on a scanned project. To decide whether a check fires on your stack, find the check ID, then read across the Languages, Frameworks, Libraries/SDKs, and Triggering APIs columns. SessionScope is offline-only and evidence-bound: **supported** means deterministic source patterns are recognized, **review-required** means dynamic or framework-default behavior is surfaced for reviewer confirmation, and **not covered** means the stack or pattern is intentionally out of scope for this release round.
 
 Narrative framework notes remain in [FRAMEWORK_COVERAGE.md](FRAMEWORK_COVERAGE.md) and provider/library notes remain in [PROVIDER_LIBRARY_COVERAGE.md](PROVIDER_LIBRARY_COVERAGE.md).
 

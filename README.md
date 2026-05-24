@@ -201,7 +201,8 @@ Config precedence is:
 ## Project status
 
 - **Release target:** v0.1.0 first packaged release through GitHub Releases. Release packaging, versioning, and installation workflow are tracked in #28.
-- **Complete:** v0.1 foundation, v0.2 cookie audit, v0.3 JWT validation, v0.4 lifecycle mapping, v0.5 expanded token handling, v0.6 framework/provider coverage, v0.7 CI SARIF/enforcement, v0.8 reviewer workflows.
+- **Complete:** v0.1 foundation plus the v0.2 depth-first edge-case hardening round for cookie rules, JWT crypto-trust, OAuth/OIDC flow integrity, client storage hygiene, lifecycle gaps, false-positive fixtures, JSON snapshots, and CLI exit-code tests.
+- **Deferred:** v0.3+ breadth expansion for new languages and frameworks; see [docs/ROADMAP.md](docs/ROADMAP.md).
 - **Schema:** JSON contract v0.5.0.
 - **Rust:** edition 2024. MSRV is 1.95.
 - **Platforms:** Linux, macOS, and Windows are covered by CI where workflow support exists.
