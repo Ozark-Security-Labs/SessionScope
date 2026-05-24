@@ -1,0 +1,900 @@
+{
+  "schema_version": "0.5.0",
+  "summary": {
+    "files_discovered": 3,
+    "files_scanned": 3,
+    "files_skipped": 0,
+    "diagnostics": [],
+    "worker_panic_count": 0
+  },
+  "files": [
+    {
+      "path": "expected.json",
+      "language": "json",
+      "artifacts": [],
+      "evidence": [],
+      "diagnostics": [],
+      "skipped_reason": null
+    },
+    {
+      "path": "settings.py",
+      "language": "python",
+      "artifacts": [
+        {
+          "id": "artifact_99ec026c78bdccbb",
+          "artifact_type": "session_cookie",
+          "display_name": "sessionid",
+          "locations": [
+            {
+              "path": "settings.py",
+              "line": 2,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_99ec026c78bdccbb",
+              "evidence_ca1fe3d007a72505",
+              "evidence_ec9bef1d37b762fd"
+            ],
+            "transmit": [
+              "evidence_1c3527e01b7878d2",
+              "evidence_1ec1adbc2e3731f8",
+              "evidence_b696d1f40628568a",
+              "evidence_c6eb4d0f4c5683ab"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_054287c83ffbc9d9",
+              "evidence_a720310d31ee0f13"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "django"
+          ],
+          "cookie_attributes": {
+            "http_only": {
+              "state": "present",
+              "value": "True",
+              "evidence_ids": [
+                "evidence_ec9bef1d37b762fd"
+              ],
+              "confidence": "high"
+            },
+            "secure": {
+              "state": "present",
+              "value": "True",
+              "evidence_ids": [
+                "evidence_1c3527e01b7878d2"
+              ],
+              "confidence": "high"
+            },
+            "same_site": {
+              "state": "present",
+              "value": "Lax",
+              "evidence_ids": [
+                "evidence_1ec1adbc2e3731f8"
+              ],
+              "confidence": "high"
+            },
+            "max_age": {
+              "state": "framework_default",
+              "value": "1209600",
+              "evidence_ids": [
+                "evidence_054287c83ffbc9d9"
+              ],
+              "confidence": "low"
+            },
+            "expires": {
+              "state": "framework_default",
+              "value": "none",
+              "evidence_ids": [
+                "evidence_a720310d31ee0f13"
+              ],
+              "confidence": "low"
+            },
+            "path": {
+              "state": "framework_default",
+              "value": "/",
+              "evidence_ids": [
+                "evidence_b696d1f40628568a"
+              ],
+              "confidence": "low"
+            },
+            "domain": {
+              "state": "framework_default",
+              "value": "none",
+              "evidence_ids": [
+                "evidence_c6eb4d0f4c5683ab"
+              ],
+              "confidence": "low"
+            }
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence_ca1fe3d007a72505",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "settings.py",
+            "line": 2,
+            "column": 1
+          },
+          "detector_id": "cookie.attribute.name_prefix",
+          "confidence": "high",
+          "excerpt": "Cookie name prefix: none",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_99ec026c78bdccbb",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "settings.py",
+            "line": 2,
+            "column": 1
+          },
+          "detector_id": "cookie.set",
+          "confidence": "high",
+          "excerpt": "Django SESSION_COOKIE_* settings",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c6eb4d0f4c5683ab",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "settings.py",
+            "line": 2,
+            "column": 1
+          },
+          "detector_id": "cookie.attribute.domain",
+          "confidence": "low",
+          "excerpt": "Domain defaults to none for django",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_b696d1f40628568a",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "settings.py",
+            "line": 2,
+            "column": 1
+          },
+          "detector_id": "cookie.attribute.path",
+          "confidence": "low",
+          "excerpt": "Path defaults to / for django",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_a720310d31ee0f13",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "settings.py",
+            "line": 2,
+            "column": 1
+          },
+          "detector_id": "cookie.attribute.expires",
+          "confidence": "low",
+          "excerpt": "Expires defaults to none for django",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_054287c83ffbc9d9",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "settings.py",
+            "line": 2,
+            "column": 1
+          },
+          "detector_id": "cookie.attribute.max_age",
+          "confidence": "low",
+          "excerpt": "Max-Age defaults to 1209600 for django",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_ec9bef1d37b762fd",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "settings.py",
+            "line": 2,
+            "column": 27
+          },
+          "detector_id": "cookie.attribute.http_only",
+          "confidence": "high",
+          "excerpt": "SESSION_COOKIE_HTTPONLY = True",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_1c3527e01b7878d2",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "settings.py",
+            "line": 3,
+            "column": 25
+          },
+          "detector_id": "cookie.attribute.secure",
+          "confidence": "high",
+          "excerpt": "SESSION_COOKIE_SECURE = True",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_1ec1adbc2e3731f8",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "settings.py",
+            "line": 4,
+            "column": 27
+          },
+          "detector_id": "cookie.attribute.same_site",
+          "confidence": "high",
+          "excerpt": "SESSION_COOKIE_SAMESITE = \"Lax\"",
+          "dynamic": false,
+          "framework_default": false
+        }
+      ],
+      "diagnostics": [],
+      "skipped_reason": null
+    },
+    {
+      "path": "views.py",
+      "language": "python",
+      "artifacts": [
+        {
+          "id": "artifact_2d4eceb282cb58d6",
+          "artifact_type": "unknown",
+          "display_name": "logout",
+          "locations": [
+            {
+              "path": "views.py",
+              "line": 18,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_4e76a3048eeb65c6"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "python"
+          ]
+        },
+        {
+          "id": "artifact_4dc9e49ac137a92c",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "views.py",
+              "line": 19,
+              "column": 5
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_08fb01f27b9526e6"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "python"
+          ]
+        },
+        {
+          "id": "artifact_c807d79fde47d60c",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "views.py",
+              "line": 20,
+              "column": 5
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_46e713f862bd7a7a"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "django"
+          ]
+        },
+        {
+          "id": "artifact_e34a318309f55157",
+          "artifact_type": "session_cookie",
+          "display_name": "sessionid",
+          "locations": [
+            {
+              "path": "views.py",
+              "line": 22,
+              "column": 5
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_9d5c6bbd4b320590"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "python"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence_4e76a3048eeb65c6",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "views.py",
+            "line": 18,
+            "column": 1
+          },
+          "detector_id": "logout.handler",
+          "confidence": "high",
+          "excerpt": "def complete_logout(request):\n    revoke_user_sessions(request.user.pk)\n    logout(request)\n    response = HttpResponse(status=204)\n    response.delete_cookie(\"[REDACTED]\")\n    return response",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_08fb01f27b9526e6",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "views.py",
+            "line": 19,
+            "column": 5
+          },
+          "detector_id": "logout.session_destroy",
+          "confidence": "high",
+          "excerpt": "revoke_user_sessions(request.user.pk)",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_46e713f862bd7a7a",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "views.py",
+            "line": 20,
+            "column": 5
+          },
+          "detector_id": "logout.session_destroy",
+          "confidence": "high",
+          "excerpt": "logout(request)",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_9d5c6bbd4b320590",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "views.py",
+            "line": 22,
+            "column": 5
+          },
+          "detector_id": "logout.cookie_clear",
+          "confidence": "high",
+          "excerpt": "response.delete_cookie(\"sessionid\")",
+          "dynamic": false,
+          "framework_default": false
+        }
+      ],
+      "diagnostics": [],
+      "skipped_reason": null
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "artifact_99ec026c78bdccbb",
+      "artifact_type": "session_cookie",
+      "display_name": "sessionid",
+      "locations": [
+        {
+          "path": "settings.py",
+          "line": 2,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_99ec026c78bdccbb",
+          "evidence_ca1fe3d007a72505",
+          "evidence_ec9bef1d37b762fd"
+        ],
+        "transmit": [
+          "evidence_1c3527e01b7878d2",
+          "evidence_1ec1adbc2e3731f8",
+          "evidence_b696d1f40628568a",
+          "evidence_c6eb4d0f4c5683ab"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_054287c83ffbc9d9",
+          "evidence_a720310d31ee0f13"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "django"
+      ],
+      "cookie_attributes": {
+        "http_only": {
+          "state": "present",
+          "value": "True",
+          "evidence_ids": [
+            "evidence_ec9bef1d37b762fd"
+          ],
+          "confidence": "high"
+        },
+        "secure": {
+          "state": "present",
+          "value": "True",
+          "evidence_ids": [
+            "evidence_1c3527e01b7878d2"
+          ],
+          "confidence": "high"
+        },
+        "same_site": {
+          "state": "present",
+          "value": "Lax",
+          "evidence_ids": [
+            "evidence_1ec1adbc2e3731f8"
+          ],
+          "confidence": "high"
+        },
+        "max_age": {
+          "state": "framework_default",
+          "value": "1209600",
+          "evidence_ids": [
+            "evidence_054287c83ffbc9d9"
+          ],
+          "confidence": "low"
+        },
+        "expires": {
+          "state": "framework_default",
+          "value": "none",
+          "evidence_ids": [
+            "evidence_a720310d31ee0f13"
+          ],
+          "confidence": "low"
+        },
+        "path": {
+          "state": "framework_default",
+          "value": "/",
+          "evidence_ids": [
+            "evidence_b696d1f40628568a"
+          ],
+          "confidence": "low"
+        },
+        "domain": {
+          "state": "framework_default",
+          "value": "none",
+          "evidence_ids": [
+            "evidence_c6eb4d0f4c5683ab"
+          ],
+          "confidence": "low"
+        }
+      }
+    },
+    {
+      "id": "artifact_2d4eceb282cb58d6",
+      "artifact_type": "unknown",
+      "display_name": "logout",
+      "locations": [
+        {
+          "path": "views.py",
+          "line": 18,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_4e76a3048eeb65c6"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "python"
+      ]
+    },
+    {
+      "id": "artifact_4dc9e49ac137a92c",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "views.py",
+          "line": 19,
+          "column": 5
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_08fb01f27b9526e6"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "python"
+      ]
+    },
+    {
+      "id": "artifact_c807d79fde47d60c",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "views.py",
+          "line": 20,
+          "column": 5
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_46e713f862bd7a7a"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "django"
+      ]
+    },
+    {
+      "id": "artifact_e34a318309f55157",
+      "artifact_type": "session_cookie",
+      "display_name": "sessionid",
+      "locations": [
+        {
+          "path": "views.py",
+          "line": 22,
+          "column": 5
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_9d5c6bbd4b320590"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "python"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evidence_ca1fe3d007a72505",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "settings.py",
+        "line": 2,
+        "column": 1
+      },
+      "detector_id": "cookie.attribute.name_prefix",
+      "confidence": "high",
+      "excerpt": "Cookie name prefix: none",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_99ec026c78bdccbb",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "settings.py",
+        "line": 2,
+        "column": 1
+      },
+      "detector_id": "cookie.set",
+      "confidence": "high",
+      "excerpt": "Django SESSION_COOKIE_* settings",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c6eb4d0f4c5683ab",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "settings.py",
+        "line": 2,
+        "column": 1
+      },
+      "detector_id": "cookie.attribute.domain",
+      "confidence": "low",
+      "excerpt": "Domain defaults to none for django",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_b696d1f40628568a",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "settings.py",
+        "line": 2,
+        "column": 1
+      },
+      "detector_id": "cookie.attribute.path",
+      "confidence": "low",
+      "excerpt": "Path defaults to / for django",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_a720310d31ee0f13",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "settings.py",
+        "line": 2,
+        "column": 1
+      },
+      "detector_id": "cookie.attribute.expires",
+      "confidence": "low",
+      "excerpt": "Expires defaults to none for django",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_054287c83ffbc9d9",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "settings.py",
+        "line": 2,
+        "column": 1
+      },
+      "detector_id": "cookie.attribute.max_age",
+      "confidence": "low",
+      "excerpt": "Max-Age defaults to 1209600 for django",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_ec9bef1d37b762fd",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "settings.py",
+        "line": 2,
+        "column": 27
+      },
+      "detector_id": "cookie.attribute.http_only",
+      "confidence": "high",
+      "excerpt": "SESSION_COOKIE_HTTPONLY = True",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_1c3527e01b7878d2",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "settings.py",
+        "line": 3,
+        "column": 25
+      },
+      "detector_id": "cookie.attribute.secure",
+      "confidence": "high",
+      "excerpt": "SESSION_COOKIE_SECURE = True",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_1ec1adbc2e3731f8",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "settings.py",
+        "line": 4,
+        "column": 27
+      },
+      "detector_id": "cookie.attribute.same_site",
+      "confidence": "high",
+      "excerpt": "SESSION_COOKIE_SAMESITE = \"Lax\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_4e76a3048eeb65c6",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "views.py",
+        "line": 18,
+        "column": 1
+      },
+      "detector_id": "logout.handler",
+      "confidence": "high",
+      "excerpt": "def complete_logout(request):\n    revoke_user_sessions(request.user.pk)\n    logout(request)\n    response = HttpResponse(status=204)\n    response.delete_cookie(\"[REDACTED]\")\n    return response",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_08fb01f27b9526e6",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "views.py",
+        "line": 19,
+        "column": 5
+      },
+      "detector_id": "logout.session_destroy",
+      "confidence": "high",
+      "excerpt": "revoke_user_sessions(request.user.pk)",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_46e713f862bd7a7a",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "views.py",
+        "line": 20,
+        "column": 5
+      },
+      "detector_id": "logout.session_destroy",
+      "confidence": "high",
+      "excerpt": "logout(request)",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_9d5c6bbd4b320590",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "views.py",
+        "line": 22,
+        "column": 5
+      },
+      "detector_id": "logout.cookie_clear",
+      "confidence": "high",
+      "excerpt": "response.delete_cookie(\"sessionid\")",
+      "dynamic": false,
+      "framework_default": false
+    }
+  ],
+  "lifecycle_paths": [
+    {
+      "id": "lifecycle_path_e1461ac0bc618003",
+      "artifact_ids": [
+        "artifact_2d4eceb282cb58d6"
+      ],
+      "stages": [
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_4e76a3048eeb65c6"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_981eddef51e17919",
+      "artifact_ids": [
+        "artifact_4dc9e49ac137a92c",
+        "artifact_c807d79fde47d60c",
+        "artifact_e34a318309f55157"
+      ],
+      "stages": [
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_08fb01f27b9526e6",
+            "evidence_46e713f862bd7a7a",
+            "evidence_9d5c6bbd4b320590"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_1503d38d0577da92",
+      "artifact_ids": [
+        "artifact_99ec026c78bdccbb"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_99ec026c78bdccbb",
+            "evidence_ca1fe3d007a72505",
+            "evidence_ec9bef1d37b762fd"
+          ]
+        },
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_1c3527e01b7878d2",
+            "evidence_1ec1adbc2e3731f8",
+            "evidence_b696d1f40628568a",
+            "evidence_c6eb4d0f4c5683ab"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_054287c83ffbc9d9",
+            "evidence_a720310d31ee0f13"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": false,
+      "reviewer_question": "Which framework version and deployment settings determine lifecycle behavior for `sessionid`?"
+    }
+  ],
+  "findings": []
+}

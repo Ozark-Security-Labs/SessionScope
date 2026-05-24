@@ -19,6 +19,7 @@ and SessionScope uses semantic versioning as described in
 - Added `sliding_expiry_without_rotation_review` lifecycle coverage for rolling/sliding session expiry that lacks linked session or refresh-token rotation evidence.
 - Added `password_change_global_revocation_absent_review` lifecycle coverage for password-change handlers that lack linked global session invalidation, refresh-family revocation, or token-version bump evidence.
 - Added clean-baseline false-positive fixtures across Express, Next.js, FastAPI, Django, generic JS/TS, and generic Python to guard every v0.2 P1-P4 check ID.
+- Added hand-rolled JSON report snapshot tests for representative Express, Next.js, FastAPI, Django, generic JS, generic TS, and generic Python fixtures.
 - Extended report redaction for OAuth/OIDC `state`, `nonce`, `code_verifier`, and `code_challenge` values in assignments, object keys, and URL parameters.
 
 ### Pre-release remediation (v0.1.0 readiness)

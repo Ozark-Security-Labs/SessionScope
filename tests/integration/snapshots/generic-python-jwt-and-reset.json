@@ -1,0 +1,2227 @@
+{
+  "schema_version": "0.5.0",
+  "summary": {
+    "files_discovered": 2,
+    "files_scanned": 2,
+    "files_skipped": 0,
+    "diagnostics": [],
+    "worker_panic_count": 0
+  },
+  "files": [
+    {
+      "path": "auth.py",
+      "language": "python",
+      "artifacts": [
+        {
+          "id": "artifact_a87fee6937c3c5c7",
+          "artifact_type": "password_reset_token",
+          "display_name": "password_reset_token",
+          "locations": [
+            {
+              "path": "auth.py",
+              "line": 1,
+              "column": 1
+            },
+            {
+              "path": "auth.py",
+              "line": 50,
+              "column": 1
+            },
+            {
+              "path": "auth.py",
+              "line": 56,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [
+              "evidence_c5a43c05b6279e38"
+            ],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_80683a2cfc20663b"
+            ],
+            "expire": [
+              "evidence_e9c83016ca543396"
+            ],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": []
+        },
+        {
+          "id": "artifact_5ab48324a39c720a",
+          "artifact_type": "access_jwt",
+          "display_name": "access_jwt",
+          "locations": [
+            {
+              "path": "auth.py",
+              "line": 13,
+              "column": 12
+            },
+            {
+              "path": "auth.py",
+              "line": 32,
+              "column": 12
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [
+              "evidence_0db6dad318cae9a9",
+              "evidence_1223d5c32d123d00",
+              "evidence_34d607a0bb1d3d05",
+              "evidence_66b972e811a6b871",
+              "evidence_8bf72e77fdfd44ba",
+              "evidence_8e62ee09cb0654d8",
+              "evidence_9160c5207317c308",
+              "evidence_b530b3c4d437e08f",
+              "evidence_c48ce5a507402d19",
+              "evidence_d884fc6584947a6b",
+              "evidence_e8028b0c166ba4b6"
+            ],
+            "store": [],
+            "transmit": [],
+            "validate": [
+              "evidence_0ab760ae7e24a689",
+              "evidence_170f3794e1490ccc",
+              "evidence_1b688919407d804f",
+              "evidence_1d56066840a264c2",
+              "evidence_2c7d70c35fd4b8ad",
+              "evidence_a1e1544ec64e0957",
+              "evidence_d206780c19923731",
+              "evidence_f02b22268faf0d3f",
+              "evidence_fc5c6aaa1812035c",
+              "evidence_fec3b86f55948e8d"
+            ],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_3c608d31e7bef137"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "pyjwt"
+          ],
+          "jwt_attributes": {
+            "operation": {
+              "state": "present",
+              "value": "issue, validate",
+              "evidence_ids": [
+                "evidence_34d607a0bb1d3d05",
+                "evidence_f02b22268faf0d3f"
+              ],
+              "confidence": "high"
+            },
+            "algorithm": {
+              "state": "present",
+              "value": "[literal]",
+              "evidence_ids": [
+                "evidence_9160c5207317c308",
+                "evidence_a1e1544ec64e0957"
+              ],
+              "confidence": "high"
+            },
+            "key_reference": {
+              "state": "present",
+              "value": "JWT_SECRET",
+              "evidence_ids": [
+                "evidence_0ab760ae7e24a689",
+                "evidence_1223d5c32d123d00"
+              ],
+              "confidence": "high"
+            },
+            "issuer": {
+              "state": "present",
+              "value": "ISSUER",
+              "evidence_ids": [
+                "evidence_8bf72e77fdfd44ba",
+                "evidence_fec3b86f55948e8d"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "present",
+              "value": "AUDIENCE",
+              "evidence_ids": [
+                "evidence_1b688919407d804f",
+                "evidence_8e62ee09cb0654d8"
+              ],
+              "confidence": "high"
+            },
+            "expiration": {
+              "state": "present",
+              "value": "now + timedelta(minutes=15)",
+              "evidence_ids": [
+                "evidence_3c608d31e7bef137"
+              ],
+              "confidence": "high"
+            },
+            "signature_verification": {
+              "state": "present",
+              "value": "verified",
+              "evidence_ids": [
+                "evidence_fc5c6aaa1812035c"
+              ],
+              "confidence": "high"
+            },
+            "expiry_enforcement": {
+              "state": "framework_default",
+              "value": "PyJWT decode default",
+              "evidence_ids": [
+                "evidence_2c7d70c35fd4b8ad"
+              ],
+              "confidence": "low"
+            },
+            "identity_claims": {
+              "subject": {
+                "state": "present",
+                "value": "user_id",
+                "evidence_ids": [
+                  "evidence_e8028b0c166ba4b6"
+                ],
+                "confidence": "high"
+              },
+              "user_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "tenant_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "org_id": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "workspace_id": {
+                "state": "present",
+                "value": "[literal]",
+                "evidence_ids": [
+                  "evidence_c48ce5a507402d19"
+                ],
+                "confidence": "high"
+              },
+              "roles": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "scopes": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "groups": {
+                "state": "present",
+                "value": "[literal]",
+                "evidence_ids": [
+                  "evidence_0db6dad318cae9a9"
+                ],
+                "confidence": "high"
+              },
+              "email": {
+                "state": "present",
+                "value": "[literal]",
+                "evidence_ids": [
+                  "evidence_d884fc6584947a6b"
+                ],
+                "confidence": "high"
+              },
+              "email_verified": {
+                "state": "present",
+                "value": "true",
+                "evidence_ids": [
+                  "evidence_66b972e811a6b871"
+                ],
+                "confidence": "high"
+              },
+              "auth_method": {
+                "state": "unknown",
+                "evidence_ids": [],
+                "confidence": "low"
+              },
+              "auth_class": {
+                "state": "present",
+                "value": "[literal]",
+                "evidence_ids": [
+                  "evidence_b530b3c4d437e08f"
+                ],
+                "confidence": "high"
+              }
+            }
+          },
+          "token_boundary_attributes": {
+            "issuer": {
+              "state": "present",
+              "value": "ISSUER",
+              "evidence_ids": [
+                "evidence_8bf72e77fdfd44ba",
+                "evidence_fec3b86f55948e8d"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "present",
+              "value": "AUDIENCE",
+              "evidence_ids": [
+                "evidence_1b688919407d804f",
+                "evidence_8e62ee09cb0654d8"
+              ],
+              "confidence": "high"
+            },
+            "service": {
+              "state": "present",
+              "value": "[literal]",
+              "evidence_ids": [
+                "evidence_c48ce5a507402d19"
+              ],
+              "confidence": "high"
+            },
+            "trust_boundary": {
+              "state": "present",
+              "value": "AUDIENCE",
+              "evidence_ids": [
+                "evidence_1b688919407d804f",
+                "evidence_8e62ee09cb0654d8"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_a567090b3e97a4ac",
+          "artifact_type": "unknown_token",
+          "display_name": "unknown_token",
+          "locations": [
+            {
+              "path": "auth.py",
+              "line": 32,
+              "column": 12
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [
+              "evidence_9542572d86d58518"
+            ],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": [
+              "evidence_29a5362edc28c085",
+              "evidence_6d7d27e2299a1798"
+            ]
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "python"
+          ],
+          "token_boundary_attributes": {
+            "issuer": {
+              "state": "present",
+              "value": "issuer",
+              "evidence_ids": [
+                "evidence_6d7d27e2299a1798"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "present",
+              "value": "audience",
+              "evidence_ids": [
+                "evidence_29a5362edc28c085"
+              ],
+              "confidence": "high"
+            },
+            "scope": {
+              "state": "present",
+              "evidence_ids": [
+                "evidence_9542572d86d58518"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_0501ca124ed65f0c",
+          "artifact_type": "access_jwt",
+          "display_name": "legacy_access_jwt",
+          "locations": [
+            {
+              "path": "auth.py",
+              "line": 42,
+              "column": 12
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [
+              "evidence_0137a9a1c5e9adb6",
+              "evidence_2d742ec24e4a7048",
+              "evidence_3d20bc7d9c1ee3c2",
+              "evidence_40ada113ad4ede86",
+              "evidence_95a08416ba76dc4e",
+              "evidence_aa4c099b052917bb",
+              "evidence_b82ffcde06e94810",
+              "evidence_d9f3ca1a5b645e72",
+              "evidence_e199d2bbe1351c3b"
+            ],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "pyjwt"
+          ],
+          "jwt_attributes": {
+            "operation": {
+              "state": "present",
+              "value": "validate",
+              "evidence_ids": [
+                "evidence_3d20bc7d9c1ee3c2"
+              ],
+              "confidence": "high"
+            },
+            "algorithm": {
+              "state": "present",
+              "value": "[literal]",
+              "evidence_ids": [
+                "evidence_d9f3ca1a5b645e72"
+              ],
+              "confidence": "high"
+            },
+            "key_reference": {
+              "state": "present",
+              "value": "JWT_SECRET",
+              "evidence_ids": [
+                "evidence_0137a9a1c5e9adb6"
+              ],
+              "confidence": "high"
+            },
+            "issuer": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_e199d2bbe1351c3b"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_95a08416ba76dc4e"
+              ],
+              "confidence": "high"
+            },
+            "expiration": {
+              "state": "unknown",
+              "evidence_ids": [],
+              "confidence": "low"
+            },
+            "signature_verification": {
+              "state": "present",
+              "value": "verified",
+              "evidence_ids": [
+                "evidence_aa4c099b052917bb"
+              ],
+              "confidence": "high"
+            },
+            "expiry_enforcement": {
+              "state": "missing",
+              "value": "verify_exp: false",
+              "evidence_ids": [
+                "evidence_40ada113ad4ede86"
+              ],
+              "confidence": "high"
+            }
+          },
+          "token_boundary_attributes": {
+            "issuer": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_e199d2bbe1351c3b"
+              ],
+              "confidence": "high"
+            },
+            "audience": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_95a08416ba76dc4e"
+              ],
+              "confidence": "high"
+            },
+            "provider": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_e199d2bbe1351c3b"
+              ],
+              "confidence": "high"
+            }
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence_e9c83016ca543396",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "auth.py",
+            "line": 1,
+            "column": 1
+          },
+          "detector_id": "reset.expire",
+          "confidence": "medium",
+          "excerpt": "password_reset_token expire evidence",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_34d607a0bb1d3d05",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 13,
+            "column": 12
+          },
+          "detector_id": "jwt.issue",
+          "confidence": "high",
+          "excerpt": "pyjwt.encode issue call detected with token and key arguments redacted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_e8028b0c166ba4b6",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 15,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.subject",
+          "confidence": "high",
+          "excerpt": "subject claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c48ce5a507402d19",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 16,
+            "column": 29
+          },
+          "detector_id": "jwt.attribute.workspace_id",
+          "confidence": "high",
+          "excerpt": "workspace ID claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_0db6dad318cae9a9",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 17,
+            "column": 23
+          },
+          "detector_id": "jwt.attribute.groups",
+          "confidence": "high",
+          "excerpt": "groups claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_d884fc6584947a6b",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 18,
+            "column": 22
+          },
+          "detector_id": "jwt.attribute.email",
+          "confidence": "high",
+          "excerpt": "email claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_66b972e811a6b871",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 19,
+            "column": 31
+          },
+          "detector_id": "jwt.attribute.email_verified",
+          "confidence": "high",
+          "excerpt": "email verified claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_b530b3c4d437e08f",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 20,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.auth_class",
+          "confidence": "high",
+          "excerpt": "auth class claim is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_8bf72e77fdfd44ba",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 21,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.issuer",
+          "confidence": "high",
+          "excerpt": "ISSUER",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_8e62ee09cb0654d8",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 22,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.audience",
+          "confidence": "high",
+          "excerpt": "AUDIENCE",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_3c608d31e7bef137",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "auth.py",
+            "line": 24,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.expiration",
+          "confidence": "high",
+          "excerpt": "now + timedelta(minutes=15)",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_1223d5c32d123d00",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 26,
+            "column": 9
+          },
+          "detector_id": "jwt.attribute.key_reference",
+          "confidence": "high",
+          "excerpt": "JWT key reference is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_9160c5207317c308",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 27,
+            "column": 19
+          },
+          "detector_id": "jwt.attribute.algorithm",
+          "confidence": "high",
+          "excerpt": "\"HS256\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_9542572d86d58518",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 32,
+            "column": 12
+          },
+          "detector_id": "bearer.scope",
+          "confidence": "high",
+          "excerpt": "jwt.decode(\n        token,\n        JWT_SECRET,\n        algorithms=[\"[REDACTED]\"],\n        issuer=ISSUER,\n        audience=AUDIENCE,\n    )",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2c7d70c35fd4b8ad",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 32,
+            "column": 12
+          },
+          "detector_id": "jwt.attribute.expiry_enforcement",
+          "confidence": "low",
+          "excerpt": "PyJWT decode enforces exp by library default",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_fc5c6aaa1812035c",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 32,
+            "column": 12
+          },
+          "detector_id": "jwt.attribute.signature_verification",
+          "confidence": "high",
+          "excerpt": "PyJWT decode verifies signatures when a key is supplied",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_f02b22268faf0d3f",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 32,
+            "column": 12
+          },
+          "detector_id": "jwt.validate",
+          "confidence": "high",
+          "excerpt": "pyjwt.decode validate call detected with token and key arguments redacted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_29a5362edc28c085",
+          "lifecycle_stage": "introspect",
+          "location": {
+            "path": "auth.py",
+            "line": 32,
+            "column": 12
+          },
+          "detector_id": "bearer.boundary.audience",
+          "confidence": "high",
+          "excerpt": "jwt.decode(\n        token,\n        JWT_SECRET,\n        algorithms=[\"[REDACTED]\"],\n        issuer=ISSUER,\n        audience=AUDIENCE,\n    )",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_6d7d27e2299a1798",
+          "lifecycle_stage": "introspect",
+          "location": {
+            "path": "auth.py",
+            "line": 32,
+            "column": 12
+          },
+          "detector_id": "bearer.boundary.issuer",
+          "confidence": "high",
+          "excerpt": "jwt.decode(\n        token,\n        JWT_SECRET,\n        algorithms=[\"[REDACTED]\"],\n        issuer=ISSUER,\n        audience=AUDIENCE,\n    )",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_0ab760ae7e24a689",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 34,
+            "column": 9
+          },
+          "detector_id": "jwt.attribute.key_reference",
+          "confidence": "high",
+          "excerpt": "JWT key reference is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_a1e1544ec64e0957",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 35,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.algorithm",
+          "confidence": "high",
+          "excerpt": "[\"HS256\"]",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_d206780c19923731",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 35,
+            "column": 20
+          },
+          "detector_id": "jwt.option.algorithms",
+          "confidence": "high",
+          "excerpt": "[\"HS256\"]",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_fec3b86f55948e8d",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 36,
+            "column": 16
+          },
+          "detector_id": "jwt.attribute.issuer",
+          "confidence": "high",
+          "excerpt": "ISSUER",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_170f3794e1490ccc",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 36,
+            "column": 16
+          },
+          "detector_id": "jwt.option.issuer",
+          "confidence": "high",
+          "excerpt": "JWT issuer option is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_1b688919407d804f",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 37,
+            "column": 18
+          },
+          "detector_id": "jwt.attribute.audience",
+          "confidence": "high",
+          "excerpt": "AUDIENCE",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_1d56066840a264c2",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 37,
+            "column": 18
+          },
+          "detector_id": "jwt.option.audience",
+          "confidence": "high",
+          "excerpt": "JWT audience option is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_95a08416ba76dc4e",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 42,
+            "column": 12
+          },
+          "detector_id": "jwt.attribute.audience",
+          "confidence": "high",
+          "excerpt": "audience is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_40ada113ad4ede86",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 42,
+            "column": 12
+          },
+          "detector_id": "jwt.attribute.expiry_enforcement",
+          "confidence": "high",
+          "excerpt": "PyJWT expiry enforcement is disabled with verify_exp: false",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_e199d2bbe1351c3b",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 42,
+            "column": 12
+          },
+          "detector_id": "jwt.attribute.issuer",
+          "confidence": "high",
+          "excerpt": "issuer is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_aa4c099b052917bb",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 42,
+            "column": 12
+          },
+          "detector_id": "jwt.attribute.signature_verification",
+          "confidence": "high",
+          "excerpt": "PyJWT decode verifies signatures when a key is supplied",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_3d20bc7d9c1ee3c2",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 42,
+            "column": 12
+          },
+          "detector_id": "jwt.validate",
+          "confidence": "high",
+          "excerpt": "pyjwt.decode validate call detected with token and key arguments redacted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_0137a9a1c5e9adb6",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 44,
+            "column": 9
+          },
+          "detector_id": "jwt.attribute.key_reference",
+          "confidence": "high",
+          "excerpt": "JWT key reference is present",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_d9f3ca1a5b645e72",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 45,
+            "column": 20
+          },
+          "detector_id": "jwt.attribute.algorithm",
+          "confidence": "high",
+          "excerpt": "[\"HS256\"]",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_b82ffcde06e94810",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 45,
+            "column": 20
+          },
+          "detector_id": "jwt.option.algorithms",
+          "confidence": "high",
+          "excerpt": "[\"HS256\"]",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2d742ec24e4a7048",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "auth.py",
+            "line": 46,
+            "column": 32
+          },
+          "detector_id": "jwt.option.ignore_expiration",
+          "confidence": "high",
+          "excerpt": "False",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c5a43c05b6279e38",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "auth.py",
+            "line": 50,
+            "column": 1
+          },
+          "detector_id": "reset.issue",
+          "confidence": "medium",
+          "excerpt": "password_reset_token issue evidence",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_80683a2cfc20663b",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "auth.py",
+            "line": 56,
+            "column": 1
+          },
+          "detector_id": "reset.single_use",
+          "confidence": "medium",
+          "excerpt": "password_reset_token revoke evidence",
+          "dynamic": false,
+          "framework_default": false
+        }
+      ],
+      "diagnostics": [],
+      "skipped_reason": null
+    },
+    {
+      "path": "expected.json",
+      "language": "json",
+      "artifacts": [],
+      "evidence": [],
+      "diagnostics": [],
+      "skipped_reason": null
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "artifact_a87fee6937c3c5c7",
+      "artifact_type": "password_reset_token",
+      "display_name": "password_reset_token",
+      "locations": [
+        {
+          "path": "auth.py",
+          "line": 1,
+          "column": 1
+        },
+        {
+          "path": "auth.py",
+          "line": 50,
+          "column": 1
+        },
+        {
+          "path": "auth.py",
+          "line": 56,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [
+          "evidence_c5a43c05b6279e38"
+        ],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_80683a2cfc20663b"
+        ],
+        "expire": [
+          "evidence_e9c83016ca543396"
+        ],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": []
+    },
+    {
+      "id": "artifact_5ab48324a39c720a",
+      "artifact_type": "access_jwt",
+      "display_name": "access_jwt",
+      "locations": [
+        {
+          "path": "auth.py",
+          "line": 13,
+          "column": 12
+        },
+        {
+          "path": "auth.py",
+          "line": 32,
+          "column": 12
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [
+          "evidence_0db6dad318cae9a9",
+          "evidence_1223d5c32d123d00",
+          "evidence_34d607a0bb1d3d05",
+          "evidence_66b972e811a6b871",
+          "evidence_8bf72e77fdfd44ba",
+          "evidence_8e62ee09cb0654d8",
+          "evidence_9160c5207317c308",
+          "evidence_b530b3c4d437e08f",
+          "evidence_c48ce5a507402d19",
+          "evidence_d884fc6584947a6b",
+          "evidence_e8028b0c166ba4b6"
+        ],
+        "store": [],
+        "transmit": [],
+        "validate": [
+          "evidence_0ab760ae7e24a689",
+          "evidence_170f3794e1490ccc",
+          "evidence_1b688919407d804f",
+          "evidence_1d56066840a264c2",
+          "evidence_2c7d70c35fd4b8ad",
+          "evidence_a1e1544ec64e0957",
+          "evidence_d206780c19923731",
+          "evidence_f02b22268faf0d3f",
+          "evidence_fc5c6aaa1812035c",
+          "evidence_fec3b86f55948e8d"
+        ],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_3c608d31e7bef137"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "pyjwt"
+      ],
+      "jwt_attributes": {
+        "operation": {
+          "state": "present",
+          "value": "issue, validate",
+          "evidence_ids": [
+            "evidence_34d607a0bb1d3d05",
+            "evidence_f02b22268faf0d3f"
+          ],
+          "confidence": "high"
+        },
+        "algorithm": {
+          "state": "present",
+          "value": "[literal]",
+          "evidence_ids": [
+            "evidence_9160c5207317c308",
+            "evidence_a1e1544ec64e0957"
+          ],
+          "confidence": "high"
+        },
+        "key_reference": {
+          "state": "present",
+          "value": "JWT_SECRET",
+          "evidence_ids": [
+            "evidence_0ab760ae7e24a689",
+            "evidence_1223d5c32d123d00"
+          ],
+          "confidence": "high"
+        },
+        "issuer": {
+          "state": "present",
+          "value": "ISSUER",
+          "evidence_ids": [
+            "evidence_8bf72e77fdfd44ba",
+            "evidence_fec3b86f55948e8d"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "present",
+          "value": "AUDIENCE",
+          "evidence_ids": [
+            "evidence_1b688919407d804f",
+            "evidence_8e62ee09cb0654d8"
+          ],
+          "confidence": "high"
+        },
+        "expiration": {
+          "state": "present",
+          "value": "now + timedelta(minutes=15)",
+          "evidence_ids": [
+            "evidence_3c608d31e7bef137"
+          ],
+          "confidence": "high"
+        },
+        "signature_verification": {
+          "state": "present",
+          "value": "verified",
+          "evidence_ids": [
+            "evidence_fc5c6aaa1812035c"
+          ],
+          "confidence": "high"
+        },
+        "expiry_enforcement": {
+          "state": "framework_default",
+          "value": "PyJWT decode default",
+          "evidence_ids": [
+            "evidence_2c7d70c35fd4b8ad"
+          ],
+          "confidence": "low"
+        },
+        "identity_claims": {
+          "subject": {
+            "state": "present",
+            "value": "user_id",
+            "evidence_ids": [
+              "evidence_e8028b0c166ba4b6"
+            ],
+            "confidence": "high"
+          },
+          "user_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "tenant_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "org_id": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "workspace_id": {
+            "state": "present",
+            "value": "[literal]",
+            "evidence_ids": [
+              "evidence_c48ce5a507402d19"
+            ],
+            "confidence": "high"
+          },
+          "roles": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "scopes": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "groups": {
+            "state": "present",
+            "value": "[literal]",
+            "evidence_ids": [
+              "evidence_0db6dad318cae9a9"
+            ],
+            "confidence": "high"
+          },
+          "email": {
+            "state": "present",
+            "value": "[literal]",
+            "evidence_ids": [
+              "evidence_d884fc6584947a6b"
+            ],
+            "confidence": "high"
+          },
+          "email_verified": {
+            "state": "present",
+            "value": "true",
+            "evidence_ids": [
+              "evidence_66b972e811a6b871"
+            ],
+            "confidence": "high"
+          },
+          "auth_method": {
+            "state": "unknown",
+            "evidence_ids": [],
+            "confidence": "low"
+          },
+          "auth_class": {
+            "state": "present",
+            "value": "[literal]",
+            "evidence_ids": [
+              "evidence_b530b3c4d437e08f"
+            ],
+            "confidence": "high"
+          }
+        }
+      },
+      "token_boundary_attributes": {
+        "issuer": {
+          "state": "present",
+          "value": "ISSUER",
+          "evidence_ids": [
+            "evidence_8bf72e77fdfd44ba",
+            "evidence_fec3b86f55948e8d"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "present",
+          "value": "AUDIENCE",
+          "evidence_ids": [
+            "evidence_1b688919407d804f",
+            "evidence_8e62ee09cb0654d8"
+          ],
+          "confidence": "high"
+        },
+        "service": {
+          "state": "present",
+          "value": "[literal]",
+          "evidence_ids": [
+            "evidence_c48ce5a507402d19"
+          ],
+          "confidence": "high"
+        },
+        "trust_boundary": {
+          "state": "present",
+          "value": "AUDIENCE",
+          "evidence_ids": [
+            "evidence_1b688919407d804f",
+            "evidence_8e62ee09cb0654d8"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_a567090b3e97a4ac",
+      "artifact_type": "unknown_token",
+      "display_name": "unknown_token",
+      "locations": [
+        {
+          "path": "auth.py",
+          "line": 32,
+          "column": 12
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [
+          "evidence_9542572d86d58518"
+        ],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": [
+          "evidence_29a5362edc28c085",
+          "evidence_6d7d27e2299a1798"
+        ]
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "python"
+      ],
+      "token_boundary_attributes": {
+        "issuer": {
+          "state": "present",
+          "value": "issuer",
+          "evidence_ids": [
+            "evidence_6d7d27e2299a1798"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "present",
+          "value": "audience",
+          "evidence_ids": [
+            "evidence_29a5362edc28c085"
+          ],
+          "confidence": "high"
+        },
+        "scope": {
+          "state": "present",
+          "evidence_ids": [
+            "evidence_9542572d86d58518"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_0501ca124ed65f0c",
+      "artifact_type": "access_jwt",
+      "display_name": "legacy_access_jwt",
+      "locations": [
+        {
+          "path": "auth.py",
+          "line": 42,
+          "column": 12
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [
+          "evidence_0137a9a1c5e9adb6",
+          "evidence_2d742ec24e4a7048",
+          "evidence_3d20bc7d9c1ee3c2",
+          "evidence_40ada113ad4ede86",
+          "evidence_95a08416ba76dc4e",
+          "evidence_aa4c099b052917bb",
+          "evidence_b82ffcde06e94810",
+          "evidence_d9f3ca1a5b645e72",
+          "evidence_e199d2bbe1351c3b"
+        ],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "pyjwt"
+      ],
+      "jwt_attributes": {
+        "operation": {
+          "state": "present",
+          "value": "validate",
+          "evidence_ids": [
+            "evidence_3d20bc7d9c1ee3c2"
+          ],
+          "confidence": "high"
+        },
+        "algorithm": {
+          "state": "present",
+          "value": "[literal]",
+          "evidence_ids": [
+            "evidence_d9f3ca1a5b645e72"
+          ],
+          "confidence": "high"
+        },
+        "key_reference": {
+          "state": "present",
+          "value": "JWT_SECRET",
+          "evidence_ids": [
+            "evidence_0137a9a1c5e9adb6"
+          ],
+          "confidence": "high"
+        },
+        "issuer": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_e199d2bbe1351c3b"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_95a08416ba76dc4e"
+          ],
+          "confidence": "high"
+        },
+        "expiration": {
+          "state": "unknown",
+          "evidence_ids": [],
+          "confidence": "low"
+        },
+        "signature_verification": {
+          "state": "present",
+          "value": "verified",
+          "evidence_ids": [
+            "evidence_aa4c099b052917bb"
+          ],
+          "confidence": "high"
+        },
+        "expiry_enforcement": {
+          "state": "missing",
+          "value": "verify_exp: false",
+          "evidence_ids": [
+            "evidence_40ada113ad4ede86"
+          ],
+          "confidence": "high"
+        }
+      },
+      "token_boundary_attributes": {
+        "issuer": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_e199d2bbe1351c3b"
+          ],
+          "confidence": "high"
+        },
+        "audience": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_95a08416ba76dc4e"
+          ],
+          "confidence": "high"
+        },
+        "provider": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_e199d2bbe1351c3b"
+          ],
+          "confidence": "high"
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evidence_e9c83016ca543396",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "auth.py",
+        "line": 1,
+        "column": 1
+      },
+      "detector_id": "reset.expire",
+      "confidence": "medium",
+      "excerpt": "password_reset_token expire evidence",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_34d607a0bb1d3d05",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 13,
+        "column": 12
+      },
+      "detector_id": "jwt.issue",
+      "confidence": "high",
+      "excerpt": "pyjwt.encode issue call detected with token and key arguments redacted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_e8028b0c166ba4b6",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 15,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.subject",
+      "confidence": "high",
+      "excerpt": "subject claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c48ce5a507402d19",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 16,
+        "column": 29
+      },
+      "detector_id": "jwt.attribute.workspace_id",
+      "confidence": "high",
+      "excerpt": "workspace ID claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_0db6dad318cae9a9",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 17,
+        "column": 23
+      },
+      "detector_id": "jwt.attribute.groups",
+      "confidence": "high",
+      "excerpt": "groups claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_d884fc6584947a6b",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 18,
+        "column": 22
+      },
+      "detector_id": "jwt.attribute.email",
+      "confidence": "high",
+      "excerpt": "email claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_66b972e811a6b871",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 19,
+        "column": 31
+      },
+      "detector_id": "jwt.attribute.email_verified",
+      "confidence": "high",
+      "excerpt": "email verified claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_b530b3c4d437e08f",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 20,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.auth_class",
+      "confidence": "high",
+      "excerpt": "auth class claim is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_8bf72e77fdfd44ba",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 21,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.issuer",
+      "confidence": "high",
+      "excerpt": "ISSUER",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_8e62ee09cb0654d8",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 22,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.audience",
+      "confidence": "high",
+      "excerpt": "AUDIENCE",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_3c608d31e7bef137",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "auth.py",
+        "line": 24,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.expiration",
+      "confidence": "high",
+      "excerpt": "now + timedelta(minutes=15)",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_1223d5c32d123d00",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 26,
+        "column": 9
+      },
+      "detector_id": "jwt.attribute.key_reference",
+      "confidence": "high",
+      "excerpt": "JWT key reference is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_9160c5207317c308",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 27,
+        "column": 19
+      },
+      "detector_id": "jwt.attribute.algorithm",
+      "confidence": "high",
+      "excerpt": "\"HS256\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_9542572d86d58518",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 32,
+        "column": 12
+      },
+      "detector_id": "bearer.scope",
+      "confidence": "high",
+      "excerpt": "jwt.decode(\n        token,\n        JWT_SECRET,\n        algorithms=[\"[REDACTED]\"],\n        issuer=ISSUER,\n        audience=AUDIENCE,\n    )",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2c7d70c35fd4b8ad",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 32,
+        "column": 12
+      },
+      "detector_id": "jwt.attribute.expiry_enforcement",
+      "confidence": "low",
+      "excerpt": "PyJWT decode enforces exp by library default",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_fc5c6aaa1812035c",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 32,
+        "column": 12
+      },
+      "detector_id": "jwt.attribute.signature_verification",
+      "confidence": "high",
+      "excerpt": "PyJWT decode verifies signatures when a key is supplied",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_f02b22268faf0d3f",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 32,
+        "column": 12
+      },
+      "detector_id": "jwt.validate",
+      "confidence": "high",
+      "excerpt": "pyjwt.decode validate call detected with token and key arguments redacted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_29a5362edc28c085",
+      "lifecycle_stage": "introspect",
+      "location": {
+        "path": "auth.py",
+        "line": 32,
+        "column": 12
+      },
+      "detector_id": "bearer.boundary.audience",
+      "confidence": "high",
+      "excerpt": "jwt.decode(\n        token,\n        JWT_SECRET,\n        algorithms=[\"[REDACTED]\"],\n        issuer=ISSUER,\n        audience=AUDIENCE,\n    )",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_6d7d27e2299a1798",
+      "lifecycle_stage": "introspect",
+      "location": {
+        "path": "auth.py",
+        "line": 32,
+        "column": 12
+      },
+      "detector_id": "bearer.boundary.issuer",
+      "confidence": "high",
+      "excerpt": "jwt.decode(\n        token,\n        JWT_SECRET,\n        algorithms=[\"[REDACTED]\"],\n        issuer=ISSUER,\n        audience=AUDIENCE,\n    )",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_0ab760ae7e24a689",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 34,
+        "column": 9
+      },
+      "detector_id": "jwt.attribute.key_reference",
+      "confidence": "high",
+      "excerpt": "JWT key reference is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_a1e1544ec64e0957",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 35,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.algorithm",
+      "confidence": "high",
+      "excerpt": "[\"HS256\"]",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_d206780c19923731",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 35,
+        "column": 20
+      },
+      "detector_id": "jwt.option.algorithms",
+      "confidence": "high",
+      "excerpt": "[\"HS256\"]",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_fec3b86f55948e8d",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 36,
+        "column": 16
+      },
+      "detector_id": "jwt.attribute.issuer",
+      "confidence": "high",
+      "excerpt": "ISSUER",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_170f3794e1490ccc",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 36,
+        "column": 16
+      },
+      "detector_id": "jwt.option.issuer",
+      "confidence": "high",
+      "excerpt": "JWT issuer option is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_1b688919407d804f",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 37,
+        "column": 18
+      },
+      "detector_id": "jwt.attribute.audience",
+      "confidence": "high",
+      "excerpt": "AUDIENCE",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_1d56066840a264c2",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 37,
+        "column": 18
+      },
+      "detector_id": "jwt.option.audience",
+      "confidence": "high",
+      "excerpt": "JWT audience option is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_95a08416ba76dc4e",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 42,
+        "column": 12
+      },
+      "detector_id": "jwt.attribute.audience",
+      "confidence": "high",
+      "excerpt": "audience is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_40ada113ad4ede86",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 42,
+        "column": 12
+      },
+      "detector_id": "jwt.attribute.expiry_enforcement",
+      "confidence": "high",
+      "excerpt": "PyJWT expiry enforcement is disabled with verify_exp: false",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_e199d2bbe1351c3b",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 42,
+        "column": 12
+      },
+      "detector_id": "jwt.attribute.issuer",
+      "confidence": "high",
+      "excerpt": "issuer is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_aa4c099b052917bb",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 42,
+        "column": 12
+      },
+      "detector_id": "jwt.attribute.signature_verification",
+      "confidence": "high",
+      "excerpt": "PyJWT decode verifies signatures when a key is supplied",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_3d20bc7d9c1ee3c2",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 42,
+        "column": 12
+      },
+      "detector_id": "jwt.validate",
+      "confidence": "high",
+      "excerpt": "pyjwt.decode validate call detected with token and key arguments redacted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_0137a9a1c5e9adb6",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 44,
+        "column": 9
+      },
+      "detector_id": "jwt.attribute.key_reference",
+      "confidence": "high",
+      "excerpt": "JWT key reference is present",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_d9f3ca1a5b645e72",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 45,
+        "column": 20
+      },
+      "detector_id": "jwt.attribute.algorithm",
+      "confidence": "high",
+      "excerpt": "[\"HS256\"]",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_b82ffcde06e94810",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 45,
+        "column": 20
+      },
+      "detector_id": "jwt.option.algorithms",
+      "confidence": "high",
+      "excerpt": "[\"HS256\"]",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2d742ec24e4a7048",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "auth.py",
+        "line": 46,
+        "column": 32
+      },
+      "detector_id": "jwt.option.ignore_expiration",
+      "confidence": "high",
+      "excerpt": "False",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c5a43c05b6279e38",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "auth.py",
+        "line": 50,
+        "column": 1
+      },
+      "detector_id": "reset.issue",
+      "confidence": "medium",
+      "excerpt": "password_reset_token issue evidence",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_80683a2cfc20663b",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "auth.py",
+        "line": 56,
+        "column": 1
+      },
+      "detector_id": "reset.single_use",
+      "confidence": "medium",
+      "excerpt": "password_reset_token revoke evidence",
+      "dynamic": false,
+      "framework_default": false
+    }
+  ],
+  "lifecycle_paths": [
+    {
+      "id": "lifecycle_path_982133d31f7e5221",
+      "artifact_ids": [
+        "artifact_0501ca124ed65f0c"
+      ],
+      "stages": [
+        {
+          "stage": "validate",
+          "evidence_ids": [
+            "evidence_0137a9a1c5e9adb6",
+            "evidence_2d742ec24e4a7048",
+            "evidence_3d20bc7d9c1ee3c2",
+            "evidence_40ada113ad4ede86",
+            "evidence_95a08416ba76dc4e",
+            "evidence_aa4c099b052917bb",
+            "evidence_b82ffcde06e94810",
+            "evidence_d9f3ca1a5b645e72",
+            "evidence_e199d2bbe1351c3b"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_ba5f204467cb2a68",
+      "artifact_ids": [
+        "artifact_5ab48324a39c720a"
+      ],
+      "stages": [
+        {
+          "stage": "issue",
+          "evidence_ids": [
+            "evidence_0db6dad318cae9a9",
+            "evidence_1223d5c32d123d00",
+            "evidence_34d607a0bb1d3d05",
+            "evidence_66b972e811a6b871",
+            "evidence_8bf72e77fdfd44ba",
+            "evidence_8e62ee09cb0654d8",
+            "evidence_9160c5207317c308",
+            "evidence_b530b3c4d437e08f",
+            "evidence_c48ce5a507402d19",
+            "evidence_d884fc6584947a6b",
+            "evidence_e8028b0c166ba4b6"
+          ]
+        },
+        {
+          "stage": "validate",
+          "evidence_ids": [
+            "evidence_0ab760ae7e24a689",
+            "evidence_170f3794e1490ccc",
+            "evidence_1b688919407d804f",
+            "evidence_1d56066840a264c2",
+            "evidence_2c7d70c35fd4b8ad",
+            "evidence_a1e1544ec64e0957",
+            "evidence_d206780c19923731",
+            "evidence_f02b22268faf0d3f",
+            "evidence_fc5c6aaa1812035c",
+            "evidence_fec3b86f55948e8d"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_3c608d31e7bef137"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": false,
+      "reviewer_question": "Which framework version and deployment settings determine lifecycle behavior for `access_jwt`?"
+    },
+    {
+      "id": "lifecycle_path_a44c356c99aa4aab",
+      "artifact_ids": [
+        "artifact_a567090b3e97a4ac"
+      ],
+      "stages": [
+        {
+          "stage": "validate",
+          "evidence_ids": [
+            "evidence_9542572d86d58518"
+          ]
+        },
+        {
+          "stage": "introspect",
+          "evidence_ids": [
+            "evidence_29a5362edc28c085",
+            "evidence_6d7d27e2299a1798"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_c9f1e8d4e5b9d941",
+      "artifact_ids": [
+        "artifact_a87fee6937c3c5c7"
+      ],
+      "stages": [
+        {
+          "stage": "issue",
+          "evidence_ids": [
+            "evidence_c5a43c05b6279e38"
+          ]
+        },
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_80683a2cfc20663b"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_e9c83016ca543396"
+          ]
+        }
+      ],
+      "confidence": "medium",
+      "dynamic": false,
+      "reviewer_question": null
+    }
+  ],
+  "findings": [
+    {
+      "id": "finding_660d8ee7895a862d",
+      "category": "high_confidence_misconfiguration",
+      "severity": "high",
+      "artifact_ids": [
+        "artifact_0501ca124ed65f0c"
+      ],
+      "evidence_ids": [
+        "evidence_40ada113ad4ede86"
+      ],
+      "title": "JWT `legacy_access_jwt` expiry enforcement is disabled or absent",
+      "description": "Evidence shows this JWT validation path does not enforce expiration.",
+      "suggested_fix": "Require expiration enforcement when validating JWTs.",
+      "reviewer_question": "Can expired tokens be accepted on this path?"
+    },
+    {
+      "id": "finding_e3f631efe8ee5d51",
+      "category": "missing_validation_evidence",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_0501ca124ed65f0c"
+      ],
+      "evidence_ids": [
+        "evidence_95a08416ba76dc4e"
+      ],
+      "title": "JWT `legacy_access_jwt` verification has no audience evidence",
+      "description": "JWT verification evidence does not include an expected audience check.",
+      "suggested_fix": "Require an expected audience when verifying JWTs.",
+      "reviewer_question": "Should this service reject tokens with an unexpected audience?"
+    },
+    {
+      "id": "finding_dbaf38232e9298df",
+      "category": "missing_validation_evidence",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_0501ca124ed65f0c"
+      ],
+      "evidence_ids": [
+        "evidence_e199d2bbe1351c3b"
+      ],
+      "title": "JWT `legacy_access_jwt` verification has no issuer evidence",
+      "description": "JWT verification evidence does not include an expected issuer check.",
+      "suggested_fix": "Require an expected issuer when verifying JWTs.",
+      "reviewer_question": "Should this service reject tokens with an unexpected issuer?"
+    },
+    {
+      "id": "finding_f4a7e65729dbbfbd",
+      "category": "missing_validation_evidence",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_0501ca124ed65f0c"
+      ],
+      "evidence_ids": [
+        "evidence_3d20bc7d9c1ee3c2",
+        "evidence_d9f3ca1a5b645e72",
+        "evidence_0137a9a1c5e9adb6",
+        "evidence_e199d2bbe1351c3b",
+        "evidence_95a08416ba76dc4e",
+        "evidence_aa4c099b052917bb",
+        "evidence_40ada113ad4ede86",
+        "evidence_b82ffcde06e94810",
+        "evidence_2d742ec24e4a7048"
+      ],
+      "title": "JWT `legacy_access_jwt` verification has no not-before validation evidence",
+      "description": "JWT verification evidence does not show `nbf` / not-before claim enforcement.",
+      "suggested_fix": "Require or enforce `nbf` validation where issuer policy uses not-before claims.",
+      "reviewer_question": "Do issued tokens for this path use `nbf`, and is it enforced in production?"
+    },
+    {
+      "id": "finding_5a562da4e436373c",
+      "category": "missing_validation_evidence",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_5ab48324a39c720a"
+      ],
+      "evidence_ids": [
+        "evidence_f02b22268faf0d3f",
+        "evidence_a1e1544ec64e0957",
+        "evidence_0ab760ae7e24a689",
+        "evidence_fec3b86f55948e8d",
+        "evidence_1b688919407d804f",
+        "evidence_fc5c6aaa1812035c",
+        "evidence_2c7d70c35fd4b8ad",
+        "evidence_d206780c19923731",
+        "evidence_1d56066840a264c2",
+        "evidence_170f3794e1490ccc"
+      ],
+      "title": "JWT `access_jwt` verification has no not-before validation evidence",
+      "description": "JWT verification evidence does not show `nbf` / not-before claim enforcement.",
+      "suggested_fix": "Require or enforce `nbf` validation where issuer policy uses not-before claims.",
+      "reviewer_question": "Do issued tokens for this path use `nbf`, and is it enforced in production?"
+    },
+    {
+      "id": "finding_3279b41414008638",
+      "category": "framework_default_assumed",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_5ab48324a39c720a"
+      ],
+      "evidence_ids": [
+        "evidence_2c7d70c35fd4b8ad"
+      ],
+      "title": "JWT `access_jwt` expiry enforcement relies on library defaults",
+      "description": "JWT validation appears to rely on the library default for expiration enforcement.",
+      "suggested_fix": "Make expiration enforcement explicit or document the library version and default.",
+      "reviewer_question": "Which JWT library version and settings determine expiration enforcement here?"
+    }
+  ]
+}

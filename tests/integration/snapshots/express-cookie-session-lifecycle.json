@@ -1,0 +1,3901 @@
+{
+  "schema_version": "0.5.0",
+  "summary": {
+    "files_discovered": 2,
+    "files_scanned": 2,
+    "files_skipped": 0,
+    "diagnostics": [],
+    "worker_panic_count": 0
+  },
+  "files": [
+    {
+      "path": "app.ts",
+      "language": "type_script",
+      "artifacts": [
+        {
+          "id": "artifact_6f837089594b74c4",
+          "artifact_type": "opaque_bearer_token",
+          "display_name": "access_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 6,
+              "column": 1
+            },
+            {
+              "path": "app.ts",
+              "line": 7,
+              "column": 9
+            },
+            {
+              "path": "app.ts",
+              "line": 8,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_5f28697326110c85"
+            ],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_ad3b0634ef3c54d4",
+              "evidence_db7c57d295560814"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "javascript"
+          ]
+        },
+        {
+          "id": "artifact_64c56fd5a910792c",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 6,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [
+              "evidence_4e63c7300962690f"
+            ],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express",
+            "scope:111"
+          ]
+        },
+        {
+          "id": "artifact_5a72289a03ddd485",
+          "artifact_type": "signed_cookie",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 8,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_5a72289a03ddd485",
+              "evidence_b275602954778885",
+              "evidence_bf3ab86dfecb4f83"
+            ],
+            "transmit": [
+              "evidence_05cc4e424d4d22c6",
+              "evidence_60893ace05d1a945",
+              "evidence_b798deb3d44bb045",
+              "evidence_bfaf3eddb9c369eb"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_9fc5df1d137d1f72",
+              "evidence_e040efa573297113"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express"
+          ],
+          "cookie_attributes": {
+            "http_only": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_b275602954778885"
+              ],
+              "confidence": "high"
+            },
+            "secure": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_b798deb3d44bb045"
+              ],
+              "confidence": "high"
+            },
+            "same_site": {
+              "state": "present",
+              "value": "lax",
+              "evidence_ids": [
+                "evidence_60893ace05d1a945"
+              ],
+              "confidence": "high"
+            },
+            "max_age": {
+              "state": "dynamic",
+              "value": "15 * 60 * 1000",
+              "evidence_ids": [
+                "evidence_9fc5df1d137d1f72"
+              ],
+              "confidence": "medium"
+            },
+            "expires": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_e040efa573297113"
+              ],
+              "confidence": "high"
+            },
+            "path": {
+              "state": "framework_default",
+              "value": "/",
+              "evidence_ids": [
+                "evidence_05cc4e424d4d22c6"
+              ],
+              "confidence": "low"
+            },
+            "domain": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_bfaf3eddb9c369eb"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_7a9827578e77376e",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 17,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [
+              "evidence_fa34ee456988eedf"
+            ],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express",
+            "scope:402"
+          ]
+        },
+        {
+          "id": "artifact_8dcee4862e48c13e",
+          "artifact_type": "session_cookie",
+          "display_name": "legacy_session",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 18,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_8dcee4862e48c13e",
+              "evidence_9638cf3168c14e11",
+              "evidence_df5a3400b3bd5568"
+            ],
+            "transmit": [
+              "evidence_49b87b12f7780901",
+              "evidence_71ff2402f81dfcc0",
+              "evidence_7fbcf7c04e205441",
+              "evidence_894b46e27a69f2f1"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_278dad9b2113bd18",
+              "evidence_8d28c83b347146c6"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express"
+          ],
+          "cookie_attributes": {
+            "http_only": {
+              "state": "missing",
+              "value": "false",
+              "evidence_ids": [
+                "evidence_9638cf3168c14e11"
+              ],
+              "confidence": "high"
+            },
+            "secure": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_894b46e27a69f2f1"
+              ],
+              "confidence": "high"
+            },
+            "same_site": {
+              "state": "present",
+              "value": "none",
+              "evidence_ids": [
+                "evidence_7fbcf7c04e205441"
+              ],
+              "confidence": "high"
+            },
+            "max_age": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_8d28c83b347146c6"
+              ],
+              "confidence": "high"
+            },
+            "expires": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_278dad9b2113bd18"
+              ],
+              "confidence": "high"
+            },
+            "path": {
+              "state": "framework_default",
+              "value": "/",
+              "evidence_ids": [
+                "evidence_49b87b12f7780901"
+              ],
+              "confidence": "low"
+            },
+            "domain": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_71ff2402f81dfcc0"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_154fd160cf3f690a",
+          "artifact_type": "refresh_jwt",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 24,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_305ee20048c6d267"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "javascript"
+          ]
+        },
+        {
+          "id": "artifact_ec4e55657a78fe6a",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 24,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [
+              "evidence_ef953c43774a0588"
+            ],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express"
+          ]
+        },
+        {
+          "id": "artifact_f963d258ec5440c8",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 24,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_7fa7941e2d1c0707"
+            ],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express"
+          ]
+        },
+        {
+          "id": "artifact_faaf8106c79488c1",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 24,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_ffa3238b17ab9f6e"
+            ],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express"
+          ]
+        },
+        {
+          "id": "artifact_faaf8106c79488c1",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 24,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_2900c77baaeed029"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express"
+          ]
+        },
+        {
+          "id": "artifact_151942804270435d",
+          "artifact_type": "unknown_token",
+          "display_name": "unknown_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 24,
+              "column": 1
+            },
+            {
+              "path": "app.ts",
+              "line": 26,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_267820b395eba278"
+            ],
+            "revoke": [
+              "evidence_19d5635581c34e60",
+              "evidence_93b05c309b27bbf4"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "javascript",
+            "nextjs"
+          ]
+        },
+        {
+          "id": "artifact_63d7d91a0736c3b6",
+          "artifact_type": "refresh_jwt",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 26,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_69cff3144d75bdc3"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "javascript"
+          ]
+        },
+        {
+          "id": "artifact_3d68a57fcf1a38a2",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 26,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_5bff9dee81659348"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "refresh"
+          ]
+        },
+        {
+          "id": "artifact_76910dbf5c5d9aa5",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 28,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_232e817eb8f7f9ee",
+              "evidence_752ffe3fd38ec118",
+              "evidence_76910dbf5c5d9aa5"
+            ],
+            "transmit": [
+              "evidence_0375d1c6f42c91c0",
+              "evidence_3ce0cc0488566657",
+              "evidence_4206339cd0e7ae44",
+              "evidence_ee3153fb557b84d0"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_090de3fc0c51f0a8",
+              "evidence_9117595604464e2e"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express"
+          ],
+          "cookie_attributes": {
+            "http_only": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_232e817eb8f7f9ee"
+              ],
+              "confidence": "high"
+            },
+            "secure": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_4206339cd0e7ae44"
+              ],
+              "confidence": "high"
+            },
+            "same_site": {
+              "state": "present",
+              "value": "strict",
+              "evidence_ids": [
+                "evidence_0375d1c6f42c91c0"
+              ],
+              "confidence": "high"
+            },
+            "max_age": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_9117595604464e2e"
+              ],
+              "confidence": "high"
+            },
+            "expires": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_090de3fc0c51f0a8"
+              ],
+              "confidence": "high"
+            },
+            "path": {
+              "state": "framework_default",
+              "value": "/",
+              "evidence_ids": [
+                "evidence_3ce0cc0488566657"
+              ],
+              "confidence": "low"
+            },
+            "domain": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_ee3153fb557b84d0"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_85de78ac6aa3bc33",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 28,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_6fd6657096c7cb64"
+            ],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "refresh"
+          ]
+        },
+        {
+          "id": "artifact_eac51c20eb23c659",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 28,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_2db359b7b6469528"
+            ],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "refresh"
+          ]
+        },
+        {
+          "id": "artifact_f4f9e68f679d0cfc",
+          "artifact_type": "unknown",
+          "display_name": "logout",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 35,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_655039e7e2d8798c"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express"
+          ]
+        },
+        {
+          "id": "artifact_bdfbab6a12855f82",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 35,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_891184dd9d805d4d"
+            ],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express"
+          ]
+        },
+        {
+          "id": "artifact_e0ff886aac6b2e9f",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 35,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_e598ec1bf7c310fd"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "javascript"
+          ]
+        },
+        {
+          "id": "artifact_f40c4f1b8f755160",
+          "artifact_type": "opaque_bearer_token",
+          "display_name": "session_id",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 35,
+              "column": 1
+            },
+            {
+              "path": "app.ts",
+              "line": 36,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_0ee1c1d13af4e500",
+              "evidence_91a717f6ce1e2113"
+            ],
+            "expire": [],
+            "introspect": [
+              "evidence_48674ab370561cc2",
+              "evidence_7e45838a032ab2e5",
+              "evidence_9c80d870069c511d",
+              "evidence_ded9725f66a2bc9a"
+            ]
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "javascript"
+          ],
+          "token_boundary_attributes": {
+            "service": {
+              "state": "present",
+              "value": "server",
+              "evidence_ids": [
+                "evidence_9c80d870069c511d",
+                "evidence_ded9725f66a2bc9a"
+              ],
+              "confidence": "high"
+            },
+            "trust_boundary": {
+              "state": "present",
+              "value": "server",
+              "evidence_ids": [
+                "evidence_48674ab370561cc2",
+                "evidence_7e45838a032ab2e5"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_ccce4e2d7769b026",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 36,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_a765a8bfc656851c"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "javascript"
+          ]
+        },
+        {
+          "id": "artifact_f5fadee3e8437b01",
+          "artifact_type": "session_cookie",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 37,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_bceedbcb218327ae"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express"
+          ]
+        },
+        {
+          "id": "artifact_9880b67e3360e95a",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 38,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_af325d42d3c49c7e"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "express"
+          ]
+        },
+        {
+          "id": "artifact_93d2ba050ef7b6a8",
+          "artifact_type": "unknown",
+          "display_name": "refresh_token",
+          "locations": [
+            {
+              "path": "app.ts",
+              "line": 42,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_abfcc0c427dc8c0b"
+            ],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "javascript"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence_4e63c7300962690f",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "app.ts",
+            "line": 6,
+            "column": 1
+          },
+          "detector_id": "session.auth_transition",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (_request, response) => {\n  const accessToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", accessToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n    maxAge: 15 * 60 * 1000,\n    signed: true,\n  });\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_db7c57d295560814",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.ts",
+            "line": 6,
+            "column": 1
+          },
+          "detector_id": "bearer.expire",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (_request, response) => {\n  const accessToken = \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", accessToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n    maxAge: 15 * 60 * 1000,\n    signed: true,\n  });\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_5f28697326110c85",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.ts",
+            "line": 7,
+            "column": 9
+          },
+          "detector_id": "bearer.literal.static",
+          "confidence": "high",
+          "excerpt": "accessToken = \"[REDACTED]\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_bf3ab86dfecb4f83",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.ts",
+            "line": 8,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.name_prefix",
+          "confidence": "high",
+          "excerpt": "Cookie name prefix: none",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_5a72289a03ddd485",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.ts",
+            "line": 8,
+            "column": 3
+          },
+          "detector_id": "cookie.set",
+          "confidence": "high",
+          "excerpt": "  const [REDACTED] = \"[REDACTED]\";\n  response.cookie(\"session\", [REDACTED], {\n    httpOnly: true,",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_bfaf3eddb9c369eb",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 8,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.domain",
+          "confidence": "high",
+          "excerpt": "Domain is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_05cc4e424d4d22c6",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 8,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.path",
+          "confidence": "low",
+          "excerpt": "Path defaults to / for express",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_ad3b0634ef3c54d4",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.ts",
+            "line": 8,
+            "column": 3
+          },
+          "detector_id": "bearer.expire",
+          "confidence": "high",
+          "excerpt": "response.cookie(\"[REDACTED]\", accessToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n    maxAge: 15 * 60 * 1000,\n    signed: true,\n  })",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_e040efa573297113",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.ts",
+            "line": 8,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.expires",
+          "confidence": "high",
+          "excerpt": "Expires is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_b275602954778885",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.ts",
+            "line": 9,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.http_only",
+          "confidence": "high",
+          "excerpt": "HttpOnly: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_b798deb3d44bb045",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 10,
+            "column": 13
+          },
+          "detector_id": "cookie.attribute.secure",
+          "confidence": "high",
+          "excerpt": "Secure: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_60893ace05d1a945",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 11,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.same_site",
+          "confidence": "high",
+          "excerpt": "SameSite: \"lax\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_9fc5df1d137d1f72",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.ts",
+            "line": 12,
+            "column": 13
+          },
+          "detector_id": "cookie.attribute.max_age",
+          "confidence": "medium",
+          "excerpt": "Max-Age: 15 * 60 * 1000",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_fa34ee456988eedf",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "app.ts",
+            "line": 17,
+            "column": 1
+          },
+          "detector_id": "session.auth_transition",
+          "confidence": "high",
+          "excerpt": "app.post(\"/legacy-login\", (_request, response) => {\n  response.cookie(\"legacy_session\", \"[REDACTED]\", {\n    httpOnly: false,\n    sameSite: \"none\",\n  });\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_df5a3400b3bd5568",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.ts",
+            "line": 18,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.name_prefix",
+          "confidence": "high",
+          "excerpt": "Cookie name prefix: none",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_8dcee4862e48c13e",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.ts",
+            "line": 18,
+            "column": 3
+          },
+          "detector_id": "cookie.set",
+          "confidence": "high",
+          "excerpt": "app.post(\"/legacy-login\", (_request, response) => {\n  response.cookie(\"legacy_session\", [REDACTED], {\n    httpOnly: false,",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_71ff2402f81dfcc0",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 18,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.domain",
+          "confidence": "high",
+          "excerpt": "Domain is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_49b87b12f7780901",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 18,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.path",
+          "confidence": "low",
+          "excerpt": "Path defaults to / for express",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_894b46e27a69f2f1",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 18,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.secure",
+          "confidence": "high",
+          "excerpt": "Secure is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_278dad9b2113bd18",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.ts",
+            "line": 18,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.expires",
+          "confidence": "high",
+          "excerpt": "Expires is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_8d28c83b347146c6",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.ts",
+            "line": 18,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.max_age",
+          "confidence": "high",
+          "excerpt": "Max-Age is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_9638cf3168c14e11",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.ts",
+            "line": 19,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.http_only",
+          "confidence": "high",
+          "excerpt": "HttpOnly: false",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_7fbcf7c04e205441",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 20,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.same_site",
+          "confidence": "high",
+          "excerpt": "SameSite: \"none\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_ef953c43774a0588",
+          "lifecycle_stage": "validate",
+          "location": {
+            "path": "app.ts",
+            "line": 24,
+            "column": 1
+          },
+          "detector_id": "refresh.validate",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_267820b395eba278",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "app.ts",
+            "line": 24,
+            "column": 1
+          },
+          "detector_id": "bearer.rotate",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken = \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_7fa7941e2d1c0707",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "app.ts",
+            "line": 24,
+            "column": 1
+          },
+          "detector_id": "refresh.handler",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_ffa3238b17ab9f6e",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "app.ts",
+            "line": 24,
+            "column": 1
+          },
+          "detector_id": "refresh.rotate",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_19d5635581c34e60",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 24,
+            "column": 1
+          },
+          "detector_id": "bearer.revoke",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken = \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_305ee20048c6d267",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 24,
+            "column": 1
+          },
+          "detector_id": "logout.token_revoke",
+          "confidence": "medium",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2900c77baaeed029",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 24,
+            "column": 1
+          },
+          "detector_id": "refresh.rotate",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_93b05c309b27bbf4",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 26,
+            "column": 3
+          },
+          "detector_id": "bearer.revoke",
+          "confidence": "high",
+          "excerpt": "revokeRefreshToken(previousRefreshToken)",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_69cff3144d75bdc3",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 26,
+            "column": 3
+          },
+          "detector_id": "logout.token_revoke",
+          "confidence": "medium",
+          "excerpt": "revokeRefreshToken(previousRefreshToken)",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_5bff9dee81659348",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 26,
+            "column": 3
+          },
+          "detector_id": "refresh.revoke",
+          "confidence": "high",
+          "excerpt": "revokeRefreshToken(previousRefreshToken)",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_752ffe3fd38ec118",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.ts",
+            "line": 28,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.name_prefix",
+          "confidence": "high",
+          "excerpt": "Cookie name prefix: none",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_76910dbf5c5d9aa5",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.ts",
+            "line": 28,
+            "column": 3
+          },
+          "detector_id": "cookie.set",
+          "confidence": "high",
+          "excerpt": "  const [REDACTED] = \"[REDACTED]\";\n  response.cookie(\"refresh_token\", [REDACTED], {\n    httpOnly: true,",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2db359b7b6469528",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.ts",
+            "line": 28,
+            "column": 3
+          },
+          "detector_id": "refresh.store",
+          "confidence": "high",
+          "excerpt": "response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_ee3153fb557b84d0",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 28,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.domain",
+          "confidence": "high",
+          "excerpt": "Domain is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_3ce0cc0488566657",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 28,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.path",
+          "confidence": "low",
+          "excerpt": "Path defaults to / for express",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_6fd6657096c7cb64",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "app.ts",
+            "line": 28,
+            "column": 3
+          },
+          "detector_id": "refresh.rotate",
+          "confidence": "high",
+          "excerpt": "response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_090de3fc0c51f0a8",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.ts",
+            "line": 28,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.expires",
+          "confidence": "high",
+          "excerpt": "Expires is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_9117595604464e2e",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "app.ts",
+            "line": 28,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.max_age",
+          "confidence": "high",
+          "excerpt": "Max-Age is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_232e817eb8f7f9ee",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "app.ts",
+            "line": 29,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.http_only",
+          "confidence": "high",
+          "excerpt": "HttpOnly: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_4206339cd0e7ae44",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 30,
+            "column": 13
+          },
+          "detector_id": "cookie.attribute.secure",
+          "confidence": "high",
+          "excerpt": "Secure: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_0375d1c6f42c91c0",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "app.ts",
+            "line": 31,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.same_site",
+          "confidence": "high",
+          "excerpt": "SameSite: \"strict\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_891184dd9d805d4d",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "app.ts",
+            "line": 35,
+            "column": 1
+          },
+          "detector_id": "refresh.handler",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_0ee1c1d13af4e500",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 35,
+            "column": 1
+          },
+          "detector_id": "bearer.revoke",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_655039e7e2d8798c",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 35,
+            "column": 1
+          },
+          "detector_id": "logout.handler",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_e598ec1bf7c310fd",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 35,
+            "column": 1
+          },
+          "detector_id": "logout.session_destroy",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_ded9725f66a2bc9a",
+          "lifecycle_stage": "introspect",
+          "location": {
+            "path": "app.ts",
+            "line": 35,
+            "column": 1
+          },
+          "detector_id": "bearer.boundary.service",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_48674ab370561cc2",
+          "lifecycle_stage": "introspect",
+          "location": {
+            "path": "app.ts",
+            "line": 35,
+            "column": 1
+          },
+          "detector_id": "bearer.boundary.trust_boundary",
+          "confidence": "high",
+          "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_91a717f6ce1e2113",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 36,
+            "column": 3
+          },
+          "detector_id": "bearer.revoke",
+          "confidence": "high",
+          "excerpt": "destroyServerSession(request.sessionID)",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_a765a8bfc656851c",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 36,
+            "column": 3
+          },
+          "detector_id": "logout.session_destroy",
+          "confidence": "high",
+          "excerpt": "destroyServerSession(request.sessionID)",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_9c80d870069c511d",
+          "lifecycle_stage": "introspect",
+          "location": {
+            "path": "app.ts",
+            "line": 36,
+            "column": 3
+          },
+          "detector_id": "bearer.boundary.service",
+          "confidence": "high",
+          "excerpt": "destroyServerSession(request.sessionID)",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_7e45838a032ab2e5",
+          "lifecycle_stage": "introspect",
+          "location": {
+            "path": "app.ts",
+            "line": 36,
+            "column": 3
+          },
+          "detector_id": "bearer.boundary.trust_boundary",
+          "confidence": "high",
+          "excerpt": "destroyServerSession(request.sessionID)",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_bceedbcb218327ae",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 37,
+            "column": 3
+          },
+          "detector_id": "logout.cookie_clear",
+          "confidence": "high",
+          "excerpt": "response.clearCookie(\"session\")",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_af325d42d3c49c7e",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "app.ts",
+            "line": 38,
+            "column": 3
+          },
+          "detector_id": "logout.cookie_clear",
+          "confidence": "high",
+          "excerpt": "response.clearCookie(\"[REDACTED]\")",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_abfcc0c427dc8c0b",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "app.ts",
+            "line": 42,
+            "column": 1
+          },
+          "detector_id": "refresh.handler",
+          "confidence": "medium",
+          "excerpt": "function revokeRefreshToken(_token: string) {\n  return signingSecret.length > 0;\n}",
+          "dynamic": true,
+          "framework_default": false
+        }
+      ],
+      "diagnostics": [],
+      "skipped_reason": null
+    },
+    {
+      "path": "expected.json",
+      "language": "json",
+      "artifacts": [],
+      "evidence": [],
+      "diagnostics": [],
+      "skipped_reason": null
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "artifact_6f837089594b74c4",
+      "artifact_type": "opaque_bearer_token",
+      "display_name": "access_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 6,
+          "column": 1
+        },
+        {
+          "path": "app.ts",
+          "line": 7,
+          "column": 9
+        },
+        {
+          "path": "app.ts",
+          "line": 8,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_5f28697326110c85"
+        ],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_ad3b0634ef3c54d4",
+          "evidence_db7c57d295560814"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "javascript"
+      ]
+    },
+    {
+      "id": "artifact_64c56fd5a910792c",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 6,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [
+          "evidence_4e63c7300962690f"
+        ],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express",
+        "scope:111"
+      ]
+    },
+    {
+      "id": "artifact_5a72289a03ddd485",
+      "artifact_type": "signed_cookie",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 8,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_5a72289a03ddd485",
+          "evidence_b275602954778885",
+          "evidence_bf3ab86dfecb4f83"
+        ],
+        "transmit": [
+          "evidence_05cc4e424d4d22c6",
+          "evidence_60893ace05d1a945",
+          "evidence_b798deb3d44bb045",
+          "evidence_bfaf3eddb9c369eb"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_9fc5df1d137d1f72",
+          "evidence_e040efa573297113"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express"
+      ],
+      "cookie_attributes": {
+        "http_only": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_b275602954778885"
+          ],
+          "confidence": "high"
+        },
+        "secure": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_b798deb3d44bb045"
+          ],
+          "confidence": "high"
+        },
+        "same_site": {
+          "state": "present",
+          "value": "lax",
+          "evidence_ids": [
+            "evidence_60893ace05d1a945"
+          ],
+          "confidence": "high"
+        },
+        "max_age": {
+          "state": "dynamic",
+          "value": "15 * 60 * 1000",
+          "evidence_ids": [
+            "evidence_9fc5df1d137d1f72"
+          ],
+          "confidence": "medium"
+        },
+        "expires": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_e040efa573297113"
+          ],
+          "confidence": "high"
+        },
+        "path": {
+          "state": "framework_default",
+          "value": "/",
+          "evidence_ids": [
+            "evidence_05cc4e424d4d22c6"
+          ],
+          "confidence": "low"
+        },
+        "domain": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_bfaf3eddb9c369eb"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_7a9827578e77376e",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 17,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [
+          "evidence_fa34ee456988eedf"
+        ],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express",
+        "scope:402"
+      ]
+    },
+    {
+      "id": "artifact_8dcee4862e48c13e",
+      "artifact_type": "session_cookie",
+      "display_name": "legacy_session",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 18,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_8dcee4862e48c13e",
+          "evidence_9638cf3168c14e11",
+          "evidence_df5a3400b3bd5568"
+        ],
+        "transmit": [
+          "evidence_49b87b12f7780901",
+          "evidence_71ff2402f81dfcc0",
+          "evidence_7fbcf7c04e205441",
+          "evidence_894b46e27a69f2f1"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_278dad9b2113bd18",
+          "evidence_8d28c83b347146c6"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express"
+      ],
+      "cookie_attributes": {
+        "http_only": {
+          "state": "missing",
+          "value": "false",
+          "evidence_ids": [
+            "evidence_9638cf3168c14e11"
+          ],
+          "confidence": "high"
+        },
+        "secure": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_894b46e27a69f2f1"
+          ],
+          "confidence": "high"
+        },
+        "same_site": {
+          "state": "present",
+          "value": "none",
+          "evidence_ids": [
+            "evidence_7fbcf7c04e205441"
+          ],
+          "confidence": "high"
+        },
+        "max_age": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_8d28c83b347146c6"
+          ],
+          "confidence": "high"
+        },
+        "expires": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_278dad9b2113bd18"
+          ],
+          "confidence": "high"
+        },
+        "path": {
+          "state": "framework_default",
+          "value": "/",
+          "evidence_ids": [
+            "evidence_49b87b12f7780901"
+          ],
+          "confidence": "low"
+        },
+        "domain": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_71ff2402f81dfcc0"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_154fd160cf3f690a",
+      "artifact_type": "refresh_jwt",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 24,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_305ee20048c6d267"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "javascript"
+      ]
+    },
+    {
+      "id": "artifact_ec4e55657a78fe6a",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 24,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [
+          "evidence_ef953c43774a0588"
+        ],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express"
+      ]
+    },
+    {
+      "id": "artifact_f963d258ec5440c8",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 24,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_7fa7941e2d1c0707"
+        ],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express"
+      ]
+    },
+    {
+      "id": "artifact_faaf8106c79488c1",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 24,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_ffa3238b17ab9f6e"
+        ],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express"
+      ]
+    },
+    {
+      "id": "artifact_faaf8106c79488c1",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 24,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_2900c77baaeed029"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express"
+      ]
+    },
+    {
+      "id": "artifact_151942804270435d",
+      "artifact_type": "unknown_token",
+      "display_name": "unknown_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 24,
+          "column": 1
+        },
+        {
+          "path": "app.ts",
+          "line": 26,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_267820b395eba278"
+        ],
+        "revoke": [
+          "evidence_19d5635581c34e60",
+          "evidence_93b05c309b27bbf4"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "javascript",
+        "nextjs"
+      ]
+    },
+    {
+      "id": "artifact_63d7d91a0736c3b6",
+      "artifact_type": "refresh_jwt",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 26,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_69cff3144d75bdc3"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "javascript"
+      ]
+    },
+    {
+      "id": "artifact_3d68a57fcf1a38a2",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 26,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_5bff9dee81659348"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "refresh"
+      ]
+    },
+    {
+      "id": "artifact_76910dbf5c5d9aa5",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 28,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_232e817eb8f7f9ee",
+          "evidence_752ffe3fd38ec118",
+          "evidence_76910dbf5c5d9aa5"
+        ],
+        "transmit": [
+          "evidence_0375d1c6f42c91c0",
+          "evidence_3ce0cc0488566657",
+          "evidence_4206339cd0e7ae44",
+          "evidence_ee3153fb557b84d0"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_090de3fc0c51f0a8",
+          "evidence_9117595604464e2e"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express"
+      ],
+      "cookie_attributes": {
+        "http_only": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_232e817eb8f7f9ee"
+          ],
+          "confidence": "high"
+        },
+        "secure": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_4206339cd0e7ae44"
+          ],
+          "confidence": "high"
+        },
+        "same_site": {
+          "state": "present",
+          "value": "strict",
+          "evidence_ids": [
+            "evidence_0375d1c6f42c91c0"
+          ],
+          "confidence": "high"
+        },
+        "max_age": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_9117595604464e2e"
+          ],
+          "confidence": "high"
+        },
+        "expires": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_090de3fc0c51f0a8"
+          ],
+          "confidence": "high"
+        },
+        "path": {
+          "state": "framework_default",
+          "value": "/",
+          "evidence_ids": [
+            "evidence_3ce0cc0488566657"
+          ],
+          "confidence": "low"
+        },
+        "domain": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_ee3153fb557b84d0"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_85de78ac6aa3bc33",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 28,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_6fd6657096c7cb64"
+        ],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "refresh"
+      ]
+    },
+    {
+      "id": "artifact_eac51c20eb23c659",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 28,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_2db359b7b6469528"
+        ],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "refresh"
+      ]
+    },
+    {
+      "id": "artifact_f4f9e68f679d0cfc",
+      "artifact_type": "unknown",
+      "display_name": "logout",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 35,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_655039e7e2d8798c"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express"
+      ]
+    },
+    {
+      "id": "artifact_bdfbab6a12855f82",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 35,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_891184dd9d805d4d"
+        ],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express"
+      ]
+    },
+    {
+      "id": "artifact_e0ff886aac6b2e9f",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 35,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_e598ec1bf7c310fd"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "javascript"
+      ]
+    },
+    {
+      "id": "artifact_f40c4f1b8f755160",
+      "artifact_type": "opaque_bearer_token",
+      "display_name": "session_id",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 35,
+          "column": 1
+        },
+        {
+          "path": "app.ts",
+          "line": 36,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_0ee1c1d13af4e500",
+          "evidence_91a717f6ce1e2113"
+        ],
+        "expire": [],
+        "introspect": [
+          "evidence_48674ab370561cc2",
+          "evidence_7e45838a032ab2e5",
+          "evidence_9c80d870069c511d",
+          "evidence_ded9725f66a2bc9a"
+        ]
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "javascript"
+      ],
+      "token_boundary_attributes": {
+        "service": {
+          "state": "present",
+          "value": "server",
+          "evidence_ids": [
+            "evidence_9c80d870069c511d",
+            "evidence_ded9725f66a2bc9a"
+          ],
+          "confidence": "high"
+        },
+        "trust_boundary": {
+          "state": "present",
+          "value": "server",
+          "evidence_ids": [
+            "evidence_48674ab370561cc2",
+            "evidence_7e45838a032ab2e5"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_ccce4e2d7769b026",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 36,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_a765a8bfc656851c"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "javascript"
+      ]
+    },
+    {
+      "id": "artifact_f5fadee3e8437b01",
+      "artifact_type": "session_cookie",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 37,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_bceedbcb218327ae"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express"
+      ]
+    },
+    {
+      "id": "artifact_9880b67e3360e95a",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 38,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_af325d42d3c49c7e"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "express"
+      ]
+    },
+    {
+      "id": "artifact_93d2ba050ef7b6a8",
+      "artifact_type": "unknown",
+      "display_name": "refresh_token",
+      "locations": [
+        {
+          "path": "app.ts",
+          "line": 42,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_abfcc0c427dc8c0b"
+        ],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "javascript"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evidence_4e63c7300962690f",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "app.ts",
+        "line": 6,
+        "column": 1
+      },
+      "detector_id": "session.auth_transition",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (_request, response) => {\n  const accessToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", accessToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n    maxAge: 15 * 60 * 1000,\n    signed: true,\n  });\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_db7c57d295560814",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.ts",
+        "line": 6,
+        "column": 1
+      },
+      "detector_id": "bearer.expire",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (_request, response) => {\n  const accessToken = \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", accessToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n    maxAge: 15 * 60 * 1000,\n    signed: true,\n  });\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_5f28697326110c85",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.ts",
+        "line": 7,
+        "column": 9
+      },
+      "detector_id": "bearer.literal.static",
+      "confidence": "high",
+      "excerpt": "accessToken = \"[REDACTED]\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_bf3ab86dfecb4f83",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.ts",
+        "line": 8,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.name_prefix",
+      "confidence": "high",
+      "excerpt": "Cookie name prefix: none",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_5a72289a03ddd485",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.ts",
+        "line": 8,
+        "column": 3
+      },
+      "detector_id": "cookie.set",
+      "confidence": "high",
+      "excerpt": "  const [REDACTED] = \"[REDACTED]\";\n  response.cookie(\"session\", [REDACTED], {\n    httpOnly: true,",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_bfaf3eddb9c369eb",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 8,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.domain",
+      "confidence": "high",
+      "excerpt": "Domain is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_05cc4e424d4d22c6",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 8,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.path",
+      "confidence": "low",
+      "excerpt": "Path defaults to / for express",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_ad3b0634ef3c54d4",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.ts",
+        "line": 8,
+        "column": 3
+      },
+      "detector_id": "bearer.expire",
+      "confidence": "high",
+      "excerpt": "response.cookie(\"[REDACTED]\", accessToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n    maxAge: 15 * 60 * 1000,\n    signed: true,\n  })",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_e040efa573297113",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.ts",
+        "line": 8,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.expires",
+      "confidence": "high",
+      "excerpt": "Expires is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_b275602954778885",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.ts",
+        "line": 9,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.http_only",
+      "confidence": "high",
+      "excerpt": "HttpOnly: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_b798deb3d44bb045",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 10,
+        "column": 13
+      },
+      "detector_id": "cookie.attribute.secure",
+      "confidence": "high",
+      "excerpt": "Secure: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_60893ace05d1a945",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 11,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.same_site",
+      "confidence": "high",
+      "excerpt": "SameSite: \"lax\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_9fc5df1d137d1f72",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.ts",
+        "line": 12,
+        "column": 13
+      },
+      "detector_id": "cookie.attribute.max_age",
+      "confidence": "medium",
+      "excerpt": "Max-Age: 15 * 60 * 1000",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_fa34ee456988eedf",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "app.ts",
+        "line": 17,
+        "column": 1
+      },
+      "detector_id": "session.auth_transition",
+      "confidence": "high",
+      "excerpt": "app.post(\"/legacy-login\", (_request, response) => {\n  response.cookie(\"legacy_session\", \"[REDACTED]\", {\n    httpOnly: false,\n    sameSite: \"none\",\n  });\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_df5a3400b3bd5568",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.ts",
+        "line": 18,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.name_prefix",
+      "confidence": "high",
+      "excerpt": "Cookie name prefix: none",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_8dcee4862e48c13e",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.ts",
+        "line": 18,
+        "column": 3
+      },
+      "detector_id": "cookie.set",
+      "confidence": "high",
+      "excerpt": "app.post(\"/legacy-login\", (_request, response) => {\n  response.cookie(\"legacy_session\", [REDACTED], {\n    httpOnly: false,",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_71ff2402f81dfcc0",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 18,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.domain",
+      "confidence": "high",
+      "excerpt": "Domain is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_49b87b12f7780901",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 18,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.path",
+      "confidence": "low",
+      "excerpt": "Path defaults to / for express",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_894b46e27a69f2f1",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 18,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.secure",
+      "confidence": "high",
+      "excerpt": "Secure is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_278dad9b2113bd18",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.ts",
+        "line": 18,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.expires",
+      "confidence": "high",
+      "excerpt": "Expires is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_8d28c83b347146c6",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.ts",
+        "line": 18,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.max_age",
+      "confidence": "high",
+      "excerpt": "Max-Age is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_9638cf3168c14e11",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.ts",
+        "line": 19,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.http_only",
+      "confidence": "high",
+      "excerpt": "HttpOnly: false",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_7fbcf7c04e205441",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 20,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.same_site",
+      "confidence": "high",
+      "excerpt": "SameSite: \"none\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_ef953c43774a0588",
+      "lifecycle_stage": "validate",
+      "location": {
+        "path": "app.ts",
+        "line": 24,
+        "column": 1
+      },
+      "detector_id": "refresh.validate",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_267820b395eba278",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "app.ts",
+        "line": 24,
+        "column": 1
+      },
+      "detector_id": "bearer.rotate",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken = \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_7fa7941e2d1c0707",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "app.ts",
+        "line": 24,
+        "column": 1
+      },
+      "detector_id": "refresh.handler",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_ffa3238b17ab9f6e",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "app.ts",
+        "line": 24,
+        "column": 1
+      },
+      "detector_id": "refresh.rotate",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_19d5635581c34e60",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 24,
+        "column": 1
+      },
+      "detector_id": "bearer.revoke",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken = \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_305ee20048c6d267",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 24,
+        "column": 1
+      },
+      "detector_id": "logout.token_revoke",
+      "confidence": "medium",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2900c77baaeed029",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 24,
+        "column": 1
+      },
+      "detector_id": "refresh.rotate",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  const previousRefreshToken = request.cookies?.refresh_token ?? \"[REDACTED]\";\n  revokeRefreshToken(previousRefreshToken);\n  const rotatedRefreshToken: \"[REDACTED]\";\n  response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_93b05c309b27bbf4",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 26,
+        "column": 3
+      },
+      "detector_id": "bearer.revoke",
+      "confidence": "high",
+      "excerpt": "revokeRefreshToken(previousRefreshToken)",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_69cff3144d75bdc3",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 26,
+        "column": 3
+      },
+      "detector_id": "logout.token_revoke",
+      "confidence": "medium",
+      "excerpt": "revokeRefreshToken(previousRefreshToken)",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_5bff9dee81659348",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 26,
+        "column": 3
+      },
+      "detector_id": "refresh.revoke",
+      "confidence": "high",
+      "excerpt": "revokeRefreshToken(previousRefreshToken)",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_752ffe3fd38ec118",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.ts",
+        "line": 28,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.name_prefix",
+      "confidence": "high",
+      "excerpt": "Cookie name prefix: none",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_76910dbf5c5d9aa5",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.ts",
+        "line": 28,
+        "column": 3
+      },
+      "detector_id": "cookie.set",
+      "confidence": "high",
+      "excerpt": "  const [REDACTED] = \"[REDACTED]\";\n  response.cookie(\"refresh_token\", [REDACTED], {\n    httpOnly: true,",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2db359b7b6469528",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.ts",
+        "line": 28,
+        "column": 3
+      },
+      "detector_id": "refresh.store",
+      "confidence": "high",
+      "excerpt": "response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_ee3153fb557b84d0",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 28,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.domain",
+      "confidence": "high",
+      "excerpt": "Domain is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_3ce0cc0488566657",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 28,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.path",
+      "confidence": "low",
+      "excerpt": "Path defaults to / for express",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_6fd6657096c7cb64",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "app.ts",
+        "line": 28,
+        "column": 3
+      },
+      "detector_id": "refresh.rotate",
+      "confidence": "high",
+      "excerpt": "response.cookie(\"[REDACTED]\", rotatedRefreshToken, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_090de3fc0c51f0a8",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.ts",
+        "line": 28,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.expires",
+      "confidence": "high",
+      "excerpt": "Expires is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_9117595604464e2e",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "app.ts",
+        "line": 28,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.max_age",
+      "confidence": "high",
+      "excerpt": "Max-Age is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_232e817eb8f7f9ee",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "app.ts",
+        "line": 29,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.http_only",
+      "confidence": "high",
+      "excerpt": "HttpOnly: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_4206339cd0e7ae44",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 30,
+        "column": 13
+      },
+      "detector_id": "cookie.attribute.secure",
+      "confidence": "high",
+      "excerpt": "Secure: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_0375d1c6f42c91c0",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "app.ts",
+        "line": 31,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.same_site",
+      "confidence": "high",
+      "excerpt": "SameSite: \"strict\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_891184dd9d805d4d",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "app.ts",
+        "line": 35,
+        "column": 1
+      },
+      "detector_id": "refresh.handler",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_0ee1c1d13af4e500",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 35,
+        "column": 1
+      },
+      "detector_id": "bearer.revoke",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_655039e7e2d8798c",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 35,
+        "column": 1
+      },
+      "detector_id": "logout.handler",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_e598ec1bf7c310fd",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 35,
+        "column": 1
+      },
+      "detector_id": "logout.session_destroy",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_ded9725f66a2bc9a",
+      "lifecycle_stage": "introspect",
+      "location": {
+        "path": "app.ts",
+        "line": 35,
+        "column": 1
+      },
+      "detector_id": "bearer.boundary.service",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_48674ab370561cc2",
+      "lifecycle_stage": "introspect",
+      "location": {
+        "path": "app.ts",
+        "line": 35,
+        "column": 1
+      },
+      "detector_id": "bearer.boundary.trust_boundary",
+      "confidence": "high",
+      "excerpt": "app.post(\"[REDACTED]\", (request, response) => {\n  destroyServerSession(request.sessionID);\n  response.clearCookie(\"[REDACTED]\");\n  response.clearCookie(\"[REDACTED]\");\n  response.sendStatus(204);\n})",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_91a717f6ce1e2113",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 36,
+        "column": 3
+      },
+      "detector_id": "bearer.revoke",
+      "confidence": "high",
+      "excerpt": "destroyServerSession(request.sessionID)",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_a765a8bfc656851c",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 36,
+        "column": 3
+      },
+      "detector_id": "logout.session_destroy",
+      "confidence": "high",
+      "excerpt": "destroyServerSession(request.sessionID)",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_9c80d870069c511d",
+      "lifecycle_stage": "introspect",
+      "location": {
+        "path": "app.ts",
+        "line": 36,
+        "column": 3
+      },
+      "detector_id": "bearer.boundary.service",
+      "confidence": "high",
+      "excerpt": "destroyServerSession(request.sessionID)",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_7e45838a032ab2e5",
+      "lifecycle_stage": "introspect",
+      "location": {
+        "path": "app.ts",
+        "line": 36,
+        "column": 3
+      },
+      "detector_id": "bearer.boundary.trust_boundary",
+      "confidence": "high",
+      "excerpt": "destroyServerSession(request.sessionID)",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_bceedbcb218327ae",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 37,
+        "column": 3
+      },
+      "detector_id": "logout.cookie_clear",
+      "confidence": "high",
+      "excerpt": "response.clearCookie(\"session\")",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_af325d42d3c49c7e",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "app.ts",
+        "line": 38,
+        "column": 3
+      },
+      "detector_id": "logout.cookie_clear",
+      "confidence": "high",
+      "excerpt": "response.clearCookie(\"[REDACTED]\")",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_abfcc0c427dc8c0b",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "app.ts",
+        "line": 42,
+        "column": 1
+      },
+      "detector_id": "refresh.handler",
+      "confidence": "medium",
+      "excerpt": "function revokeRefreshToken(_token: string) {\n  return signingSecret.length > 0;\n}",
+      "dynamic": true,
+      "framework_default": false
+    }
+  ],
+  "lifecycle_paths": [
+    {
+      "id": "lifecycle_path_4033ab72bb1235bf",
+      "artifact_ids": [
+        "artifact_151942804270435d"
+      ],
+      "stages": [
+        {
+          "stage": "refresh",
+          "evidence_ids": [
+            "evidence_267820b395eba278"
+          ]
+        },
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_19d5635581c34e60",
+            "evidence_93b05c309b27bbf4"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_5b475db68188077b",
+      "artifact_ids": [
+        "artifact_154fd160cf3f690a",
+        "artifact_3d68a57fcf1a38a2",
+        "artifact_63d7d91a0736c3b6",
+        "artifact_76910dbf5c5d9aa5",
+        "artifact_85de78ac6aa3bc33",
+        "artifact_93d2ba050ef7b6a8",
+        "artifact_9880b67e3360e95a",
+        "artifact_bdfbab6a12855f82",
+        "artifact_eac51c20eb23c659",
+        "artifact_ec4e55657a78fe6a",
+        "artifact_f963d258ec5440c8",
+        "artifact_faaf8106c79488c1"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_232e817eb8f7f9ee",
+            "evidence_2db359b7b6469528",
+            "evidence_752ffe3fd38ec118",
+            "evidence_76910dbf5c5d9aa5"
+          ]
+        },
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_0375d1c6f42c91c0",
+            "evidence_3ce0cc0488566657",
+            "evidence_4206339cd0e7ae44",
+            "evidence_ee3153fb557b84d0"
+          ]
+        },
+        {
+          "stage": "validate",
+          "evidence_ids": [
+            "evidence_ef953c43774a0588"
+          ]
+        },
+        {
+          "stage": "refresh",
+          "evidence_ids": [
+            "evidence_6fd6657096c7cb64",
+            "evidence_7fa7941e2d1c0707",
+            "evidence_891184dd9d805d4d",
+            "evidence_abfcc0c427dc8c0b",
+            "evidence_ffa3238b17ab9f6e"
+          ]
+        },
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_2900c77baaeed029",
+            "evidence_305ee20048c6d267",
+            "evidence_5bff9dee81659348",
+            "evidence_69cff3144d75bdc3",
+            "evidence_af325d42d3c49c7e"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_090de3fc0c51f0a8",
+            "evidence_9117595604464e2e"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `refresh_token`?"
+    },
+    {
+      "id": "lifecycle_path_86c116b37f0e2ad3",
+      "artifact_ids": [
+        "artifact_5a72289a03ddd485",
+        "artifact_ccce4e2d7769b026",
+        "artifact_e0ff886aac6b2e9f",
+        "artifact_f5fadee3e8437b01"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_5a72289a03ddd485",
+            "evidence_b275602954778885",
+            "evidence_bf3ab86dfecb4f83"
+          ]
+        },
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_05cc4e424d4d22c6",
+            "evidence_60893ace05d1a945",
+            "evidence_b798deb3d44bb045",
+            "evidence_bfaf3eddb9c369eb"
+          ]
+        },
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_a765a8bfc656851c",
+            "evidence_bceedbcb218327ae",
+            "evidence_e598ec1bf7c310fd"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_9fc5df1d137d1f72",
+            "evidence_e040efa573297113"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `session`?"
+    },
+    {
+      "id": "lifecycle_path_4c077575b3f09cbd",
+      "artifact_ids": [
+        "artifact_64c56fd5a910792c"
+      ],
+      "stages": [
+        {
+          "stage": "issue",
+          "evidence_ids": [
+            "evidence_4e63c7300962690f"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_2e8eb975b1c526e6",
+      "artifact_ids": [
+        "artifact_6f837089594b74c4"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_5f28697326110c85"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_ad3b0634ef3c54d4",
+            "evidence_db7c57d295560814"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_572969cbd1e8798b",
+      "artifact_ids": [
+        "artifact_7a9827578e77376e"
+      ],
+      "stages": [
+        {
+          "stage": "issue",
+          "evidence_ids": [
+            "evidence_fa34ee456988eedf"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_f569078327ea3a2d",
+      "artifact_ids": [
+        "artifact_8dcee4862e48c13e"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_8dcee4862e48c13e",
+            "evidence_9638cf3168c14e11",
+            "evidence_df5a3400b3bd5568"
+          ]
+        },
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_49b87b12f7780901",
+            "evidence_71ff2402f81dfcc0",
+            "evidence_7fbcf7c04e205441",
+            "evidence_894b46e27a69f2f1"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_278dad9b2113bd18",
+            "evidence_8d28c83b347146c6"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": false,
+      "reviewer_question": "Which framework version and deployment settings determine lifecycle behavior for `legacy_session`?"
+    },
+    {
+      "id": "lifecycle_path_0e964f654c165e5c",
+      "artifact_ids": [
+        "artifact_f40c4f1b8f755160"
+      ],
+      "stages": [
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_0ee1c1d13af4e500",
+            "evidence_91a717f6ce1e2113"
+          ]
+        },
+        {
+          "stage": "introspect",
+          "evidence_ids": [
+            "evidence_48674ab370561cc2",
+            "evidence_7e45838a032ab2e5",
+            "evidence_9c80d870069c511d",
+            "evidence_ded9725f66a2bc9a"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_805b1ae29e882bbe",
+      "artifact_ids": [
+        "artifact_f4f9e68f679d0cfc"
+      ],
+      "stages": [
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_655039e7e2d8798c"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    }
+  ],
+  "findings": [
+    {
+      "id": "finding_9d395752f36e474c",
+      "category": "high_confidence_misconfiguration",
+      "severity": "high",
+      "artifact_ids": [
+        "artifact_6f837089594b74c4"
+      ],
+      "evidence_ids": [
+        "evidence_5f28697326110c85"
+      ],
+      "title": "Token `access_token` has static secret-like literal evidence",
+      "description": "Source evidence contains a static token/API-key style literal. The value is redacted in reports, but the code path should not carry runtime secrets in source.",
+      "suggested_fix": "Move runtime token values to approved secret storage and keep source/config references value-free.",
+      "reviewer_question": "Is this placeholder-only fixture code, or can production source contain a token value here?"
+    },
+    {
+      "id": "finding_25b7beeb5b710c99",
+      "category": "high_confidence_misconfiguration",
+      "severity": "high",
+      "artifact_ids": [
+        "artifact_8dcee4862e48c13e"
+      ],
+      "evidence_ids": [
+        "evidence_7fbcf7c04e205441",
+        "evidence_894b46e27a69f2f1"
+      ],
+      "title": "Cookie `legacy_session` sets SameSite=None without Secure evidence",
+      "description": "SameSite=None was detected, but Secure attribute evidence was not detected for this cookie-setting call.",
+      "suggested_fix": "Set Secure whenever SameSite=None is used.",
+      "reviewer_question": "Is this cookie intentionally available in cross-site requests?"
+    },
+    {
+      "id": "finding_55131de590e94521",
+      "category": "high_confidence_misconfiguration",
+      "severity": "high",
+      "artifact_ids": [
+        "artifact_8dcee4862e48c13e"
+      ],
+      "evidence_ids": [
+        "evidence_894b46e27a69f2f1"
+      ],
+      "title": "Cookie `legacy_session` does not set Secure",
+      "description": "No Secure attribute evidence was detected for this cookie-setting call.",
+      "suggested_fix": "Set Secure for cookies that should only be sent over HTTPS.",
+      "reviewer_question": "Is this cookie ever used in an externally reachable production environment?"
+    },
+    {
+      "id": "finding_a38cf3af681ec5dc",
+      "category": "high_confidence_misconfiguration",
+      "severity": "high",
+      "artifact_ids": [
+        "artifact_8dcee4862e48c13e"
+      ],
+      "evidence_ids": [
+        "evidence_9638cf3168c14e11"
+      ],
+      "title": "Session-like cookie `legacy_session` does not set HttpOnly",
+      "description": "No HttpOnly attribute evidence was detected for this cookie-setting call.",
+      "suggested_fix": "Set HttpOnly on session cookies so client-side scripts cannot read them.",
+      "reviewer_question": "Is this cookie intended to be inaccessible to browser JavaScript?"
+    },
+    {
+      "id": "finding_05e18a66378175d4",
+      "category": "lifecycle_gap",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_76910dbf5c5d9aa5"
+      ],
+      "evidence_ids": [
+        "evidence_655039e7e2d8798c",
+        "evidence_6fd6657096c7cb64",
+        "evidence_7fa7941e2d1c0707",
+        "evidence_891184dd9d805d4d",
+        "evidence_abfcc0c427dc8c0b",
+        "evidence_ffa3238b17ab9f6e"
+      ],
+      "title": "Refresh token `refresh_token` has logout evidence without family revocation",
+      "description": "Logout and refresh-token lifecycle evidence were detected in linked source context, but no source-bound user-scoped or refresh-family revocation evidence was linked for the logout flow.",
+      "suggested_fix": "Revoke the user's refresh-token family, delete user-scoped refresh-token records, or remove the refresh-family cache key during logout.",
+      "reviewer_question": "Where does logout revoke every refresh token in the `refresh_token` family or for the current user?"
+    },
+    {
+      "id": "finding_b39b8f710f933855",
+      "category": "dynamic_review_required",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_64c56fd5a910792c"
+      ],
+      "evidence_ids": [
+        "evidence_4e63c7300962690f"
+      ],
+      "title": "Session regeneration evidence was not found near login",
+      "description": "An authentication transition was detected, but nearby static evidence did not show an explicit session regeneration, cookie reissue, or recognized framework-default rotation point.",
+      "suggested_fix": "Regenerate the server-side session with [REDACTED](...) after authentication and privilege changes before storing the authenticated user state.",
+      "reviewer_question": "Where is the session identifier rotated after this authentication transition?"
+    },
+    {
+      "id": "finding_d475e20fdbc03e20",
+      "category": "dynamic_review_required",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_7a9827578e77376e"
+      ],
+      "evidence_ids": [
+        "evidence_fa34ee456988eedf"
+      ],
+      "title": "Session regeneration evidence was not found near login",
+      "description": "An authentication transition was detected, but nearby static evidence did not show an explicit session regeneration, cookie reissue, or recognized framework-default rotation point.",
+      "suggested_fix": "Regenerate the server-side session with [REDACTED](...) after authentication and privilege changes before storing the authenticated user state.",
+      "reviewer_question": "Where is the session identifier rotated after this authentication transition?"
+    },
+    {
+      "id": "finding_620ea7721befb84c",
+      "category": "lifecycle_gap",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_8dcee4862e48c13e"
+      ],
+      "evidence_ids": [
+        "evidence_278dad9b2113bd18",
+        "evidence_8d28c83b347146c6"
+      ],
+      "title": "Cookie `legacy_session` has no explicit expiry evidence",
+      "description": "No Max-Age or Expires evidence was detected for this cookie-setting call.",
+      "suggested_fix": "Add an explicit Max-Age or Expires value when the cookie should have a bounded lifetime.",
+      "reviewer_question": "Should this cookie be session-scoped, or should it have an explicit lifetime?"
+    },
+    {
+      "id": "finding_2229884393d65240",
+      "category": "dynamic_review_required",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_5a72289a03ddd485"
+      ],
+      "evidence_ids": [
+        "evidence_9fc5df1d137d1f72",
+        "evidence_e040efa573297113"
+      ],
+      "title": "Cookie `session` has dynamic expiry evidence",
+      "description": "Cookie lifetime appears to depend on dynamic Max-Age or Expires evidence.",
+      "suggested_fix": "Confirm the effective cookie lifetime and document the production value.",
+      "reviewer_question": "What effective lifetime does this cookie have in production?"
+    }
+  ]
+}
