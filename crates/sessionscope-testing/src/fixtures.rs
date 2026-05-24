@@ -831,6 +831,53 @@ mod tests {
     }
 
     #[test]
+    fn jwt_logout_without_denylist_fixture_produces_review_gap() {
+        let root = fixture_root()
+            .join("generic-ts")
+            .join("jwt-logout-without-denylist");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("jwt logout without denylist fixture should scan"),
+        );
+
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::LifecycleGap
+                && finding.title.contains("without linked denylist")
+                && finding.reviewer_question.is_some()
+        }));
+    }
+
+    #[test]
+    fn jwt_logout_with_denylist_fixture_stays_clean_for_denylist_gap() {
+        let root = fixture_root()
+            .join("generic-ts")
+            .join("jwt-logout-with-denylist");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("jwt logout with denylist fixture should scan"),
+        );
+
+        assert!(report.evidence.iter().any(|evidence| {
+            evidence.lifecycle_stage == LifecycleStage::Revoke
+                && evidence.detector_id == "logout.token_revoke"
+        }));
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.title.contains("without linked denylist")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
     fn issue_27_provider_library_fixtures_emit_documented_coverage() {
         let cases = [
             (

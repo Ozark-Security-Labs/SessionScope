@@ -25,6 +25,7 @@ pub fn link(report: &ScanReport) -> Vec<LifecyclePath> {
 
 pub fn classify(report: &ScanReport) -> Vec<Finding> {
     let mut findings = Vec::new();
+    let evidence_by_id = evidence_by_id(report);
 
     for path in &report.lifecycle_paths {
         let Some(artifact) = artifact_for_path(report, path) else {
@@ -32,7 +33,6 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
         };
 
         findings.extend(classify_issue_without_validate(artifact, path));
-        let evidence_by_id = evidence_by_id(report);
         findings.extend(classify_refresh_without_revoke(
             artifact,
             path,
@@ -48,6 +48,12 @@ pub fn classify(report: &ScanReport) -> Vec<Finding> {
         findings.extend(classify_cookie_clear_attribute_mismatch(
             artifact,
             path,
+            &evidence_by_id,
+        ));
+        findings.extend(classify_jwt_denylist_absent_on_logout(
+            artifact,
+            path,
+            report,
             &evidence_by_id,
         ));
     }
@@ -592,6 +598,53 @@ fn classify_cookie_clear_attribute_mismatch(
     ))
 }
 
+fn classify_jwt_denylist_absent_on_logout(
+    artifact: &Artifact,
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Option<Finding> {
+    if artifact.artifact_type != ArtifactType::AccessJwt
+        || !(has_stage(path, LifecycleStage::Issue) || has_stage(path, LifecycleStage::Validate))
+    {
+        return None;
+    }
+
+    let logout_ids = linked_logout_handler_ids(path, report, evidence_by_id);
+    if logout_ids.is_empty() || has_linked_jwt_denylist_or_revoke(path, report, evidence_by_id) {
+        return None;
+    }
+
+    let mut evidence_ids = logout_ids;
+    evidence_ids.extend(evidence_ids_for_stage(path, LifecycleStage::Issue));
+    if evidence_ids.len() == 1 {
+        evidence_ids.extend(evidence_ids_for_stage(path, LifecycleStage::Validate));
+    }
+    evidence_ids.sort();
+    evidence_ids.dedup();
+
+    let name = artifact.display_name.as_deref().unwrap_or("access_jwt");
+    Some(finding(
+        artifact,
+        path,
+        FindingSpec {
+            rule_id: "jwt_denylist_absent_on_logout_review",
+            category: FindingCategory::LifecycleGap,
+            severity: Severity::Medium,
+            evidence_ids,
+            title: format!("JWT `{name}` has logout evidence without linked denylist evidence"),
+            description: "A logout handler and access-JWT lifecycle evidence were detected in linked source context, but no source-bound denylist, blocklist, or token revocation-store insertion evidence was linked for the same logout flow."
+                .to_string(),
+            suggested_fix:
+                "Insert the JWT identifier into a denylist/blocklist or revoke-store on logout, or document the intentional short-TTL stateless model for reviewer confirmation."
+                    .to_string(),
+            reviewer_question: format!(
+                "Where does logout revoke or denylist outstanding `{name}` tokens?"
+            ),
+        },
+    ))
+}
+
 fn attribute_missing_or_mismatched(
     observation: &sessionscope_model::CookieAttributeObservation,
     attribute: &str,
@@ -776,6 +829,99 @@ fn has_dynamic_or_provider_refresh(
                     evidence.dynamic || evidence.detector_id == "refresh.provider"
                 })
         })
+}
+
+fn linked_logout_handler_ids(
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> Vec<EvidenceId> {
+    let direct_ids = evidence_ids_for_stage(path, LifecycleStage::Revoke)
+        .into_iter()
+        .filter(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| evidence.detector_id == "logout.handler")
+        })
+        .collect::<Vec<_>>();
+    if !direct_ids.is_empty() {
+        return direct_ids;
+    }
+
+    report
+        .evidence
+        .iter()
+        .filter(|evidence| evidence.detector_id == "logout.handler")
+        .filter(|evidence| evidence_linked_to_path_context(evidence, path, evidence_by_id))
+        .map(|evidence| evidence.id.clone())
+        .collect()
+}
+
+fn has_linked_jwt_denylist_or_revoke(
+    path: &LifecyclePath,
+    report: &ScanReport,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    evidence_ids_for_stage(path, LifecycleStage::Revoke)
+        .iter()
+        .any(|evidence_id| {
+            evidence_by_id
+                .get(evidence_id.0.as_str())
+                .is_some_and(|evidence| is_jwt_denylist_or_revoke_evidence(evidence))
+        })
+        || report.evidence.iter().any(|evidence| {
+            is_jwt_denylist_or_revoke_evidence(evidence)
+                && evidence_linked_to_path_context(evidence, path, evidence_by_id)
+        })
+}
+
+fn is_jwt_denylist_or_revoke_evidence(evidence: &Evidence) -> bool {
+    matches!(
+        evidence.detector_id.as_str(),
+        "logout.token_revoke" | "logout.provider_revoke"
+    ) || evidence
+        .excerpt
+        .as_ref()
+        .is_some_and(|excerpt| contains_jwt_denylist_text(excerpt.as_str()))
+}
+
+fn contains_jwt_denylist_text(value: &str) -> bool {
+    let normalized = value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+        .collect::<String>()
+        .to_ascii_lowercase();
+    (normalized.contains("denylist")
+        || normalized.contains("blocklist")
+        || normalized.contains("blacklist")
+        || normalized.contains("revokedtokens")
+        || normalized.contains("revokedtoken")
+        || normalized.contains("revoketoken")
+        || normalized.contains("addtoblocklist"))
+        && (normalized.contains("jwt")
+            || normalized.contains("jti")
+            || normalized.contains("access")
+            || normalized.contains("token"))
+}
+
+fn evidence_linked_to_path_context(
+    evidence: &Evidence,
+    path: &LifecyclePath,
+    evidence_by_id: &BTreeMap<&str, &Evidence>,
+) -> bool {
+    path_evidence_locations(path, evidence_by_id)
+        .iter()
+        .any(|location| locations_are_linkable(&evidence.location, location))
+}
+
+fn locations_are_linkable(left: &SourceLocation, right: &SourceLocation) -> bool {
+    left.path == right.path
+        && left.line.is_some()
+        && right.line.is_some()
+        && left
+            .line
+            .zip(right.line)
+            .is_some_and(|(left, right)| left.abs_diff(right) <= REFRESH_LINK_MAX_LINE_DISTANCE)
 }
 
 fn client_cookie_clear_ids(
@@ -2166,6 +2312,94 @@ mod tests {
 
         assert_eq!(finding.category, FindingCategory::DynamicReviewRequired);
         assert!(finding.title.contains("dynamic refresh behavior"));
+    }
+
+    #[test]
+    fn jwt_logout_without_denylist_is_lifecycle_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_access",
+                ArtifactType::AccessJwt,
+                "access_token",
+                LifecycleEvidence {
+                    issue: vec![EvidenceId("evidence_issue".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence("evidence_issue", LifecycleStage::Issue, 10, false),
+                evidence_with_detector(
+                    "evidence_logout",
+                    LifecycleStage::Revoke,
+                    "logout.handler",
+                    20,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+        let finding = findings
+            .iter()
+            .find(|finding| finding.title.contains("without linked denylist"))
+            .expect("JWT logout denylist review finding");
+
+        assert_eq!(finding.category, FindingCategory::LifecycleGap);
+        assert_eq!(finding.severity, Severity::Medium);
+        assert!(finding.reviewer_question.is_some());
+        assert!(
+            finding
+                .evidence_ids
+                .contains(&EvidenceId("evidence_issue".to_string()))
+        );
+        assert!(
+            finding
+                .evidence_ids
+                .contains(&EvidenceId("evidence_logout".to_string()))
+        );
+    }
+
+    #[test]
+    fn linked_jwt_revoke_prevents_logout_denylist_gap() {
+        let mut report = report_with_artifacts(
+            vec![artifact(
+                "artifact_access",
+                ArtifactType::AccessJwt,
+                "access_token",
+                LifecycleEvidence {
+                    issue: vec![EvidenceId("evidence_issue".to_string())],
+                    ..LifecycleEvidence::default()
+                },
+            )],
+            vec![
+                evidence("evidence_issue", LifecycleStage::Issue, 10, false),
+                evidence_with_detector(
+                    "evidence_logout",
+                    LifecycleStage::Revoke,
+                    "logout.handler",
+                    20,
+                    false,
+                ),
+                evidence_with_detector(
+                    "evidence_revoke",
+                    LifecycleStage::Revoke,
+                    "logout.token_revoke",
+                    21,
+                    false,
+                ),
+            ],
+        );
+        report.lifecycle_paths = link(&report);
+
+        let findings = classify(&report);
+
+        assert!(
+            !findings
+                .iter()
+                .any(|finding| finding.title.contains("without linked denylist")),
+            "{findings:?}"
+        );
     }
 
     #[test]

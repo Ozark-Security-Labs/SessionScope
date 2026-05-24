@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-ts.jwt-logout-with-denylist",
+  "framework": "generic-typescript",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["access_jwt", "session"],
+  "expected_lifecycle_stages": ["issue", "revoke", "expire"],
+  "expected_findings": ["jwt_denylist_evidence_present"],
+  "notes": "Covers an access-JWT logout path with source-visible token revocation evidence so the denylist-absent review should not fire."
+}
