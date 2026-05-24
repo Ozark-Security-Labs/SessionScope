@@ -340,9 +340,9 @@ struct FieldSet {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct JwtSourceContext<'a> {
+struct JwtSourceContext<'a, 'tree> {
     source: &'a str,
-    scope_source: &'a str,
+    scope_node: Node<'tree>,
 }
 
 #[derive(Debug, Clone)]
@@ -1002,7 +1002,7 @@ fn js_jwt_call<'tree>(
             &mut fields,
             JwtSourceContext {
                 source,
-                scope_source: &scope_text(node, source),
+                scope_node: scope_node(node),
             },
             &argument_nodes,
             option_aliases,
@@ -1158,7 +1158,7 @@ fn add_js_sign_fields(
 
 fn add_js_verify_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
-    context: JwtSourceContext<'_>,
+    context: JwtSourceContext<'_, '_>,
     argument_nodes: &[Node<'_>],
     option_aliases: &AliasMap,
     line: usize,
@@ -1238,12 +1238,20 @@ fn add_js_verify_fields(
     } else {
         add_missing_for_verify_fields(fields, line, column);
     }
-    add_header_trust_fields(fields, context.scope_source, line, column);
+    add_header_trust_fields(fields, source, context.scope_node, line, column);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HeaderUseContext {
+    Read,
+    KeyResolution,
+    KeyMapLookup,
 }
 
 fn add_header_trust_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
+    scope_node: Node<'_>,
     line: usize,
     column: usize,
 ) {
@@ -1253,24 +1261,420 @@ fn add_header_trust_fields(
         (JwtField::HeaderJwk, "jwk"),
         (JwtField::HeaderKid, "kid"),
     ] {
-        if header_name_is_read(source, header_name) {
-            add_present_value(
-                fields,
-                field,
-                header_name,
-                line,
-                column,
-                format!("JWT header `{header_name}` is read near verification logic"),
-            );
+        if let Some(context) = header_use_context(scope_node, source, header_name) {
+            if field != JwtField::HeaderKid && context == HeaderUseContext::Read {
+                continue;
+            }
+            let excerpt = match context {
+                HeaderUseContext::KeyMapLookup => format!(
+                    "JWT header `{header_name}` is passed to static key-map lookup near verification"
+                ),
+                HeaderUseContext::KeyResolution => format!(
+                    "JWT header `{header_name}` is passed to key-resolution logic near verification"
+                ),
+                HeaderUseContext::Read => {
+                    format!("JWT header `{header_name}` is read near verification logic")
+                }
+            };
+            add_present_value(fields, field, header_name, line, column, excerpt);
         }
     }
 }
 
-fn header_name_is_read(source: &str, header_name: &str) -> bool {
-    let dot = format!(".{header_name}");
+fn header_use_context(node: Node<'_>, source: &str, header_name: &str) -> Option<HeaderUseContext> {
+    let mut best = None;
+    collect_header_use_context(node, source, header_name, &mut best);
+    best
+}
+
+fn collect_header_use_context(
+    node: Node<'_>,
+    source: &str,
+    header_name: &str,
+    best: &mut Option<HeaderUseContext>,
+) {
+    if matches!(
+        best,
+        Some(HeaderUseContext::KeyResolution | HeaderUseContext::KeyMapLookup)
+    ) {
+        return;
+    }
+    if header_read_node_matches(node, source, header_name)
+        && let Some(context) = header_read_context(node, source)
+        && (matches!(
+            context,
+            HeaderUseContext::KeyResolution | HeaderUseContext::KeyMapLookup
+        ) || best.is_none())
+    {
+        *best = Some(context);
+    }
+
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_header_use_context(child, source, header_name, best);
+    }
+}
+
+fn header_read_node_matches(node: Node<'_>, source: &str, header_name: &str) -> bool {
+    if is_member_expression(node)
+        && node
+            .child_by_field_name("property")
+            .is_some_and(|property| node_text(property, source) == header_name)
+    {
+        return true;
+    }
+
+    if !matches!(node.kind(), "subscript_expression" | "subscript") {
+        return false;
+    }
     let single = format!("['{header_name}']");
     let double = format!("[\"{header_name}\"]");
-    source.contains(&dot) || source.contains(&single) || source.contains(&double)
+    let text = node_text(node, source);
+    text.contains(&single) || text.contains(&double)
+}
+
+fn header_read_context(node: Node<'_>, source: &str) -> Option<HeaderUseContext> {
+    let mut current = node.parent();
+    while let Some(ancestor) = current {
+        if matches!(ancestor.kind(), "call_expression" | "call") {
+            let function_text = ancestor
+                .child_by_field_name("function")
+                .map(|function| node_text(function, source))
+                .unwrap_or_else(|| node_text(ancestor, source));
+            if ignored_header_read_function_name(&function_text) {
+                return None;
+            }
+            if !key_resolution_function_name(&function_text) {
+                current = ancestor.parent();
+                continue;
+            }
+            return Some(
+                if key_map_function_name(&function_text)
+                    && key_map_lookup_uses_static_map(ancestor, source)
+                {
+                    HeaderUseContext::KeyMapLookup
+                } else {
+                    HeaderUseContext::KeyResolution
+                },
+            );
+        }
+        if is_scope_node(ancestor) {
+            return Some(HeaderUseContext::Read);
+        }
+        current = ancestor.parent();
+    }
+    Some(HeaderUseContext::Read)
+}
+
+fn ignored_header_read_function_name(function_text: &str) -> bool {
+    let normalized = function_text.to_ascii_lowercase();
+    let tokens = normalized
+        .split(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
+        .filter(|token| !token.is_empty())
+        .collect::<Vec<_>>();
+    tokens
+        .first()
+        .is_some_and(|token| matches!(*token, "console" | "logger" | "logging" | "metrics"))
+        || tokens.last().is_some_and(|token| {
+            matches!(
+                *token,
+                "log"
+                    | "debug"
+                    | "trace"
+                    | "print"
+                    | "info"
+                    | "warn"
+                    | "error"
+                    | "metric"
+                    | "telemetry"
+            )
+        })
+}
+
+fn key_map_function_name(function_text: &str) -> bool {
+    let normalized = function_text.to_ascii_lowercase();
+    ["untrusted", "unsafe", "unvalidated", "external", "attacker"]
+        .iter()
+        .all(|term| !normalized.contains(term))
+        && (normalized.contains("keymap")
+            || normalized.contains("key_map")
+            || normalized.contains("key-map"))
+}
+
+fn key_map_lookup_uses_static_map(call_node: Node<'_>, source: &str) -> bool {
+    let Some(function) = call_node.child_by_field_name("function") else {
+        return false;
+    };
+    let function_text = node_text(function, source);
+    let Some(target) = function_text.strip_suffix(".get") else {
+        return false;
+    };
+    let target = target.trim();
+    if target.is_empty()
+        || target.contains(['[', ']', '(', ')', '"', '\'', '`'])
+        || ["untrusted", "unsafe", "unvalidated", "external", "attacker"]
+            .iter()
+            .any(|term| target.to_ascii_lowercase().contains(term))
+    {
+        return false;
+    }
+
+    let mut root = call_node;
+    while let Some(parent) = root.parent() {
+        root = parent;
+    }
+    top_level_static_map_binding(root, source, target, call_node.start_byte())
+        && !enclosing_non_program_scope(call_node).is_some_and(|scope| {
+            scope_parameter_shadows_target(scope, source, target)
+                || scope_mutates_map_before_call(scope, source, target, call_node.start_byte())
+        })
+}
+
+fn top_level_static_map_binding(
+    root: Node<'_>,
+    source: &str,
+    target: &str,
+    call_start: usize,
+) -> bool {
+    let mut latest_static_assignment = None;
+    collect_top_level_map_assignment_state(
+        root,
+        source,
+        target,
+        call_start,
+        &mut latest_static_assignment,
+    );
+    latest_static_assignment == Some(true)
+}
+
+fn collect_top_level_map_assignment_state(
+    node: Node<'_>,
+    source: &str,
+    target: &str,
+    call_start: usize,
+    latest_static_assignment: &mut Option<bool>,
+) {
+    if node.start_byte() >= call_start {
+        return;
+    }
+    if let Some(is_static) = map_assignment_state(node, source, target) {
+        *latest_static_assignment = Some(is_static);
+    } else if map_mutation_matches(node, source, target) {
+        *latest_static_assignment = Some(false);
+    }
+
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        if key_map_scope_barrier(child) {
+            continue;
+        }
+        collect_top_level_map_assignment_state(
+            child,
+            source,
+            target,
+            call_start,
+            latest_static_assignment,
+        );
+    }
+}
+
+fn map_assignment_state(node: Node<'_>, source: &str, target: &str) -> Option<bool> {
+    match node.kind() {
+        "variable_declarator" => {
+            let name_matches = node
+                .child_by_field_name("name")
+                .is_some_and(|name| node_text(name, source) == target);
+            name_matches.then(|| {
+                node.child_by_field_name("value")
+                    .is_some_and(|value| static_key_map_literal(value, source))
+            })
+        }
+        "assignment" => {
+            let left_matches = node
+                .child_by_field_name("left")
+                .or_else(|| node.child_by_field_name("name"))
+                .is_some_and(|left| node_text(left, source) == target);
+            left_matches.then(|| {
+                node.child_by_field_name("right")
+                    .or_else(|| node.child_by_field_name("value"))
+                    .is_some_and(|right| static_key_map_literal(right, source))
+            })
+        }
+        _ => None,
+    }
+}
+
+fn scope_mutates_map_before_call(
+    node: Node<'_>,
+    source: &str,
+    target: &str,
+    call_start: usize,
+) -> bool {
+    if node.start_byte() >= call_start {
+        return false;
+    }
+    if map_mutation_matches(node, source, target) {
+        return true;
+    }
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor).any(|child| {
+        if child.start_byte() >= call_start || key_map_nested_scope_barrier(child) {
+            return false;
+        }
+        scope_mutates_map_before_call(child, source, target, call_start)
+    })
+}
+
+fn map_mutation_matches(node: Node<'_>, source: &str, target: &str) -> bool {
+    if map_assignment_state(node, source, target).is_some() {
+        return true;
+    }
+    if matches!(node.kind(), "assignment" | "augmented_assignment") {
+        let Some(left) = node
+            .child_by_field_name("left")
+            .or_else(|| node.child_by_field_name("name"))
+        else {
+            return false;
+        };
+        let left_text = node_text(left, source);
+        return left_text.starts_with(&format!("{target}["))
+            || left_text.starts_with(&format!("{target}."));
+    }
+    if matches!(node.kind(), "call_expression" | "call") {
+        let function_text = node
+            .child_by_field_name("function")
+            .map(|function| node_text(function, source))
+            .unwrap_or_else(|| node_text(node, source));
+        return ["set", "update", "insert"]
+            .iter()
+            .any(|method| function_text == format!("{target}.{method}"));
+    }
+    false
+}
+
+fn scope_parameter_shadows_target(scope: Node<'_>, source: &str, target: &str) -> bool {
+    let text = node_text(scope, source);
+    let signature = text
+        .split(['{', ':'])
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    signature
+        .split(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
+        .any(|token| token == target.to_ascii_lowercase())
+}
+
+fn key_map_scope_barrier(node: Node<'_>) -> bool {
+    matches!(
+        node.kind(),
+        "function_declaration"
+            | "function"
+            | "arrow_function"
+            | "method_definition"
+            | "function_definition"
+            | "class"
+            | "class_declaration"
+            | "class_definition"
+            | "block"
+            | "statement_block"
+    )
+}
+
+fn key_map_nested_scope_barrier(node: Node<'_>) -> bool {
+    matches!(
+        node.kind(),
+        "function_declaration"
+            | "function"
+            | "arrow_function"
+            | "method_definition"
+            | "function_definition"
+            | "class"
+            | "class_declaration"
+            | "class_definition"
+    )
+}
+
+fn static_key_map_literal(node: Node<'_>, source: &str) -> bool {
+    (is_object_literal(node) || is_dictionary(node))
+        && !object_has_dynamic_spread(node, source)
+        && !contains_node_kind(node, "computed_property_name")
+        && static_key_map_keys_are_literal(node, source)
+}
+
+fn static_key_map_keys_are_literal(node: Node<'_>, source: &str) -> bool {
+    let python_dictionary = is_dictionary(node);
+    let mut saw_entry = false;
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        if !matches!(child.kind(), "pair" | "property" | "object_pair") {
+            continue;
+        }
+        saw_entry = true;
+        let Some(key) = child
+            .child_by_field_name("key")
+            .or_else(|| child.named_child(0))
+        else {
+            return false;
+        };
+        if !static_key_map_key_is_literal(key, source, python_dictionary) {
+            return false;
+        }
+    }
+    saw_entry
+}
+
+fn static_key_map_key_is_literal(node: Node<'_>, source: &str, python_dictionary: bool) -> bool {
+    let text = node_text(node, source);
+    parse_string_text(text.trim()).is_some()
+        || matches!(
+            node.kind(),
+            "string" | "string_literal" | "number" | "integer"
+        )
+        || (!python_dictionary && matches!(node.kind(), "property_identifier"))
+}
+
+fn contains_node_kind(node: Node<'_>, kind: &str) -> bool {
+    if node.kind() == kind {
+        return true;
+    }
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor)
+        .any(|child| contains_node_kind(child, kind))
+}
+
+fn enclosing_non_program_scope(node: Node<'_>) -> Option<Node<'_>> {
+    let mut current = node.parent();
+    while let Some(candidate) = current {
+        if is_scope_node(candidate) && candidate.kind() != "program" {
+            return Some(candidate);
+        }
+        current = candidate.parent();
+    }
+    None
+}
+
+fn key_resolution_function_name(function_text: &str) -> bool {
+    let normalized = function_text.to_ascii_lowercase();
+    if ignored_header_read_function_name(&normalized) {
+        return false;
+    }
+
+    [
+        "resolve",
+        "key",
+        "jwks",
+        "jwk",
+        "cert",
+        "pem",
+        "import",
+        "createremotejwkset",
+        "allowlist",
+        "allow_list",
+        "trusted",
+        "pinned",
+    ]
+    .iter()
+    .any(|term| normalized.contains(term))
 }
 
 fn js_verify_option_fields(jose: bool) -> &'static [(JwtField, &'static [&'static str])] {
@@ -1549,7 +1953,7 @@ fn python_jwt_call<'tree>(
         add_python_decode_without_verify_fields(
             &mut fields,
             source,
-            &scope_text(node, source),
+            scope_node(node),
             &argument_nodes,
             option_aliases,
             line,
@@ -1560,7 +1964,7 @@ fn python_jwt_call<'tree>(
         add_python_decode_fields(
             &mut fields,
             source,
-            &scope_text(node, source),
+            scope_node(node),
             &argument_nodes,
             option_aliases,
             line,
@@ -1655,7 +2059,7 @@ fn add_python_encode_fields(
 fn add_python_decode_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
-    scope_source: &str,
+    scope_node: Node<'_>,
     argument_nodes: &[Node<'_>],
     option_aliases: &AliasMap,
     line: usize,
@@ -1712,13 +2116,13 @@ fn add_python_decode_fields(
     }
     add_python_expiry_enforcement(fields, source, argument_nodes, option_aliases, line, column);
     add_missing_for_verify_fields(fields, line, column);
-    add_header_trust_fields(fields, scope_source, line, column);
+    add_header_trust_fields(fields, source, scope_node, line, column);
 }
 
 fn add_python_decode_without_verify_fields(
     fields: &mut BTreeMap<JwtField, JwtFieldEvidence>,
     source: &str,
-    scope_source: &str,
+    scope_node: Node<'_>,
     argument_nodes: &[Node<'_>],
     option_aliases: &AliasMap,
     line: usize,
@@ -1743,7 +2147,7 @@ fn add_python_decode_without_verify_fields(
     add_python_decode_fields(
         fields,
         source,
-        scope_source,
+        scope_node,
         argument_nodes,
         option_aliases,
         line,
@@ -2687,7 +3091,11 @@ fn add_regex_chain_field(
             field,
             JwtFieldEvidence {
                 state: JwtAttributeState::Present,
-                value: Some(safe_text_value(capture[1].trim())),
+                value: Some(if field == JwtField::KeyReference {
+                    safe_key_reference_text(capture[1].trim(), None)
+                } else {
+                    safe_text_value(capture[1].trim())
+                }),
                 confidence: Confidence::High,
                 line,
                 column,
@@ -2931,21 +3339,29 @@ fn safe_node_value(node: Node<'_>, source: &str) -> String {
 
 fn safe_key_reference_value(node: Node<'_>, source: &str) -> String {
     let text = node_text(node, source);
+    safe_key_reference_text(&text, Some(node.kind()))
+}
+
+fn safe_key_reference_text(text: &str, kind: Option<&str>) -> String {
     let trimmed = text.trim();
     if trimmed.contains(['"', '\'', '`']) {
         return "[key_reference]".to_string();
     }
-    match node.kind() {
-        "identifier" | "property_identifier" => safe_text_value(trimmed),
-        "member_expression" | "attribute" => safe_text_value(trimmed),
-        _ if trimmed.to_ascii_lowercase().contains("publickey")
-            || trimmed.to_ascii_lowercase().contains("pubkey")
-            || trimmed.to_ascii_lowercase().contains("loadpublickey")
-            || trimmed.ends_with(".pem") =>
-        {
-            safe_text_value(trimmed)
-        }
-        _ => "[key_reference]".to_string(),
+    let simple_reference = trimmed
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '.'));
+    if matches!(
+        kind,
+        Some("identifier" | "property_identifier" | "member_expression" | "attribute")
+    ) || (kind.is_none() && simple_reference)
+        || trimmed.to_ascii_lowercase().contains("publickey")
+        || trimmed.to_ascii_lowercase().contains("pubkey")
+        || trimmed.to_ascii_lowercase().contains("loadpublickey")
+        || trimmed.ends_with(".pem")
+    {
+        safe_text_value(trimmed)
+    } else {
+        "[key_reference]".to_string()
     }
 }
 
@@ -3107,15 +3523,15 @@ fn node_text(node: Node<'_>, source: &str) -> String {
         .to_string()
 }
 
-fn scope_text(node: Node<'_>, source: &str) -> String {
+fn scope_node(node: Node<'_>) -> Node<'_> {
     let mut current = Some(node);
     while let Some(candidate) = current {
         if is_scope_node(candidate) && candidate.kind() != "program" {
-            return node_text(candidate, source);
+            return candidate;
         }
         current = candidate.parent();
     }
-    node_text(node, source)
+    node
 }
 
 #[cfg(test)]
@@ -3457,6 +3873,247 @@ export function unrelated(decoded: any) {
     }
 
     #[test]
+    fn does_not_emit_header_evidence_from_comments_strings_or_logging() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+import { jwtVerify } from "jose";
+export async function verifyAccessJwt(token: string) {
+  const result = await jwtVerify(token, publicKey, {
+    algorithms: ["RS256"],
+    issuer,
+    audience,
+    complete: true,
+  });
+  // Never trust result.protectedHeader.jku from user tokens.
+  const note = "result.protectedHeader.x5u is documented here";
+  console.log(result.protectedHeader.jwk, result.protectedHeader.kid, note);
+  console.log(JSON.stringify(result.protectedHeader.kid));
+  return result.protectedHeader.jku;
+}
+"#,
+        );
+
+        for detector_id in [
+            "jwt.header.jku",
+            "jwt.header.x5u",
+            "jwt.header.jwk",
+            "jwt.header.kid",
+        ] {
+            assert!(
+                output
+                    .evidence
+                    .iter()
+                    .all(|evidence| evidence.detector_id != detector_id),
+                "unexpected {detector_id} in {:?}",
+                output
+                    .evidence
+                    .iter()
+                    .map(|evidence| evidence.detector_id.as_str())
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn emits_kid_evidence_for_key_map_lookup_context() {
+        let output = detect(
+            Language::Python,
+            r#"
+import jwt
+
+trusted_key_map = {"placeholder-key-id": PUBLIC_KEY}
+
+def verify_access_jwt(token):
+    decoded = jwt.decode(
+        token,
+        key=trusted_key_map,
+        algorithms=["RS256"],
+        issuer=ISSUER,
+        audience=AUDIENCE,
+        options={"complete": True, "verify_nbf": True},
+    )
+    return trusted_key_map.get(decoded["header"]["kid"])
+"#,
+        );
+
+        let kid_evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.detector_id == "jwt.header.kid")
+            .expect("kid evidence should be emitted");
+        assert!(
+            kid_evidence
+                .excerpt
+                .as_ref()
+                .is_some_and(|excerpt| excerpt.as_str().contains("key-map lookup"))
+        );
+    }
+
+    #[test]
+    fn future_key_map_binding_is_not_static_lookup_proof() {
+        let output = detect(
+            Language::Python,
+            r#"
+import jwt
+
+def verify_access_jwt(token):
+    decoded = jwt.decode(
+        token,
+        key=trusted_key_map,
+        algorithms=["RS256"],
+        issuer=ISSUER,
+        audience=AUDIENCE,
+        options={"complete": True, "verify_nbf": True},
+    )
+    return trusted_key_map.get(decoded["header"]["kid"])
+
+trusted_key_map = {"placeholder-key-id": PUBLIC_KEY}
+"#,
+        );
+
+        let kid_evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.detector_id == "jwt.header.kid")
+            .expect("kid evidence should be emitted");
+        assert!(
+            kid_evidence
+                .excerpt
+                .as_ref()
+                .is_some_and(|excerpt| { !excerpt.as_str().contains("static key-map lookup") })
+        );
+    }
+
+    #[test]
+    fn dynamic_dictionary_key_is_not_static_lookup_proof() {
+        let output = detect(
+            Language::Python,
+            r#"
+import jwt
+
+trusted_key_map = {kid: PUBLIC_KEY}
+
+def verify_access_jwt(token):
+    decoded = jwt.decode(
+        token,
+        key=trusted_key_map,
+        algorithms=["RS256"],
+        issuer=ISSUER,
+        audience=AUDIENCE,
+        options={"complete": True, "verify_nbf": True},
+    )
+    return trusted_key_map.get(decoded["header"]["kid"])
+"#,
+        );
+
+        let kid_evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.detector_id == "jwt.header.kid")
+            .expect("kid evidence should be emitted");
+        assert!(
+            kid_evidence
+                .excerpt
+                .as_ref()
+                .is_some_and(|excerpt| { !excerpt.as_str().contains("static key-map lookup") })
+        );
+    }
+
+    #[test]
+    fn mutated_key_map_is_not_static_lookup_proof() {
+        let output = detect(
+            Language::Python,
+            r#"
+import jwt
+
+trusted_key_map = {"placeholder-key-id": PUBLIC_KEY}
+
+def verify_access_jwt(token, kid):
+    decoded = jwt.decode(
+        token,
+        key=trusted_key_map,
+        algorithms=["RS256"],
+        issuer=ISSUER,
+        audience=AUDIENCE,
+        options={"complete": True, "verify_nbf": True},
+    )
+    trusted_key_map[kid] = PUBLIC_KEY
+    return trusted_key_map.get(decoded["header"]["kid"])
+"#,
+        );
+
+        let kid_evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.detector_id == "jwt.header.kid")
+            .expect("kid evidence should be emitted");
+        assert!(
+            kid_evidence
+                .excerpt
+                .as_ref()
+                .is_some_and(|excerpt| { !excerpt.as_str().contains("static key-map lookup") })
+        );
+    }
+
+    #[test]
+    fn local_key_map_rebinding_is_not_static_lookup_proof() {
+        let output = detect(
+            Language::Python,
+            r#"
+import jwt
+
+trusted_key_map = {"placeholder-key-id": PUBLIC_KEY}
+
+def verify_access_jwt(token):
+    decoded = jwt.decode(
+        token,
+        key=trusted_key_map,
+        algorithms=["RS256"],
+        issuer=ISSUER,
+        audience=AUDIENCE,
+        options={"complete": True, "verify_nbf": True},
+    )
+    trusted_key_map = load_keys()
+    return trusted_key_map.get(decoded["header"]["kid"])
+"#,
+        );
+
+        let kid_evidence = output
+            .evidence
+            .iter()
+            .find(|evidence| evidence.detector_id == "jwt.header.kid")
+            .expect("kid evidence should be emitted");
+        assert!(
+            kid_evidence
+                .excerpt
+                .as_ref()
+                .is_some_and(|excerpt| { !excerpt.as_str().contains("static key-map lookup") })
+        );
+    }
+
+    #[test]
+    fn key_resolution_names_containing_log_are_not_logging() {
+        let output = detect(
+            Language::TypeScript,
+            r#"
+import jwt from "jsonwebtoken";
+export function verifyAccessJwt(token: string) {
+  const decoded = jwt.verify(token, publicKey, { algorithms: ["RS256"], complete: true });
+  return resolveCatalogKey(decoded.header.kid);
+}
+"#,
+        );
+
+        assert!(
+            output
+                .evidence
+                .iter()
+                .any(|evidence| evidence.detector_id == "jwt.header.kid")
+        );
+    }
+
+    #[test]
     fn option_and_key_reference_values_do_not_leak_sensitive_literals() {
         let output = detect(
             Language::TypeScript,
@@ -3722,8 +4379,12 @@ def verify_legacy_jwt(token):
             Language::TypeScript,
             r#"
 import jwt from "jsonwebtoken";
+import { SignJWT } from "jose";
 export function issueAccessJwt() {
   return jwt.sign({ sub: "user-123" }, "dev-secret", { expiresIn: "15m" });
+}
+export async function issueJoseJwt() {
+  return new SignJWT({ sub: "user-123" }).sign(Buffer.from("dev-secret"));
 }
 export function verifyAccessJwt() {
   return jwt.verify("opaque-token", "secret", { issuer: ISSUER, audience: AUDIENCE });

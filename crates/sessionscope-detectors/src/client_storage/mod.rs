@@ -27,7 +27,7 @@ static DOCUMENT_COOKIE_RE: LazyLock<Regex> = LazyLock::new(|| {
 static COOKIE_KEY_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(["'])([^="';]+)="#).expect("cookie key regex should compile"));
 static URL_PATH_FRAGMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)([#/](?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|session)(?:[=/]|\b))"#)
+    Regex::new(r#"(?i)(#(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|session)\s*=|/(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer)(?:=|/)(?:\$\{|[A-Za-z0-9._~+%-]))"#)
         .expect("url path/fragment regex should compile")
 });
 static CLIENT_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -39,6 +39,10 @@ static CLIENT_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
 static SENSITIVE_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?ix)(\b(?:access[_-]?token|id[_-]?token|refresh[_-]?token|jwt|bearer|auth|session|client[_-]?secret|clientSecret)\b\s*[:=,]\s*)(["'`])([^"'`]*)(["'`])"#)
         .expect("sensitive value regex should compile")
+});
+static CLIENT_SECRET_UNQUOTED_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)(\b(?:client_secret|clientSecret)\b\s*[:=]\s*)([A-Za-z0-9._~+/-]{12,})"#)
+        .expect("client secret unquoted value regex should compile")
 });
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -278,11 +282,14 @@ fn is_browser_client_path(path: &str) -> bool {
 }
 
 fn sanitize_storage_excerpt(line: &str) -> String {
-    let output = STORAGE_VALUE_RE
+    let mut output = STORAGE_VALUE_RE
         .replace_all(line, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string();
-    SENSITIVE_VALUE_RE
+    output = SENSITIVE_VALUE_RE
         .replace_all(&output, format!("${{1}}${{2}}{REDACTION}${{4}}"))
+        .to_string();
+    CLIENT_SECRET_UNQUOTED_VALUE_RE
+        .replace_all(&output, format!("$1{REDACTION}"))
         .to_string()
 }
 
@@ -383,6 +390,46 @@ const clientSecret = 'PLACEHOLDER_SECRET_DO_NOT_USE'
     }
 
     #[test]
+    fn ignores_benign_routes_with_token_shaped_words() {
+        let output = ClientStorageDetector.detect(&input(
+            "src/routes.ts",
+            r#"
+router.get("/session", handler)
+router.get("/session/callback", handler)
+router.get("/auth/callback", handler)
+const route = "/bearer"
+"#,
+        ));
+
+        assert!(
+            output
+                .evidence
+                .iter()
+                .all(|evidence| evidence.detector_id != "client_storage.url_path_or_fragment.token"),
+            "benign routes should not produce URL token evidence: {:?}",
+            output.evidence
+        );
+    }
+
+    #[test]
+    fn keeps_explicit_url_fragment_and_path_token_evidence() {
+        let output = ClientStorageDetector.detect(&input(
+            "src/components/Auth.tsx",
+            r#"
+const fragmentUrl = `/callback#access_token=${accessToken}`
+const pathUrl = `/access_token/${accessToken}`
+"#,
+        ));
+
+        let count = output
+            .evidence
+            .iter()
+            .filter(|evidence| evidence.detector_id == "client_storage.url_path_or_fragment.token")
+            .count();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
     fn only_flags_client_secret_on_browser_paths() {
         let server = ClientStorageDetector.detect(&input(
             "src/server/oauth.ts",
@@ -400,5 +447,17 @@ const clientSecret = 'PLACEHOLDER_SECRET_DO_NOT_USE'
                 .iter()
                 .any(|evidence| evidence.detector_id == "client_storage.browser.client_secret")
         );
+    }
+
+    #[test]
+    fn redacts_unquoted_client_secret_literals() {
+        let output = ClientStorageDetector.detect(&input(
+            "src/components/Auth.tsx",
+            "const clientSecret = abcdefghijklmno",
+        ));
+
+        let rendered = format!("{:?}", output.evidence);
+        assert!(rendered.contains("[REDACTED]"));
+        assert!(!rendered.contains("abcdefghijklmno"));
     }
 }

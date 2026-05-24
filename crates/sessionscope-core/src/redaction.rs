@@ -62,7 +62,7 @@ static SENSITIVE_QUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static SENSITIVE_UNQUOTED_ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?ix)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|bearer[_-]?token|service[_-]?token|authorization|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key|state|nonce|code[_-]?verifier|code[_-]?challenge|codeVerifier|codeChallenge)\b\s*[:=]\s*)([^\s,;)\]\[}'"]+)"#,
+        r#"(?ix)(\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|reset[_-]?token|session[_-]?token|bearer[_-]?token|service[_-]?token|authorization|csrf[_-]?token|api[_-]?key|apikey|secret|client[_-]?secret|clientSecret|password|passwd|jwt|sessionid|private[_-]?key|signing[_-]?key|state|nonce|code[_-]?verifier|code[_-]?challenge|codeVerifier|codeChallenge)\b\s*[:=]\s*)([^\s,;)\]\[}'"]+)"#,
     )
     .expect("sensitive unquoted assignment regex should compile")
 });
@@ -733,6 +733,14 @@ mod tests {
         assert!(output.contains("[REDACTED]"));
         assert!(!output.contains("raw-token-value"));
         assert!(!output.contains("short-secret"));
+    }
+
+    #[test]
+    fn redacts_unquoted_camel_case_client_secret() {
+        let output = redact_sensitive_values("const clientSecret = abcdefghijklmno");
+
+        assert!(output.contains("[REDACTED]"));
+        assert!(!output.contains("abcdefghijklmno"));
     }
 
     #[test]

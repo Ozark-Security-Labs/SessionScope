@@ -12,7 +12,7 @@ const DETECTOR_ID: &str = "oauth.flow";
 const REDACTION: &str = "[REDACTED]";
 
 static OAUTH_FLOW_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)(OAuth2Strategy|authorizationUrl|authorization_url|OAuthProvider|OIDCProvider|register\(|authorize_redirect|response_type\s*[:=]\s*['\"]code)"#)
+    Regex::new(r#"(?i)(OAuth2Strategy|authorizationUrl|authorization_url|OAuthProvider|OIDCProvider|\b(?:oauth|oidc|openid|authlib)\s*\.\s*register\(|authorize_redirect|response_type\s*[:=]\s*['\"]code)"#)
         .expect("oauth flow regex should compile")
 });
 static PKCE_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -54,6 +54,10 @@ static OAUTH_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
 static OAUTH_URL_VALUE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)([?&#](?:state|nonce|code_verifier|code_challenge)=)([^&#\s"']+)"#)
         .expect("oauth url value regex should compile")
+});
+static OAUTH_QUOTED_LITERAL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(["'`])([^"'`,)]{8,})(["'`])"#)
+        .expect("oauth quoted literal regex should compile")
 });
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -412,6 +416,11 @@ fn sanitize_oauth_excerpt(line: &str) -> String {
     let mut output = OAUTH_VALUE_RE
         .replace_all(line, format!("${{1}}${{2}}{REDACTION}${{4}}"))
         .to_string();
+    if STATE_RE.is_match(line) || NONCE_RE.is_match(line) || PKCE_RE.is_match(line) {
+        output = OAUTH_QUOTED_LITERAL_RE
+            .replace_all(&output, format!("$1{REDACTION}$3"))
+            .to_string();
+    }
     output = OAUTH_URL_VALUE_RE
         .replace_all(&output, format!("${{1}}{REDACTION}"))
         .to_string();
@@ -464,6 +473,35 @@ verifyIdToken(token, { nonce })
                 "missing {detector_id}"
             );
         }
+    }
+
+    #[test]
+    fn ignores_non_oauth_register_calls() {
+        let output = OAuthFlowDetector.detect(&input(
+            r#"
+const { register } = useForm();
+register("email");
+router.register("/session", handler);
+"#,
+        ));
+
+        assert!(output.evidence.is_empty());
+        assert!(output.artifacts.is_empty());
+    }
+
+    #[test]
+    fn redacts_nested_oauth_literals() {
+        let output = OAuthFlowDetector.detect(&input(
+            r#"
+const url = client.authorizationUrl({ response_type: 'code', state: makeState("customer-return-state-12345"), nonce: makeNonce('nonce-value-123456'), code_challenge: deriveChallenge(`challenge-value-123456`) });
+"#,
+        ));
+
+        let rendered = format!("{:?}", output.evidence);
+        assert!(rendered.contains("[REDACTED]"));
+        assert!(!rendered.contains("customer-return-state-12345"));
+        assert!(!rendered.contains("nonce-value-123456"));
+        assert!(!rendered.contains("challenge-value-123456"));
     }
 
     #[test]

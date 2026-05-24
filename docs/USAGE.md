@@ -127,7 +127,7 @@ SessionScope is built around defensive, evidence-bound checks. The current and p
 - JWT verification without audience validation
 - JWT crypto-trust hardening, including `jwt_alg_none_accepted`, `jwt_alg_confusion_signal`, `jwt_jku_header_trust`, `jwt_x5u_header_trust`, `jwt_embedded_jwk_trust`, `jwt_nbf_missing`, `jwt_clock_skew_review`, and `jwt_kid_unvalidated_review`
 - OAuth/OIDC flow integrity, including `oauth_pkce_missing_review`, `oauth_state_missing`, `oauth_state_static_review`, `oauth_state_unverified_review`, `oidc_nonce_missing`, `oidc_nonce_unverified_review`, and `oauth_redirect_uri_wildcard_review` across Passport OAuth2, openid-client, NextAuth/Auth.js provider blocks, Authlib, and generic OAuth/OIDC code.
-- Client storage hygiene, including `token_in_local_storage`, `token_in_session_storage`, `token_in_url_path_or_fragment`, and `client_secret_in_browser_code` for browser-accessible storage and URL channels.
+- Client storage hygiene, including `token_in_local_storage`, `token_in_session_storage`, `token_in_url_path_or_fragment`, and `client_secret_in_browser_code` for browser-accessible storage and URL channels; `document.cookie` token writes are emitted as source evidence only in this phase.
 - Tokens issued without explicit expiry
 - Refresh tokens without rotation evidence
 - Logout without revocation evidence

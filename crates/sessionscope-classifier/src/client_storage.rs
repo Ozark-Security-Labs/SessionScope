@@ -183,4 +183,11 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn document_cookie_write_is_evidence_only_for_p3() {
+        let findings = classify(&report_with("client_storage.document_cookie.write"));
+
+        assert!(findings.is_empty());
+    }
 }
