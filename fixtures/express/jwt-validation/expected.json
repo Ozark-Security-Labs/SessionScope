@@ -1,0 +1,14 @@
+{
+  "fixture_id": "express.jwt-validation",
+  "framework": "express",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["access_jwt", "authorization_bearer"],
+  "expected_lifecycle_stages": ["issue", "validate", "transmit"],
+  "expected_findings": [
+    "jwt_decode_without_verify",
+    "jwt_expiry_enforcement_disabled",
+    "jwt_missing_issuer",
+    "jwt_missing_audience"
+  ],
+  "notes": "Express route handlers issuing and verifying jsonwebtoken JWTs, with a legacy verify that disables expiry enforcement and pins neither issuer nor audience, and a decode-without-verify inspect route."
+}

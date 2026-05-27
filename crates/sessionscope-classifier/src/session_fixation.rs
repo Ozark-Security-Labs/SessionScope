@@ -271,7 +271,7 @@ fn framework_for<'a>(artifact: &'a Artifact, stores: &[&FixationRecord<'a>]) -> 
                 .flat_map(|record| record.artifact.framework_hints.iter()),
         )
         .map(String::as_str)
-        .find(|hint| matches!(*hint, "express" | "cookie-session" | "django"))
+        .find(|hint| matches!(*hint, "express" | "cookie-session" | "django" | "nextjs"))
         .unwrap_or_else(|| {
             artifact
                 .framework_hints
@@ -291,6 +291,9 @@ fn suggested_fix_for_framework(framework: &str) -> &'static str {
         }
         "django" => {
             "Use Django login(request, user), auth_login(request, user), or request.session.cycle_key() in the transition path so session rotation is visible."
+        }
+        "nextjs" => {
+            "In a Next.js App Router route handler, call cookies().delete('session') followed immediately by cookies().set('session', newValue, options) at the authentication or privilege transition so cookie rotation is source-visible."
         }
         _ => {
             "Identify the framework's session rotation primitive and call it during authentication and privilege transitions."

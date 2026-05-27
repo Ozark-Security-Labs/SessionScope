@@ -71,7 +71,7 @@ pub fn fixture_cases() -> io::Result<Vec<FixtureCase>> {
 }
 
 pub fn load_expected_fixture(path: &Path) -> io::Result<ExpectedFixture> {
-    let contents = fs::read_to_string(path)?;
+    let contents = fs::read_to_string(path)?; // nosemgrep: rust.actix.path-traversal.tainted-path.tainted-path
     serde_json::from_str(&contents)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))
 }
@@ -81,7 +81,7 @@ pub fn fixture_source_text(case: &FixtureCase) -> io::Result<Vec<(String, String
         .source_files
         .iter()
         .map(|source_file| {
-            let text = fs::read_to_string(case.root.join(source_file))?;
+            let text = fs::read_to_string(case.root.join(source_file))?; // nosemgrep: rust.actix.path-traversal.tainted-path.tainted-path
             Ok((source_file.clone(), text))
         })
         .collect()
@@ -450,6 +450,10 @@ mod tests {
                     .join("dependency-auth-lifecycle"),
                 vec![(Some("access_jwt"), ArtifactType::AccessJwt)],
             ),
+            (
+                fixture_root().join("express").join("jwt-validation"),
+                vec![(Some("access_jwt"), ArtifactType::AccessJwt)],
+            ),
         ];
 
         for (root, expected_artifacts) in cases {
@@ -490,6 +494,42 @@ mod tests {
             finding.category == FindingCategory::MissingValidationEvidence
                 && finding.title.contains("legacy_access_jwt")
                 && finding.title.contains("issuer")
+        }));
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.title.contains("without signature verification")
+        }));
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::HighConfidenceMisconfiguration
+                && finding.title.contains("expiry enforcement")
+        }));
+    }
+
+    #[test]
+    fn express_jwt_fixture_classifies_missing_and_decode_evidence() {
+        let root = fixture_root().join("express").join("jwt-validation");
+        let report = classify(
+            scan_path(
+                ScanConfig::new(&root),
+                Arc::new(DetectorRegistry::builtin()),
+            )
+            .expect("express JWT fixture should scan"),
+        );
+
+        assert!(
+            report.artifacts.iter().any(|artifact| {
+                artifact.display_name.as_deref() == Some("access_jwt")
+                    && artifact.artifact_type == ArtifactType::AccessJwt
+            }),
+            "express JWT fixture should expose the issued access_jwt artifact"
+        );
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::MissingValidationEvidence
+                && finding.title.contains("issuer")
+        }));
+        assert!(report.findings.iter().any(|finding| {
+            finding.category == FindingCategory::MissingValidationEvidence
+                && finding.title.contains("audience")
         }));
         assert!(report.findings.iter().any(|finding| {
             finding.category == FindingCategory::HighConfidenceMisconfiguration
@@ -650,6 +690,10 @@ mod tests {
             ),
             (
                 fixture_root().join("generic-ts").join("oauth-flow-state"),
+                ["static literal", "without visible verification"].as_slice(),
+            ),
+            (
+                fixture_root().join("fastapi").join("oauth-flow"),
                 ["static literal", "without visible verification"].as_slice(),
             ),
             (
@@ -995,6 +1039,26 @@ mod tests {
             (
                 fixture_root().join("generic-ts").join("cloud-identity-sdk"),
                 ["auth0", "okta", "cognito", "azure-ad", "firebase"].as_slice(),
+                [
+                    "refresh.provider",
+                    "logout.provider_revoke",
+                    "bearer.dynamic_provider",
+                ]
+                .as_slice(),
+            ),
+            (
+                fixture_root().join("generic-ts").join("sdk-auth0"),
+                ["auth0"].as_slice(),
+                [
+                    "refresh.provider",
+                    "logout.provider_revoke",
+                    "bearer.dynamic_provider",
+                ]
+                .as_slice(),
+            ),
+            (
+                fixture_root().join("generic-ts").join("sdk-supabase"),
+                ["supabase"].as_slice(),
                 [
                     "refresh.provider",
                     "logout.provider_revoke",
@@ -1730,6 +1794,9 @@ mod tests {
             fixture_root()
                 .join("django")
                 .join("session-fixation-signals"),
+            fixture_root()
+                .join("nextjs")
+                .join("session-fixation-signals"),
         ];
 
         for root in cases {
@@ -1776,6 +1843,21 @@ mod tests {
                 root.display()
             );
 
+            // For the Next.js fixture, verify the suggested fix contains the
+            // Next.js-specific clear-and-reissue pattern, proving framework routing.
+            if root.to_string_lossy().contains("nextjs") {
+                assert!(
+                    report.findings.iter().any(|finding| {
+                        finding
+                            .suggested_fix
+                            .as_deref()
+                            .unwrap_or("")
+                            .contains("cookies().set")
+                    }),
+                    "nextjs session-fixation findings should suggest cookies().set clear-and-reissue"
+                );
+            }
+
             for format in [ReportFormat::Json, ReportFormat::Markdown] {
                 let rendered = render(&report, format);
                 assert!(!rendered.contains("password\":"));
@@ -1793,6 +1875,8 @@ mod tests {
             fixture_root()
                 .join("generic-python")
                 .join("trust-boundary-token-reuse"),
+            fixture_root().join("fastapi").join("trust-boundary"),
+            fixture_root().join("django").join("trust-boundary"),
         ];
 
         for root in cases {

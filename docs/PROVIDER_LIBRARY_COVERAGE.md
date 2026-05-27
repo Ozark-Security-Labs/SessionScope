@@ -71,17 +71,121 @@ Supported P3 OAuth/OIDC checks are source-only and review-conservative:
 
 SessionScope never contacts authorization servers, discovery endpoints, JWKS URLs, or provider dashboards, and it does not prove runtime client registration settings. OAuth `state`, OIDC `nonce`, and PKCE values are redacted from evidence and reports.
 
-## Common Cloud Identity SDKs
+## Auth0
+
+**How SessionScope recognizes Auth0:** The normalized source text must contain the substring `auth0` (case-insensitive after symbol normalization). This is a shared-substring heuristic in `provider_hint_for_context()` (`sessions/mod.rs`) and the equivalent function in `bearer/mod.rs`; there is no Auth0-SDK-specific import tracking.
 
 Supported patterns:
 
-- Source-visible Auth0, Okta, Cognito, Azure AD, Firebase, Supabase, and Clerk SDK calls that issue, refresh, revoke, sign out, or request scoped provider tokens.
-- SDK configuration fields that expose safe issuer, audience, tenant, provider, service, environment, or scope boundaries.
+- Any call, assignment, or config object whose normalized text contains `auth0` together with a token/session/OAuth/OIDC context term (e.g. `callback`, `session`, `token`, `jwt`, `revoke`, `logout`, `scope`, `issuer`, `audience`, `clientid`) produces provider-hinted lifecycle evidence with `framework_hint = "auth0"`.
+- Source-visible Auth0 config fields (`issuer`, `audience`, `clientId`, `tenant`, `scope`, `callbackUrl`) produce token-boundary observations.
+- Auth0 logout/sign-out calls (`auth0.logout`, provider revoke context) produce `logout.provider_revoke` evidence.
+- Auth0 refresh/token calls produce `refresh.provider` evidence (dynamic review context).
 
 Unsupported or dynamic patterns:
 
-- Hosted provider policy, tenant settings, dashboard-only scopes, refresh-token rotation defaults, and revocation propagation semantics.
-- Any live provider probing, token introspection, or credential collection.
+- Auth0 dashboard settings, tenant policy, rotation configuration, RBAC/scopes policy, and any live provider behavior.
+- Auth0 Management API calls, machine-to-machine token flows, and Actions/Rules are not specifically tracked.
+- Auth0-SDK-specific import detection is not implemented; detection relies on the `auth0` substring appearing in the normalized source context.
+
+## Okta
+
+**How SessionScope recognizes Okta:** The normalized source text must contain the substring `okta`. Same shared-substring heuristic as Auth0.
+
+Supported patterns:
+
+- Calls and config objects whose normalized text contains `okta` together with a token/session/OAuth/OIDC context term produce provider-hinted lifecycle evidence with `framework_hint = "okta"`.
+- Source-visible Okta config fields (`issuer`, `audience`, `clientId`, `scope`, `callbackUrl`) produce token-boundary observations.
+- Okta logout/sign-out calls produce `logout.provider_revoke` evidence.
+- Okta refresh/token calls produce `refresh.provider` evidence (dynamic review context).
+
+Unsupported or dynamic patterns:
+
+- Okta Admin API, Okta Workflows, inline hooks, and device-flow patterns are not specifically tracked.
+- Okta-SDK-specific import detection is not implemented; detection relies on the `okta` substring.
+
+## Cognito
+
+**How SessionScope recognizes Cognito:** The normalized source text must contain the substring `cognito`. Same shared-substring heuristic.
+
+Supported patterns:
+
+- Calls and config objects whose normalized text contains `cognito` together with a token/session/OAuth/OIDC context term produce provider-hinted lifecycle evidence with `framework_hint = "cognito"`.
+- Source-visible Cognito config fields (`userPool`, `clientId`, `region`, `scope`, `callbackUrl`) that appear with provider context produce token-boundary observations.
+- Cognito logout/sign-out calls produce `logout.provider_revoke` evidence.
+- Cognito refresh/token calls produce `refresh.provider` evidence (dynamic review context).
+
+Unsupported or dynamic patterns:
+
+- Cognito User Pool policy, hosted UI, Lambda triggers, and SAML federation are not specifically tracked.
+- Cognito-SDK-specific import detection is not implemented; detection relies on the `cognito` substring.
+
+## Azure AD
+
+**How SessionScope recognizes Azure AD:** The normalized source text must contain either `azuread` or `azure_ad` (after symbol normalization, which removes hyphens and spaces). Same shared-substring heuristic.
+
+Supported patterns:
+
+- Calls and config objects whose normalized text contains `azuread` or `azure_ad` together with a token/session/OAuth/OIDC context term produce provider-hinted lifecycle evidence with `framework_hint = "azure-ad"`.
+- Source-visible Azure AD config fields (`tenantId`, `clientId`, `audience`, `issuer`, `scope`) that appear with provider context produce token-boundary observations.
+- Azure AD logout/sign-out calls produce `logout.provider_revoke` evidence.
+- Azure AD refresh/token calls produce `refresh.provider` evidence (dynamic review context).
+
+Unsupported or dynamic patterns:
+
+- Azure AD Conditional Access, app roles, claims-mapping policy, and managed identities are not specifically tracked.
+- Note that `azure` alone (without `ad`) is NOT sufficient to trigger the Azure AD hint; the text must contain `azuread` or `azure_ad`. The token `azure` alone may appear in `bearer.boundary.issuer` terms but does not produce an `azure-ad` provider hint.
+- Azure-MSAL-specific import detection is not implemented; detection relies on the `azuread`/`azure_ad` substrings.
+
+## Firebase
+
+**How SessionScope recognizes Firebase:** The normalized source text must contain the substring `firebase`. Same shared-substring heuristic.
+
+Supported patterns:
+
+- Calls and config objects whose normalized text contains `firebase` together with a token/session/OAuth/OIDC context term produce provider-hinted lifecycle evidence with `framework_hint = "firebase"`.
+- Source-visible Firebase config fields (`projectId`, `apiKey`, `authDomain`, `audience`) that appear with provider context produce token-boundary observations.
+- Firebase logout/sign-out calls produce `logout.provider_revoke` evidence.
+- Firebase refresh/token calls produce `refresh.provider` evidence (dynamic review context).
+
+Unsupported or dynamic patterns:
+
+- Firebase Security Rules, Realtime Database, Firestore, and Cloud Functions auth integrations are not specifically tracked.
+- Firebase Admin SDK vs. Firebase Client SDK distinction is not detected; both rely on the `firebase` substring.
+
+## Supabase
+
+**How SessionScope recognizes Supabase:** The normalized source text must contain the substring `supabase`. Same shared-substring heuristic; additionally, `supabase.auth.signout` is recognized as a literal provider-revoke pattern.
+
+Supported patterns:
+
+- Calls and config objects whose normalized text contains `supabase` together with a token/session/OAuth/OIDC context term produce provider-hinted lifecycle evidence with `framework_hint = "supabase"`.
+- `supabase.auth.signout` is a recognized literal pattern that directly produces `logout.provider_revoke` evidence with the `supabase` hint.
+- Source-visible Supabase config fields (`url`, `anonKey`, `serviceRoleKey` — key value redacted, `jwtSecret` reference) that appear with provider context produce token-boundary observations.
+- Supabase refresh/token calls produce `refresh.provider` evidence (dynamic review context).
+- Boundary provider evidence is produced when `supabase` appears in `bearer.boundary.provider` context terms.
+
+Unsupported or dynamic patterns:
+
+- Supabase Row Level Security, Edge Functions, and Realtime auth integrations are not specifically tracked.
+- Supabase-specific import detection is not implemented beyond the `supabase` substring and the `supabase.auth.signout` literal pattern.
+
+## Clerk
+
+**How SessionScope recognizes Clerk:** The normalized source text must contain the substring `clerk`. Same shared-substring heuristic; additionally, `clerk.sessions.revoke` is recognized as a literal provider-revoke pattern.
+
+Supported patterns:
+
+- Calls and config objects whose normalized text contains `clerk` together with a token/session/OAuth/OIDC context term produce provider-hinted lifecycle evidence with `framework_hint = "clerk"`.
+- `clerk.sessions.revoke` is a recognized literal pattern that directly produces `logout.provider_revoke` evidence with the `clerk` hint.
+- Source-visible Clerk config fields (`publishableKey`, `secretKey` reference, `domain`, `audience`) that appear with provider context produce token-boundary observations.
+- Clerk refresh/token calls produce `refresh.provider` evidence (dynamic review context).
+- Boundary provider evidence is produced when `clerk` appears in `bearer.boundary.provider` context terms.
+
+Unsupported or dynamic patterns:
+
+- Clerk Organizations, multi-tenancy policy, session token rotation defaults, and webhook integrations are not specifically tracked.
+- Clerk-SDK-specific import detection is not implemented beyond the `clerk` substring and the `clerk.sessions.revoke` literal pattern.
 
 ## Verification expectations
 

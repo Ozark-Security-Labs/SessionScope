@@ -27,6 +27,10 @@ const SNAPSHOT_CASES: &[SnapshotCase] = &[
         fixture_segments: &["django", "session-and-reset-flow"],
     },
     SnapshotCase {
+        name: "nextjs-session-fixation-signals",
+        fixture_segments: &["nextjs", "session-fixation-signals"],
+    },
+    SnapshotCase {
         name: "generic-js-jwt-crypto-trust-alg-none",
         fixture_segments: &["generic-js", "jwt-crypto-trust-alg-none"],
     },

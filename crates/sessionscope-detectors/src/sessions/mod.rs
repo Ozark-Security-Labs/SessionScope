@@ -704,7 +704,7 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
             LifecycleStage::Issue,
             node,
             source,
-            "express",
+            js_session_framework_hint(&text),
             Confidence::High,
             false,
             false,
@@ -747,7 +747,7 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
             LifecycleStage::Refresh,
             node,
             source,
-            "cookie-session",
+            js_session_reissue_framework(&text),
             Confidence::Medium,
             true,
             false,
@@ -762,6 +762,31 @@ fn collect_js_call_signal(node: Node<'_>, source: &str, signals: &mut Vec<Signal
             node,
             source,
             js_session_framework_hint(&text),
+            Confidence::High,
+            false,
+            false,
+        ));
+    }
+
+    // Next.js App Router login handlers are exported functions (e.g. `export async function
+    // POST`) that authenticate via helper calls rather than `app.post`/`router.post` route
+    // strings, so the route-based auth-transition detection above does not observe them, and the
+    // export-statement handler path keys on login/signin naming that authenticate-style handlers
+    // miss. When a Next.js `cookies()` session store sits inside an authentication context,
+    // surface the auth transition from the enclosing handler with the handler's own scope so a
+    // co-located clear-and-reissue can suppress it. Privilege transitions are already covered by
+    // the export-statement path; emitting them here too would double-count. Guarded to
+    // `cookies()` calls so Express `response.cookie` writes do not gain a duplicate signal.
+    if is_js_session_cookie_store_call(node, source)
+        && node_text(node, source).contains("cookies()")
+        && is_auth_transition_context(&normalize_symbol(&ancestor_context_text(node, source)))
+    {
+        signals.push(session_fixation_signal(
+            "session.auth_transition",
+            LifecycleStage::Issue,
+            node,
+            source,
+            "nextjs",
             Confidence::High,
             false,
             false,
@@ -1620,6 +1645,14 @@ fn js_cookie_clear_framework(text: &str) -> &'static str {
         "nextjs"
     } else {
         "express"
+    }
+}
+
+fn js_session_reissue_framework(text: &str) -> &'static str {
+    if text.contains("cookies()") || text.contains(".cookies.delete") || text.contains(".cookies.set") {
+        "nextjs"
+    } else {
+        "cookie-session"
     }
 }
 

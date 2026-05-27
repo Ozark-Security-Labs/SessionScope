@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-ts.sdk-auth0",
+  "framework": "generic-ts",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["auth0:service_token", "refresh_token"],
+  "expected_lifecycle_stages": ["refresh", "revoke", "transmit", "introspect"],
+  "expected_findings": ["bearer_dynamic_provider_review"],
+  "notes": "Auth0 SDK client-credentials issue, refresh, and logout calls producing provider, scope, audience, refresh, and revoke evidence as dynamic static-analysis context."
+}

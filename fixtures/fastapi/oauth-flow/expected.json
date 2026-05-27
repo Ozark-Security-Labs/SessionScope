@@ -1,0 +1,12 @@
+{
+  "fixture_id": "fastapi.oauth-flow",
+  "framework": "fastapi",
+  "source_files": ["app.py"],
+  "expected_artifacts": ["oauth_auth_code_flow"],
+  "expected_lifecycle_stages": ["issue"],
+  "expected_findings": [
+    "oauth_state_static_review",
+    "oauth_state_unverified_review"
+  ],
+  "notes": "FastAPI-framed Authlib OAuth2Session authorization-code flow with static state and callback state read without visible verification, mirroring generic-ts oauth-flow-state patterns in FastAPI router handlers."
+}
