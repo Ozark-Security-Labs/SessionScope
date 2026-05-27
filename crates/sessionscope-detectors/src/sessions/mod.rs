@@ -1649,7 +1649,10 @@ fn js_cookie_clear_framework(text: &str) -> &'static str {
 }
 
 fn js_session_reissue_framework(text: &str) -> &'static str {
-    if text.contains("cookies()") || text.contains(".cookies.delete") || text.contains(".cookies.set") {
+    if text.contains("cookies()")
+        || text.contains(".cookies.delete")
+        || text.contains(".cookies.set")
+    {
         "nextjs"
     } else {
         "cookie-session"
