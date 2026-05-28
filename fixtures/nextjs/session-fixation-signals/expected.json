@@ -1,0 +1,12 @@
+{
+  "fixture_id": "nextjs.session-fixation-signals",
+  "framework": "nextjs",
+  "source_files": ["route.ts"],
+  "expected_artifacts": ["session_record:session"],
+  "expected_lifecycle_stages": ["issue", "store", "refresh", "revoke"],
+  "expected_findings": [
+    "session_fixation_login_regeneration_review",
+    "session_fixation_privilege_regeneration_review"
+  ],
+  "notes": "Covers Next.js App Router login and privilege-transition session fixation signals, explicit clear-and-reissue rotation (suppressed), and logout-only suppression. Verifies that suggested_fix mentions cookies().set clear-and-reissue pattern."
+}

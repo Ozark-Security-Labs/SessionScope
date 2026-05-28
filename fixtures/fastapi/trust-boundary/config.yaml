@@ -1,0 +1,2 @@
+production_service_token_env: PROD_SERVICE_TOKEN
+staging_service_token_env: STAGING_SERVICE_TOKEN

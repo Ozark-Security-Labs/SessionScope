@@ -37,7 +37,7 @@ and [`crates/sessionscope-model/src/baseline.rs`](../crates/sessionscope-model/s
 
 | Surface | Constant | Current | Governs |
 | ------- | -------- | ------- | ------- |
-| CLI release | `sessionscope` crate version (`Cargo.toml`) | `0.1.0` | CLI flags, command grammar, output paths, exit codes, `sessionscope.toml` keys, GitHub Action inputs |
+| CLI release | `sessionscope` crate version (`Cargo.toml`) | `0.2.0` | CLI flags, command grammar, output paths, exit codes, `sessionscope.toml` keys, GitHub Action inputs |
 | Scan report | `SCHEMA_VERSION` (`schema.rs`) | `0.5.0` | `ScanReport` JSON inventory and findings shape; SARIF and Markdown render this same model |
 | Baseline | `BASELINE_SCHEMA_VERSION` (`baseline.rs`) | `0.1.0` | Baseline JSON wire format (`sessionscope baseline create` output) |
 | Diff | `DIFF_SCHEMA_VERSION` (`baseline.rs`) | `0.1.0` | Diff JSON wire format (`sessionscope diff` output) |

@@ -5,5 +5,5 @@
   "expected_artifacts": ["auth0:service_token", "okta:refresh_token", "cognito:refresh_token", "azure-ad:service_token", "firebase:unknown_token"],
   "expected_lifecycle_stages": ["refresh", "revoke", "transmit", "introspect"],
   "expected_findings": ["provider_boundary_review"],
-  "notes": "Covers common cloud identity SDK token, refresh, scope, provider, and revoke/sign-out evidence as dynamic static-analysis context."
+  "notes": "Covers common cloud identity SDK token, refresh, scope, provider, and revoke/sign-out evidence as dynamic static-analysis context. See sdk-auth0 and sdk-supabase for per-SDK breakdowns."
 }

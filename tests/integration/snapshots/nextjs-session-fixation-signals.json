@@ -1,0 +1,3058 @@
+{
+  "schema_version": "0.5.0",
+  "summary": {
+    "files_discovered": 2,
+    "files_scanned": 2,
+    "files_skipped": 0,
+    "diagnostics": [],
+    "worker_panic_count": 0
+  },
+  "files": [
+    {
+      "path": "expected.json",
+      "language": "json",
+      "artifacts": [],
+      "evidence": [],
+      "diagnostics": [],
+      "skipped_reason": null
+    },
+    {
+      "path": "route.ts",
+      "language": "type_script",
+      "artifacts": [
+        {
+          "id": "artifact_99519f9260c91e23",
+          "artifact_type": "session_cookie",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 12,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_3d3721d5557db8b5",
+              "evidence_99519f9260c91e23",
+              "evidence_b948b98a00509421"
+            ],
+            "transmit": [
+              "evidence_2b0d1e6a719a2619",
+              "evidence_a0e3668a642dfaaa",
+              "evidence_c06f287be525771c",
+              "evidence_c435c61b74e89aee"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_6a754100e74234eb",
+              "evidence_956045f2a4804cf1"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs"
+          ],
+          "cookie_attributes": {
+            "http_only": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_3d3721d5557db8b5"
+              ],
+              "confidence": "high"
+            },
+            "secure": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_a0e3668a642dfaaa"
+              ],
+              "confidence": "high"
+            },
+            "same_site": {
+              "state": "present",
+              "value": "strict",
+              "evidence_ids": [
+                "evidence_c435c61b74e89aee"
+              ],
+              "confidence": "high"
+            },
+            "max_age": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_6a754100e74234eb"
+              ],
+              "confidence": "high"
+            },
+            "expires": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_956045f2a4804cf1"
+              ],
+              "confidence": "high"
+            },
+            "path": {
+              "state": "framework_default",
+              "value": "/",
+              "evidence_ids": [
+                "evidence_c06f287be525771c"
+              ],
+              "confidence": "low"
+            },
+            "domain": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_2b0d1e6a719a2619"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_c55afc15dd33b9be",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 12,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_c73cfc15da03eadf"
+            ],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs",
+            "scope:488"
+          ]
+        },
+        {
+          "id": "artifact_deeebd0bbdd45ffb",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 12,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [
+              "evidence_50d5a58d2549194a"
+            ],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs",
+            "scope:488"
+          ]
+        },
+        {
+          "id": "artifact_742c22bfa98cea1d",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 24,
+              "column": 22
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_eeedd243f64fbc5a"
+            ],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "cookie-session",
+            "scope:1020"
+          ]
+        },
+        {
+          "id": "artifact_2fc056c2538c5e41",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 25,
+              "column": 25
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_9bf89b9141c33726"
+            ],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "cookie-session",
+            "scope:1120"
+          ]
+        },
+        {
+          "id": "artifact_e471ebd216b38479",
+          "artifact_type": "session_cookie",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 26,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_3219ab6daadfb28a"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs"
+          ]
+        },
+        {
+          "id": "artifact_95660b363942d33a",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 26,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_4b40242c8321cb5b"
+            ],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "nextjs",
+            "scope:1020"
+          ]
+        },
+        {
+          "id": "artifact_f4173808ce169e6b",
+          "artifact_type": "session_cookie",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 27,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_2b31d1ca0b052515",
+              "evidence_367fb3d54df7a903",
+              "evidence_f4173808ce169e6b"
+            ],
+            "transmit": [
+              "evidence_873fc9693f11a36a",
+              "evidence_d19aa01813414a74",
+              "evidence_f5451ed3d1ae2351",
+              "evidence_fe3a9022e31acd6d"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_d7b66625fd205465",
+              "evidence_fcad604cfc3474d3"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs"
+          ],
+          "cookie_attributes": {
+            "http_only": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_367fb3d54df7a903"
+              ],
+              "confidence": "high"
+            },
+            "secure": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_873fc9693f11a36a"
+              ],
+              "confidence": "high"
+            },
+            "same_site": {
+              "state": "present",
+              "value": "strict",
+              "evidence_ids": [
+                "evidence_f5451ed3d1ae2351"
+              ],
+              "confidence": "high"
+            },
+            "max_age": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_fcad604cfc3474d3"
+              ],
+              "confidence": "high"
+            },
+            "expires": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_d7b66625fd205465"
+              ],
+              "confidence": "high"
+            },
+            "path": {
+              "state": "framework_default",
+              "value": "/",
+              "evidence_ids": [
+                "evidence_d19aa01813414a74"
+              ],
+              "confidence": "low"
+            },
+            "domain": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_fe3a9022e31acd6d"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_0d25360c4c47b333",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 27,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [
+              "evidence_98ddebfe60cf5792"
+            ],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs",
+            "scope:1020"
+          ]
+        },
+        {
+          "id": "artifact_45f17f344b71c94f",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 27,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_8bc4a4a08455b936"
+            ],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "nextjs",
+            "scope:1020"
+          ]
+        },
+        {
+          "id": "artifact_dd6303eced33d54e",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 27,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_a72e2ec25568f78f"
+            ],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs",
+            "scope:1020"
+          ]
+        },
+        {
+          "id": "artifact_a085aebdb63371d5",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 32,
+              "column": 10
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [
+              "evidence_a019730c1dc7a782"
+            ],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "cookie-session",
+            "scope:1020"
+          ]
+        },
+        {
+          "id": "artifact_52cfbfe36d007073",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 37,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [
+              "evidence_e7570a6d18974084"
+            ],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "nextjs"
+          ]
+        },
+        {
+          "id": "artifact_2df5e44f4432b20b",
+          "artifact_type": "session_cookie",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 41,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_04f8c31e90e7e4b7",
+              "evidence_2df5e44f4432b20b",
+              "evidence_834bca42cdf96585"
+            ],
+            "transmit": [
+              "evidence_272182b496d23630",
+              "evidence_6ddc0afb49416ef6",
+              "evidence_c70cd3fc49cae0e8",
+              "evidence_c8c23f316474b25d"
+            ],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [
+              "evidence_4f4ccb8489aab015",
+              "evidence_960e50a9d83c8573"
+            ],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs"
+          ],
+          "cookie_attributes": {
+            "http_only": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_04f8c31e90e7e4b7"
+              ],
+              "confidence": "high"
+            },
+            "secure": {
+              "state": "present",
+              "value": "true",
+              "evidence_ids": [
+                "evidence_6ddc0afb49416ef6"
+              ],
+              "confidence": "high"
+            },
+            "same_site": {
+              "state": "present",
+              "value": "strict",
+              "evidence_ids": [
+                "evidence_c70cd3fc49cae0e8"
+              ],
+              "confidence": "high"
+            },
+            "max_age": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_960e50a9d83c8573"
+              ],
+              "confidence": "high"
+            },
+            "expires": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_4f4ccb8489aab015"
+              ],
+              "confidence": "high"
+            },
+            "path": {
+              "state": "framework_default",
+              "value": "/",
+              "evidence_ids": [
+                "evidence_272182b496d23630"
+              ],
+              "confidence": "low"
+            },
+            "domain": {
+              "state": "missing",
+              "evidence_ids": [
+                "evidence_c8c23f316474b25d"
+              ],
+              "confidence": "high"
+            }
+          }
+        },
+        {
+          "id": "artifact_3b49a98d26cb553e",
+          "artifact_type": "session_record",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 41,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [
+              "evidence_8f2bf6a4d38d2d7b"
+            ],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs",
+            "scope:1516"
+          ]
+        },
+        {
+          "id": "artifact_33d4d698e91be478",
+          "artifact_type": "unknown",
+          "display_name": "logout",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 51,
+              "column": 1
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_d99bc1ffd2bfff68"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "nextjs"
+          ]
+        },
+        {
+          "id": "artifact_0b2a3124133d03eb",
+          "artifact_type": "unknown",
+          "display_name": "logout",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 51,
+              "column": 8
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_55fe412eaccd899b"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "medium",
+          "framework_hints": [
+            "javascript"
+          ]
+        },
+        {
+          "id": "artifact_3ab6030ae44cd434",
+          "artifact_type": "session_cookie",
+          "display_name": "session",
+          "locations": [
+            {
+              "path": "route.ts",
+              "line": 52,
+              "column": 3
+            }
+          ],
+          "lifecycle_evidence": {
+            "issue": [],
+            "store": [],
+            "transmit": [],
+            "validate": [],
+            "refresh": [],
+            "revoke": [
+              "evidence_59583febe6244fbb"
+            ],
+            "expire": [],
+            "introspect": []
+          },
+          "confidence": "high",
+          "framework_hints": [
+            "nextjs"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "id": "evidence_50d5a58d2549194a",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "route.ts",
+            "line": 12,
+            "column": 3
+          },
+          "detector_id": "session.auth_transition",
+          "confidence": "high",
+          "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_b948b98a00509421",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 12,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.name_prefix",
+          "confidence": "high",
+          "excerpt": "Cookie name prefix: none",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_99519f9260c91e23",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 12,
+            "column": 3
+          },
+          "detector_id": "cookie.set",
+          "confidence": "high",
+          "excerpt": "  const session = await authenticateUser(body.email, body.credential);\n  cookies().set(\"session\", [REDACTED], {\n    httpOnly: true,",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c73cfc15da03eadf",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 12,
+            "column": 3
+          },
+          "detector_id": "session.store_after_auth",
+          "confidence": "high",
+          "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2b0d1e6a719a2619",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 12,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.domain",
+          "confidence": "high",
+          "excerpt": "Domain is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c06f287be525771c",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 12,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.path",
+          "confidence": "low",
+          "excerpt": "Path defaults to / for nextjs",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_956045f2a4804cf1",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "route.ts",
+            "line": 12,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.expires",
+          "confidence": "high",
+          "excerpt": "Expires is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_6a754100e74234eb",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "route.ts",
+            "line": 12,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.max_age",
+          "confidence": "high",
+          "excerpt": "Max-Age is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_3d3721d5557db8b5",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 13,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.http_only",
+          "confidence": "high",
+          "excerpt": "HttpOnly: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_a0e3668a642dfaaa",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 14,
+            "column": 13
+          },
+          "detector_id": "cookie.attribute.secure",
+          "confidence": "high",
+          "excerpt": "Secure: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c435c61b74e89aee",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 15,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.same_site",
+          "confidence": "high",
+          "excerpt": "SameSite: \"strict\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_eeedd243f64fbc5a",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "route.ts",
+            "line": 24,
+            "column": 22
+          },
+          "detector_id": "session.reissue",
+          "confidence": "medium",
+          "excerpt": "request.json()",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_9bf89b9141c33726",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "route.ts",
+            "line": 25,
+            "column": 25
+          },
+          "detector_id": "session.reissue",
+          "confidence": "medium",
+          "excerpt": "authenticateUser(body.email, body.credential)",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_4b40242c8321cb5b",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "route.ts",
+            "line": 26,
+            "column": 3
+          },
+          "detector_id": "session.reissue",
+          "confidence": "medium",
+          "excerpt": "cookies().delete(\"session\")",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_3219ab6daadfb28a",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "route.ts",
+            "line": 26,
+            "column": 3
+          },
+          "detector_id": "logout.cookie_clear",
+          "confidence": "high",
+          "excerpt": "cookies().delete(\"session\")",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_98ddebfe60cf5792",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "route.ts",
+            "line": 27,
+            "column": 3
+          },
+          "detector_id": "session.auth_transition",
+          "confidence": "high",
+          "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2b31d1ca0b052515",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 27,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.name_prefix",
+          "confidence": "high",
+          "excerpt": "Cookie name prefix: none",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_f4173808ce169e6b",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 27,
+            "column": 3
+          },
+          "detector_id": "cookie.set",
+          "confidence": "high",
+          "excerpt": "  cookies().delete(\"session\");\n  cookies().set(\"session\", [REDACTED], {\n    httpOnly: true,",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_a72e2ec25568f78f",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 27,
+            "column": 3
+          },
+          "detector_id": "session.store_after_auth",
+          "confidence": "high",
+          "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_fe3a9022e31acd6d",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 27,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.domain",
+          "confidence": "high",
+          "excerpt": "Domain is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_d19aa01813414a74",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 27,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.path",
+          "confidence": "low",
+          "excerpt": "Path defaults to / for nextjs",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_8bc4a4a08455b936",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "route.ts",
+            "line": 27,
+            "column": 3
+          },
+          "detector_id": "session.reissue",
+          "confidence": "medium",
+          "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_d7b66625fd205465",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "route.ts",
+            "line": 27,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.expires",
+          "confidence": "high",
+          "excerpt": "Expires is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_fcad604cfc3474d3",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "route.ts",
+            "line": 27,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.max_age",
+          "confidence": "high",
+          "excerpt": "Max-Age is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_367fb3d54df7a903",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 28,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.http_only",
+          "confidence": "high",
+          "excerpt": "HttpOnly: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_873fc9693f11a36a",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 29,
+            "column": 13
+          },
+          "detector_id": "cookie.attribute.secure",
+          "confidence": "high",
+          "excerpt": "Secure: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_f5451ed3d1ae2351",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 30,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.same_site",
+          "confidence": "high",
+          "excerpt": "SameSite: \"strict\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_a019730c1dc7a782",
+          "lifecycle_stage": "refresh",
+          "location": {
+            "path": "route.ts",
+            "line": 32,
+            "column": 10
+          },
+          "detector_id": "session.reissue",
+          "confidence": "medium",
+          "excerpt": "Response.json({ ok: true })",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_e7570a6d18974084",
+          "lifecycle_stage": "issue",
+          "location": {
+            "path": "route.ts",
+            "line": 37,
+            "column": 1
+          },
+          "detector_id": "session.privilege_transition",
+          "confidence": "medium",
+          "excerpt": "export async function PATCH(request: Request) {\n  const body = await request.json();\n  const session = await loadSession(body.userId);\n  await elevateUserRole(body.userId);\n  cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n  return Response.json({ ok: true });\n}",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_834bca42cdf96585",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 41,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.name_prefix",
+          "confidence": "high",
+          "excerpt": "Cookie name prefix: none",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_2df5e44f4432b20b",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 41,
+            "column": 3
+          },
+          "detector_id": "cookie.set",
+          "confidence": "high",
+          "excerpt": "  await elevateUserRole(body.userId);\n  cookies().set(\"session\", [REDACTED], {\n    httpOnly: true,",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_8f2bf6a4d38d2d7b",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 41,
+            "column": 3
+          },
+          "detector_id": "session.store_after_auth",
+          "confidence": "high",
+          "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c8c23f316474b25d",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 41,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.domain",
+          "confidence": "high",
+          "excerpt": "Domain is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_272182b496d23630",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 41,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.path",
+          "confidence": "low",
+          "excerpt": "Path defaults to / for nextjs",
+          "dynamic": false,
+          "framework_default": true
+        },
+        {
+          "id": "evidence_4f4ccb8489aab015",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "route.ts",
+            "line": 41,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.expires",
+          "confidence": "high",
+          "excerpt": "Expires is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_960e50a9d83c8573",
+          "lifecycle_stage": "expire",
+          "location": {
+            "path": "route.ts",
+            "line": 41,
+            "column": 3
+          },
+          "detector_id": "cookie.attribute.max_age",
+          "confidence": "high",
+          "excerpt": "Max-Age is omitted",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_04f8c31e90e7e4b7",
+          "lifecycle_stage": "store",
+          "location": {
+            "path": "route.ts",
+            "line": 42,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.http_only",
+          "confidence": "high",
+          "excerpt": "HttpOnly: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_6ddc0afb49416ef6",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 43,
+            "column": 13
+          },
+          "detector_id": "cookie.attribute.secure",
+          "confidence": "high",
+          "excerpt": "Secure: true",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_c70cd3fc49cae0e8",
+          "lifecycle_stage": "transmit",
+          "location": {
+            "path": "route.ts",
+            "line": 44,
+            "column": 15
+          },
+          "detector_id": "cookie.attribute.same_site",
+          "confidence": "high",
+          "excerpt": "SameSite: \"strict\"",
+          "dynamic": false,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_d99bc1ffd2bfff68",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "route.ts",
+            "line": 51,
+            "column": 1
+          },
+          "detector_id": "logout.handler",
+          "confidence": "medium",
+          "excerpt": "export async function DELETE() {\n  cookies().delete(\"session\");\n  return new Response(null, { status: 204 });\n}",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_55fe412eaccd899b",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "route.ts",
+            "line": 51,
+            "column": 8
+          },
+          "detector_id": "logout.handler",
+          "confidence": "medium",
+          "excerpt": "async function DELETE() {\n  cookies().delete(\"session\");\n  return new Response(null, { status: 204 });\n}",
+          "dynamic": true,
+          "framework_default": false
+        },
+        {
+          "id": "evidence_59583febe6244fbb",
+          "lifecycle_stage": "revoke",
+          "location": {
+            "path": "route.ts",
+            "line": 52,
+            "column": 3
+          },
+          "detector_id": "logout.cookie_clear",
+          "confidence": "high",
+          "excerpt": "cookies().delete(\"session\")",
+          "dynamic": false,
+          "framework_default": false
+        }
+      ],
+      "diagnostics": [],
+      "skipped_reason": null
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "artifact_99519f9260c91e23",
+      "artifact_type": "session_cookie",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 12,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_3d3721d5557db8b5",
+          "evidence_99519f9260c91e23",
+          "evidence_b948b98a00509421"
+        ],
+        "transmit": [
+          "evidence_2b0d1e6a719a2619",
+          "evidence_a0e3668a642dfaaa",
+          "evidence_c06f287be525771c",
+          "evidence_c435c61b74e89aee"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_6a754100e74234eb",
+          "evidence_956045f2a4804cf1"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs"
+      ],
+      "cookie_attributes": {
+        "http_only": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_3d3721d5557db8b5"
+          ],
+          "confidence": "high"
+        },
+        "secure": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_a0e3668a642dfaaa"
+          ],
+          "confidence": "high"
+        },
+        "same_site": {
+          "state": "present",
+          "value": "strict",
+          "evidence_ids": [
+            "evidence_c435c61b74e89aee"
+          ],
+          "confidence": "high"
+        },
+        "max_age": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_6a754100e74234eb"
+          ],
+          "confidence": "high"
+        },
+        "expires": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_956045f2a4804cf1"
+          ],
+          "confidence": "high"
+        },
+        "path": {
+          "state": "framework_default",
+          "value": "/",
+          "evidence_ids": [
+            "evidence_c06f287be525771c"
+          ],
+          "confidence": "low"
+        },
+        "domain": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_2b0d1e6a719a2619"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_c55afc15dd33b9be",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 12,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_c73cfc15da03eadf"
+        ],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs",
+        "scope:488"
+      ]
+    },
+    {
+      "id": "artifact_deeebd0bbdd45ffb",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 12,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [
+          "evidence_50d5a58d2549194a"
+        ],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs",
+        "scope:488"
+      ]
+    },
+    {
+      "id": "artifact_742c22bfa98cea1d",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 24,
+          "column": 22
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_eeedd243f64fbc5a"
+        ],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "cookie-session",
+        "scope:1020"
+      ]
+    },
+    {
+      "id": "artifact_2fc056c2538c5e41",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 25,
+          "column": 25
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_9bf89b9141c33726"
+        ],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "cookie-session",
+        "scope:1120"
+      ]
+    },
+    {
+      "id": "artifact_e471ebd216b38479",
+      "artifact_type": "session_cookie",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 26,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_3219ab6daadfb28a"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs"
+      ]
+    },
+    {
+      "id": "artifact_95660b363942d33a",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 26,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_4b40242c8321cb5b"
+        ],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "nextjs",
+        "scope:1020"
+      ]
+    },
+    {
+      "id": "artifact_f4173808ce169e6b",
+      "artifact_type": "session_cookie",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 27,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_2b31d1ca0b052515",
+          "evidence_367fb3d54df7a903",
+          "evidence_f4173808ce169e6b"
+        ],
+        "transmit": [
+          "evidence_873fc9693f11a36a",
+          "evidence_d19aa01813414a74",
+          "evidence_f5451ed3d1ae2351",
+          "evidence_fe3a9022e31acd6d"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_d7b66625fd205465",
+          "evidence_fcad604cfc3474d3"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs"
+      ],
+      "cookie_attributes": {
+        "http_only": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_367fb3d54df7a903"
+          ],
+          "confidence": "high"
+        },
+        "secure": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_873fc9693f11a36a"
+          ],
+          "confidence": "high"
+        },
+        "same_site": {
+          "state": "present",
+          "value": "strict",
+          "evidence_ids": [
+            "evidence_f5451ed3d1ae2351"
+          ],
+          "confidence": "high"
+        },
+        "max_age": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_fcad604cfc3474d3"
+          ],
+          "confidence": "high"
+        },
+        "expires": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_d7b66625fd205465"
+          ],
+          "confidence": "high"
+        },
+        "path": {
+          "state": "framework_default",
+          "value": "/",
+          "evidence_ids": [
+            "evidence_d19aa01813414a74"
+          ],
+          "confidence": "low"
+        },
+        "domain": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_fe3a9022e31acd6d"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_0d25360c4c47b333",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 27,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [
+          "evidence_98ddebfe60cf5792"
+        ],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs",
+        "scope:1020"
+      ]
+    },
+    {
+      "id": "artifact_45f17f344b71c94f",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 27,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_8bc4a4a08455b936"
+        ],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "nextjs",
+        "scope:1020"
+      ]
+    },
+    {
+      "id": "artifact_dd6303eced33d54e",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 27,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_a72e2ec25568f78f"
+        ],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs",
+        "scope:1020"
+      ]
+    },
+    {
+      "id": "artifact_a085aebdb63371d5",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 32,
+          "column": 10
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [
+          "evidence_a019730c1dc7a782"
+        ],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "cookie-session",
+        "scope:1020"
+      ]
+    },
+    {
+      "id": "artifact_52cfbfe36d007073",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 37,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [
+          "evidence_e7570a6d18974084"
+        ],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "nextjs"
+      ]
+    },
+    {
+      "id": "artifact_2df5e44f4432b20b",
+      "artifact_type": "session_cookie",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 41,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_04f8c31e90e7e4b7",
+          "evidence_2df5e44f4432b20b",
+          "evidence_834bca42cdf96585"
+        ],
+        "transmit": [
+          "evidence_272182b496d23630",
+          "evidence_6ddc0afb49416ef6",
+          "evidence_c70cd3fc49cae0e8",
+          "evidence_c8c23f316474b25d"
+        ],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [
+          "evidence_4f4ccb8489aab015",
+          "evidence_960e50a9d83c8573"
+        ],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs"
+      ],
+      "cookie_attributes": {
+        "http_only": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_04f8c31e90e7e4b7"
+          ],
+          "confidence": "high"
+        },
+        "secure": {
+          "state": "present",
+          "value": "true",
+          "evidence_ids": [
+            "evidence_6ddc0afb49416ef6"
+          ],
+          "confidence": "high"
+        },
+        "same_site": {
+          "state": "present",
+          "value": "strict",
+          "evidence_ids": [
+            "evidence_c70cd3fc49cae0e8"
+          ],
+          "confidence": "high"
+        },
+        "max_age": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_960e50a9d83c8573"
+          ],
+          "confidence": "high"
+        },
+        "expires": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_4f4ccb8489aab015"
+          ],
+          "confidence": "high"
+        },
+        "path": {
+          "state": "framework_default",
+          "value": "/",
+          "evidence_ids": [
+            "evidence_272182b496d23630"
+          ],
+          "confidence": "low"
+        },
+        "domain": {
+          "state": "missing",
+          "evidence_ids": [
+            "evidence_c8c23f316474b25d"
+          ],
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "id": "artifact_3b49a98d26cb553e",
+      "artifact_type": "session_record",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 41,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [
+          "evidence_8f2bf6a4d38d2d7b"
+        ],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs",
+        "scope:1516"
+      ]
+    },
+    {
+      "id": "artifact_33d4d698e91be478",
+      "artifact_type": "unknown",
+      "display_name": "logout",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 51,
+          "column": 1
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_d99bc1ffd2bfff68"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "nextjs"
+      ]
+    },
+    {
+      "id": "artifact_0b2a3124133d03eb",
+      "artifact_type": "unknown",
+      "display_name": "logout",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 51,
+          "column": 8
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_55fe412eaccd899b"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "medium",
+      "framework_hints": [
+        "javascript"
+      ]
+    },
+    {
+      "id": "artifact_3ab6030ae44cd434",
+      "artifact_type": "session_cookie",
+      "display_name": "session",
+      "locations": [
+        {
+          "path": "route.ts",
+          "line": 52,
+          "column": 3
+        }
+      ],
+      "lifecycle_evidence": {
+        "issue": [],
+        "store": [],
+        "transmit": [],
+        "validate": [],
+        "refresh": [],
+        "revoke": [
+          "evidence_59583febe6244fbb"
+        ],
+        "expire": [],
+        "introspect": []
+      },
+      "confidence": "high",
+      "framework_hints": [
+        "nextjs"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evidence_50d5a58d2549194a",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "route.ts",
+        "line": 12,
+        "column": 3
+      },
+      "detector_id": "session.auth_transition",
+      "confidence": "high",
+      "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_b948b98a00509421",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 12,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.name_prefix",
+      "confidence": "high",
+      "excerpt": "Cookie name prefix: none",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_99519f9260c91e23",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 12,
+        "column": 3
+      },
+      "detector_id": "cookie.set",
+      "confidence": "high",
+      "excerpt": "  const session = await authenticateUser(body.email, body.credential);\n  cookies().set(\"session\", [REDACTED], {\n    httpOnly: true,",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c73cfc15da03eadf",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 12,
+        "column": 3
+      },
+      "detector_id": "session.store_after_auth",
+      "confidence": "high",
+      "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2b0d1e6a719a2619",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 12,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.domain",
+      "confidence": "high",
+      "excerpt": "Domain is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c06f287be525771c",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 12,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.path",
+      "confidence": "low",
+      "excerpt": "Path defaults to / for nextjs",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_956045f2a4804cf1",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "route.ts",
+        "line": 12,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.expires",
+      "confidence": "high",
+      "excerpt": "Expires is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_6a754100e74234eb",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "route.ts",
+        "line": 12,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.max_age",
+      "confidence": "high",
+      "excerpt": "Max-Age is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_3d3721d5557db8b5",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 13,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.http_only",
+      "confidence": "high",
+      "excerpt": "HttpOnly: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_a0e3668a642dfaaa",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 14,
+        "column": 13
+      },
+      "detector_id": "cookie.attribute.secure",
+      "confidence": "high",
+      "excerpt": "Secure: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c435c61b74e89aee",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 15,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.same_site",
+      "confidence": "high",
+      "excerpt": "SameSite: \"strict\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_eeedd243f64fbc5a",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "route.ts",
+        "line": 24,
+        "column": 22
+      },
+      "detector_id": "session.reissue",
+      "confidence": "medium",
+      "excerpt": "request.json()",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_9bf89b9141c33726",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "route.ts",
+        "line": 25,
+        "column": 25
+      },
+      "detector_id": "session.reissue",
+      "confidence": "medium",
+      "excerpt": "authenticateUser(body.email, body.credential)",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_4b40242c8321cb5b",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "route.ts",
+        "line": 26,
+        "column": 3
+      },
+      "detector_id": "session.reissue",
+      "confidence": "medium",
+      "excerpt": "cookies().delete(\"session\")",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_3219ab6daadfb28a",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "route.ts",
+        "line": 26,
+        "column": 3
+      },
+      "detector_id": "logout.cookie_clear",
+      "confidence": "high",
+      "excerpt": "cookies().delete(\"session\")",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_98ddebfe60cf5792",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "route.ts",
+        "line": 27,
+        "column": 3
+      },
+      "detector_id": "session.auth_transition",
+      "confidence": "high",
+      "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2b31d1ca0b052515",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 27,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.name_prefix",
+      "confidence": "high",
+      "excerpt": "Cookie name prefix: none",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_f4173808ce169e6b",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 27,
+        "column": 3
+      },
+      "detector_id": "cookie.set",
+      "confidence": "high",
+      "excerpt": "  cookies().delete(\"session\");\n  cookies().set(\"session\", [REDACTED], {\n    httpOnly: true,",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_a72e2ec25568f78f",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 27,
+        "column": 3
+      },
+      "detector_id": "session.store_after_auth",
+      "confidence": "high",
+      "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_fe3a9022e31acd6d",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 27,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.domain",
+      "confidence": "high",
+      "excerpt": "Domain is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_d19aa01813414a74",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 27,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.path",
+      "confidence": "low",
+      "excerpt": "Path defaults to / for nextjs",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_8bc4a4a08455b936",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "route.ts",
+        "line": 27,
+        "column": 3
+      },
+      "detector_id": "session.reissue",
+      "confidence": "medium",
+      "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_d7b66625fd205465",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "route.ts",
+        "line": 27,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.expires",
+      "confidence": "high",
+      "excerpt": "Expires is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_fcad604cfc3474d3",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "route.ts",
+        "line": 27,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.max_age",
+      "confidence": "high",
+      "excerpt": "Max-Age is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_367fb3d54df7a903",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 28,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.http_only",
+      "confidence": "high",
+      "excerpt": "HttpOnly: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_873fc9693f11a36a",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 29,
+        "column": 13
+      },
+      "detector_id": "cookie.attribute.secure",
+      "confidence": "high",
+      "excerpt": "Secure: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_f5451ed3d1ae2351",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 30,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.same_site",
+      "confidence": "high",
+      "excerpt": "SameSite: \"strict\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_a019730c1dc7a782",
+      "lifecycle_stage": "refresh",
+      "location": {
+        "path": "route.ts",
+        "line": 32,
+        "column": 10
+      },
+      "detector_id": "session.reissue",
+      "confidence": "medium",
+      "excerpt": "Response.json({ ok: true })",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_e7570a6d18974084",
+      "lifecycle_stage": "issue",
+      "location": {
+        "path": "route.ts",
+        "line": 37,
+        "column": 1
+      },
+      "detector_id": "session.privilege_transition",
+      "confidence": "medium",
+      "excerpt": "export async function PATCH(request: Request) {\n  const body = await request.json();\n  const session = await loadSession(body.userId);\n  await elevateUserRole(body.userId);\n  cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  });\n  return Response.json({ ok: true });\n}",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_834bca42cdf96585",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 41,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.name_prefix",
+      "confidence": "high",
+      "excerpt": "Cookie name prefix: none",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_2df5e44f4432b20b",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 41,
+        "column": 3
+      },
+      "detector_id": "cookie.set",
+      "confidence": "high",
+      "excerpt": "  await elevateUserRole(body.userId);\n  cookies().set(\"session\", [REDACTED], {\n    httpOnly: true,",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_8f2bf6a4d38d2d7b",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 41,
+        "column": 3
+      },
+      "detector_id": "session.store_after_auth",
+      "confidence": "high",
+      "excerpt": "cookies().set(\"[REDACTED]\", session.token, {\n    httpOnly: true,\n    secure: true,\n    sameSite: \"[REDACTED]\",\n  })",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c8c23f316474b25d",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 41,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.domain",
+      "confidence": "high",
+      "excerpt": "Domain is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_272182b496d23630",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 41,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.path",
+      "confidence": "low",
+      "excerpt": "Path defaults to / for nextjs",
+      "dynamic": false,
+      "framework_default": true
+    },
+    {
+      "id": "evidence_4f4ccb8489aab015",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "route.ts",
+        "line": 41,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.expires",
+      "confidence": "high",
+      "excerpt": "Expires is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_960e50a9d83c8573",
+      "lifecycle_stage": "expire",
+      "location": {
+        "path": "route.ts",
+        "line": 41,
+        "column": 3
+      },
+      "detector_id": "cookie.attribute.max_age",
+      "confidence": "high",
+      "excerpt": "Max-Age is omitted",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_04f8c31e90e7e4b7",
+      "lifecycle_stage": "store",
+      "location": {
+        "path": "route.ts",
+        "line": 42,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.http_only",
+      "confidence": "high",
+      "excerpt": "HttpOnly: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_6ddc0afb49416ef6",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 43,
+        "column": 13
+      },
+      "detector_id": "cookie.attribute.secure",
+      "confidence": "high",
+      "excerpt": "Secure: true",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_c70cd3fc49cae0e8",
+      "lifecycle_stage": "transmit",
+      "location": {
+        "path": "route.ts",
+        "line": 44,
+        "column": 15
+      },
+      "detector_id": "cookie.attribute.same_site",
+      "confidence": "high",
+      "excerpt": "SameSite: \"strict\"",
+      "dynamic": false,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_d99bc1ffd2bfff68",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "route.ts",
+        "line": 51,
+        "column": 1
+      },
+      "detector_id": "logout.handler",
+      "confidence": "medium",
+      "excerpt": "export async function DELETE() {\n  cookies().delete(\"session\");\n  return new Response(null, { status: 204 });\n}",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_55fe412eaccd899b",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "route.ts",
+        "line": 51,
+        "column": 8
+      },
+      "detector_id": "logout.handler",
+      "confidence": "medium",
+      "excerpt": "async function DELETE() {\n  cookies().delete(\"session\");\n  return new Response(null, { status: 204 });\n}",
+      "dynamic": true,
+      "framework_default": false
+    },
+    {
+      "id": "evidence_59583febe6244fbb",
+      "lifecycle_stage": "revoke",
+      "location": {
+        "path": "route.ts",
+        "line": 52,
+        "column": 3
+      },
+      "detector_id": "logout.cookie_clear",
+      "confidence": "high",
+      "excerpt": "cookies().delete(\"session\")",
+      "dynamic": false,
+      "framework_default": false
+    }
+  ],
+  "lifecycle_paths": [
+    {
+      "id": "lifecycle_path_b811f0d2e52aca82",
+      "artifact_ids": [
+        "artifact_0b2a3124133d03eb",
+        "artifact_33d4d698e91be478"
+      ],
+      "stages": [
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_55fe412eaccd899b",
+            "evidence_d99bc1ffd2bfff68"
+          ]
+        }
+      ],
+      "confidence": "medium",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `logout`?"
+    },
+    {
+      "id": "lifecycle_path_ebe806744c0044e1",
+      "artifact_ids": [
+        "artifact_0d25360c4c47b333"
+      ],
+      "stages": [
+        {
+          "stage": "issue",
+          "evidence_ids": [
+            "evidence_98ddebfe60cf5792"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_05e0aa81388ab153",
+      "artifact_ids": [
+        "artifact_2df5e44f4432b20b"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_04f8c31e90e7e4b7",
+            "evidence_2df5e44f4432b20b",
+            "evidence_834bca42cdf96585"
+          ]
+        },
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_272182b496d23630",
+            "evidence_6ddc0afb49416ef6",
+            "evidence_c70cd3fc49cae0e8",
+            "evidence_c8c23f316474b25d"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_4f4ccb8489aab015",
+            "evidence_960e50a9d83c8573"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": false,
+      "reviewer_question": "Which framework version and deployment settings determine lifecycle behavior for `session`?"
+    },
+    {
+      "id": "lifecycle_path_fe12ea879b434ef8",
+      "artifact_ids": [
+        "artifact_2fc056c2538c5e41"
+      ],
+      "stages": [
+        {
+          "stage": "refresh",
+          "evidence_ids": [
+            "evidence_9bf89b9141c33726"
+          ]
+        }
+      ],
+      "confidence": "medium",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `session`?"
+    },
+    {
+      "id": "lifecycle_path_291b0d3d0113fa62",
+      "artifact_ids": [
+        "artifact_3ab6030ae44cd434",
+        "artifact_99519f9260c91e23",
+        "artifact_e471ebd216b38479"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_3d3721d5557db8b5",
+            "evidence_99519f9260c91e23",
+            "evidence_b948b98a00509421"
+          ]
+        },
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_2b0d1e6a719a2619",
+            "evidence_a0e3668a642dfaaa",
+            "evidence_c06f287be525771c",
+            "evidence_c435c61b74e89aee"
+          ]
+        },
+        {
+          "stage": "revoke",
+          "evidence_ids": [
+            "evidence_3219ab6daadfb28a",
+            "evidence_59583febe6244fbb"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_6a754100e74234eb",
+            "evidence_956045f2a4804cf1"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": false,
+      "reviewer_question": "Which framework version and deployment settings determine lifecycle behavior for `session`?"
+    },
+    {
+      "id": "lifecycle_path_6f9f19388b7bb17c",
+      "artifact_ids": [
+        "artifact_3b49a98d26cb553e"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_8f2bf6a4d38d2d7b"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_d1d0a1497667bd49",
+      "artifact_ids": [
+        "artifact_45f17f344b71c94f"
+      ],
+      "stages": [
+        {
+          "stage": "refresh",
+          "evidence_ids": [
+            "evidence_8bc4a4a08455b936"
+          ]
+        }
+      ],
+      "confidence": "medium",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `session`?"
+    },
+    {
+      "id": "lifecycle_path_b0d4bdcf5c072242",
+      "artifact_ids": [
+        "artifact_52cfbfe36d007073"
+      ],
+      "stages": [
+        {
+          "stage": "issue",
+          "evidence_ids": [
+            "evidence_e7570a6d18974084"
+          ]
+        }
+      ],
+      "confidence": "medium",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `session`?"
+    },
+    {
+      "id": "lifecycle_path_1e5e0d40deac4b31",
+      "artifact_ids": [
+        "artifact_742c22bfa98cea1d"
+      ],
+      "stages": [
+        {
+          "stage": "refresh",
+          "evidence_ids": [
+            "evidence_eeedd243f64fbc5a"
+          ]
+        }
+      ],
+      "confidence": "medium",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `session`?"
+    },
+    {
+      "id": "lifecycle_path_3e95d05a1b31e4c0",
+      "artifact_ids": [
+        "artifact_95660b363942d33a"
+      ],
+      "stages": [
+        {
+          "stage": "refresh",
+          "evidence_ids": [
+            "evidence_4b40242c8321cb5b"
+          ]
+        }
+      ],
+      "confidence": "medium",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `session`?"
+    },
+    {
+      "id": "lifecycle_path_0373fed38d87c6fc",
+      "artifact_ids": [
+        "artifact_a085aebdb63371d5"
+      ],
+      "stages": [
+        {
+          "stage": "refresh",
+          "evidence_ids": [
+            "evidence_a019730c1dc7a782"
+          ]
+        }
+      ],
+      "confidence": "medium",
+      "dynamic": true,
+      "reviewer_question": "Which production code path determines the effective lifecycle behavior for `session`?"
+    },
+    {
+      "id": "lifecycle_path_642d8e023605076c",
+      "artifact_ids": [
+        "artifact_c55afc15dd33b9be"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_c73cfc15da03eadf"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_4b7630722290aff5",
+      "artifact_ids": [
+        "artifact_dd6303eced33d54e"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_a72e2ec25568f78f"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_9d8893361691db69",
+      "artifact_ids": [
+        "artifact_deeebd0bbdd45ffb"
+      ],
+      "stages": [
+        {
+          "stage": "issue",
+          "evidence_ids": [
+            "evidence_50d5a58d2549194a"
+          ]
+        }
+      ],
+      "confidence": "high",
+      "dynamic": false,
+      "reviewer_question": null
+    },
+    {
+      "id": "lifecycle_path_435f03708762e5a3",
+      "artifact_ids": [
+        "artifact_f4173808ce169e6b"
+      ],
+      "stages": [
+        {
+          "stage": "store",
+          "evidence_ids": [
+            "evidence_2b31d1ca0b052515",
+            "evidence_367fb3d54df7a903",
+            "evidence_f4173808ce169e6b"
+          ]
+        },
+        {
+          "stage": "transmit",
+          "evidence_ids": [
+            "evidence_873fc9693f11a36a",
+            "evidence_d19aa01813414a74",
+            "evidence_f5451ed3d1ae2351",
+            "evidence_fe3a9022e31acd6d"
+          ]
+        },
+        {
+          "stage": "expire",
+          "evidence_ids": [
+            "evidence_d7b66625fd205465",
+            "evidence_fcad604cfc3474d3"
+          ]
+        }
+      ],
+      "confidence": "low",
+      "dynamic": false,
+      "reviewer_question": "Which framework version and deployment settings determine lifecycle behavior for `session`?"
+    }
+  ],
+  "findings": [
+    {
+      "id": "finding_e8eb4f9bb52541eb",
+      "category": "dynamic_review_required",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_3b49a98d26cb553e",
+        "artifact_52cfbfe36d007073",
+        "artifact_c55afc15dd33b9be",
+        "artifact_dd6303eced33d54e"
+      ],
+      "evidence_ids": [
+        "evidence_8f2bf6a4d38d2d7b",
+        "evidence_a72e2ec25568f78f",
+        "evidence_c73cfc15da03eadf",
+        "evidence_e7570a6d18974084"
+      ],
+      "title": "Session regeneration evidence was not found near a privilege transition",
+      "description": "A privilege-changing session transition was detected, but nearby static evidence did not show an explicit session regeneration, cookie reissue, or recognized framework-default rotation point.",
+      "suggested_fix": "In a Next.js App Router route handler, call cookies().delete('session') followed immediately by cookies().set('session', newValue, options) at the authentication or privilege transition so cookie rotation is source-visible.",
+      "reviewer_question": "Where is the session identifier rotated after this privilege change?"
+    },
+    {
+      "id": "finding_3d62f4288cf95f60",
+      "category": "dynamic_review_required",
+      "severity": "medium",
+      "artifact_ids": [
+        "artifact_3b49a98d26cb553e",
+        "artifact_c55afc15dd33b9be",
+        "artifact_dd6303eced33d54e",
+        "artifact_deeebd0bbdd45ffb"
+      ],
+      "evidence_ids": [
+        "evidence_50d5a58d2549194a",
+        "evidence_8f2bf6a4d38d2d7b",
+        "evidence_a72e2ec25568f78f",
+        "evidence_c73cfc15da03eadf"
+      ],
+      "title": "Session regeneration evidence was not found near login",
+      "description": "An authentication transition was detected, but nearby static evidence did not show an explicit session regeneration, cookie reissue, or recognized framework-default rotation point.",
+      "suggested_fix": "In a Next.js App Router route handler, call cookies().delete('session') followed immediately by cookies().set('session', newValue, options) at the authentication or privilege transition so cookie rotation is source-visible.",
+      "reviewer_question": "Where is the session identifier rotated after this authentication transition?"
+    },
+    {
+      "id": "finding_46d68eb0fe140175",
+      "category": "lifecycle_gap",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_2df5e44f4432b20b"
+      ],
+      "evidence_ids": [
+        "evidence_4f4ccb8489aab015",
+        "evidence_960e50a9d83c8573"
+      ],
+      "title": "Cookie `session` has no explicit expiry evidence",
+      "description": "No Max-Age or Expires evidence was detected for this cookie-setting call.",
+      "suggested_fix": "Add an explicit Max-Age or Expires value when the cookie should have a bounded lifetime.",
+      "reviewer_question": "Should this cookie be session-scoped, or should it have an explicit lifetime?"
+    },
+    {
+      "id": "finding_fc6116f0da3e1ea7",
+      "category": "lifecycle_gap",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_99519f9260c91e23"
+      ],
+      "evidence_ids": [
+        "evidence_3219ab6daadfb28a",
+        "evidence_59583febe6244fbb"
+      ],
+      "title": "Cookie `session` is cleared on logout without linked server-side revocation",
+      "description": "Logout evidence clears a client-side cookie, but no linked server-side session, token, or provider revocation evidence was found for the same lifecycle path.",
+      "suggested_fix": "Invalidate the server-side session or refresh token in addition to deleting the browser cookie.",
+      "reviewer_question": "Where is the server-side session or token behind `session` revoked during logout?"
+    },
+    {
+      "id": "finding_854daf14c6317c20",
+      "category": "lifecycle_gap",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_99519f9260c91e23"
+      ],
+      "evidence_ids": [
+        "evidence_6a754100e74234eb",
+        "evidence_956045f2a4804cf1"
+      ],
+      "title": "Cookie `session` has no explicit expiry evidence",
+      "description": "No Max-Age or Expires evidence was detected for this cookie-setting call.",
+      "suggested_fix": "Add an explicit Max-Age or Expires value when the cookie should have a bounded lifetime.",
+      "reviewer_question": "Should this cookie be session-scoped, or should it have an explicit lifetime?"
+    },
+    {
+      "id": "finding_2bf9178797e38511",
+      "category": "lifecycle_gap",
+      "severity": "low",
+      "artifact_ids": [
+        "artifact_f4173808ce169e6b"
+      ],
+      "evidence_ids": [
+        "evidence_d7b66625fd205465",
+        "evidence_fcad604cfc3474d3"
+      ],
+      "title": "Cookie `session` has no explicit expiry evidence",
+      "description": "No Max-Age or Expires evidence was detected for this cookie-setting call.",
+      "suggested_fix": "Add an explicit Max-Age or Expires value when the cookie should have a bounded lifetime.",
+      "reviewer_question": "Should this cookie be session-scoped, or should it have an explicit lifetime?"
+    }
+  ]
+}

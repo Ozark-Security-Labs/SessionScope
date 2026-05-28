@@ -36,13 +36,18 @@ Placeholder values intentionally look fake:
 | `express/` | `passport-oauth-strategy` | Passport OAuth strategy configuration, callback/session handling, provider refresh, and provider revocation evidence. |
 | `express/` | `refresh-rotation` | Refresh-token handler with lookup, old-token invalidation, new-token storage, and expiry evidence. |
 | `express/` | `refresh-without-rotation` | Refresh-token handler/use evidence without linked rotation or revocation evidence. |
+| `express/` | `jwt-validation` | Express route handlers issuing/verifying `jsonwebtoken` JWTs, with a legacy verify that disables expiry enforcement and pins neither issuer nor audience, plus a decode-without-verify inspect route. |
 | `nextjs/` | `route-handler-auth` | Next.js-style route handlers for cookies, JWT validation, refresh, and logout. |
 | `nextjs/` | `authjs-nextauth-provider` | Auth.js/NextAuth provider configuration, JWT/session callbacks, provider-managed refresh, and logout revocation evidence. |
 | `nextjs/` | `nextresponse-session` | Next.js `NextResponse` cookie storage/deletion, route-local JWT validation, refresh rotation, and logout revocation evidence. |
+| `nextjs/` | `session-fixation-signals` | Next.js App Router login and privilege-transition session-fixation signals, clear-and-reissue suppression, and logout-only suppression. |
 | `fastapi/` | `dependency-auth-lifecycle` | FastAPI dependency patterns for cookies, JWT claims, logout, and reset-token expiry. |
 | `fastapi/` | `cookie-posture-expanded` | Expanded FastAPI cookie posture checks and Set-Cookie header parsing. |
 | `fastapi/` | `security-dependencies` | FastAPI `Depends`, `Security`, `OAuth2PasswordBearer`, `APIKeyCookie`, response cookies, JWT validation, refresh revocation, and logout deletion. |
+| `fastapi/` | `oauth-flow` | FastAPI router handlers running an Authlib `OAuth2Session` authorization-code flow with static state and a callback that reads state without visible verification. |
+| `fastapi/` | `trust-boundary` | FastAPI-framed token reuse across inbound/outbound, frontend/backend, and cross-environment boundaries plus provider-managed token review. |
 | `django/` | `session-and-reset-flow` | Django settings/views for secure cookies, session logout, signing, and reset-token expiry. |
+| `django/` | `trust-boundary` | Django-framed token reuse across inbound/outbound, frontend/backend, and cross-environment boundaries plus provider-managed token review. |
 | `django/` | `password-change-refresh-revoke` | Password-change-triggered refresh-token revocation evidence. |
 | `django/` | `settings-session-auth` | Django session cookie settings, login/session cycling, signing utilities, JWT helpers, refresh revocation, and logout/session flush evidence. |
 | `generic-ts/` | `jwt-validation` | Generic TypeScript JWT issue/verify cases for issuer, audience, expiry, and missing validation evidence. |
@@ -50,7 +55,9 @@ Placeholder values intentionally look fake:
 | `generic-ts/` | `provider-refresh` | Provider-managed refresh behavior represented as dynamic review context. |
 | `generic-ts/` | `provider-revoke` | Provider abstraction revocation evidence without live provider calls. |
 | `generic-ts/` | `oidc-client-config` | OAuth/OIDC issuer, audience, scope, callback, refresh, and revocation configuration evidence. |
-| `generic-ts/` | `cloud-identity-sdk` | Common cloud identity SDK token, refresh, scope, provider, and revoke/sign-out evidence. |
+| `generic-ts/` | `cloud-identity-sdk` | Common cloud identity SDK token, refresh, scope, provider, and revoke/sign-out evidence (all seven SDKs together). |
+| `generic-ts/` | `sdk-auth0` | Auth0 SDK client-credentials issue, refresh, and logout evidence (per-SDK breakdown of the combined cloud-identity fixture). |
+| `generic-ts/` | `sdk-supabase` | Supabase Auth SDK session read, refresh, and sign-out evidence (per-SDK breakdown of the combined cloud-identity fixture). |
 | `generic-ts/` | `bearer-api-key-lifecycle` | Generic TypeScript opaque bearer token, service token, and API-key lifecycle evidence. |
 | `generic-ts/` | `trust-boundary-token-reuse` | TypeScript token scope, environment, frontend/backend, and trust-boundary reuse evidence. |
 | `generic-python/` | `jwt-and-reset` | Generic Python/PyJWT-style issue/verify cases and reset-token lifecycle examples. |

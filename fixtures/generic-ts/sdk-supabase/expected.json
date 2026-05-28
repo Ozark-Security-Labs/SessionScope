@@ -1,0 +1,9 @@
+{
+  "fixture_id": "generic-ts.sdk-supabase",
+  "framework": "generic-ts",
+  "source_files": ["app.ts"],
+  "expected_artifacts": ["session", "refresh_token"],
+  "expected_lifecycle_stages": ["refresh", "revoke", "introspect"],
+  "expected_findings": ["bearer_dynamic_provider_review"],
+  "notes": "Supabase Auth SDK session read, refresh, and sign-out calls producing provider, refresh, and revoke evidence as dynamic static-analysis context."
+}

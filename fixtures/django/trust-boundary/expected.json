@@ -1,0 +1,18 @@
+{
+  "fixture_id": "django.trust-boundary",
+  "framework": "django",
+  "source_files": ["views.py", "src/client/app.py", "src/server/backend.py", "config.yaml"],
+  "expected_artifacts": [
+    "opaque_bearer_token:authorization_bearer",
+    "api_key:api_key",
+    "service_token:service_token"
+  ],
+  "expected_lifecycle_stages": ["transmit", "introspect"],
+  "expected_findings": [
+    "trust_boundary_inbound_outbound_reuse_review",
+    "trust_boundary_frontend_backend_reuse_review",
+    "trust_boundary_environment_reuse_review",
+    "trust_boundary_provider_scope_review"
+  ],
+  "notes": "Django-framed mirror of generic-python trust-boundary-token-reuse: same-token forwarding in Django view classes, frontend/backend API-key naming, cross-environment service-token config, and provider-wrapper review."
+}
